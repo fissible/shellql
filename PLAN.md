@@ -13,24 +13,24 @@ ShellQL cannot be built until these shellframe components exist:
 
 | Component               | Shellframe Issue | Status  |
 |-------------------------|-----------------|---------|
-| Component contract      | #TBD            | open    |
-| Layout contract         | #TBD            | open    |
-| Focus model             | #TBD            | open    |
-| Text primitive          | #TBD            | open    |
-| Box/Panel               | #TBD            | open    |
-| Scroll container        | #TBD            | open    |
-| Selectable list         | #TBD            | open    |
-| Tree view               | #TBD            | open    |
-| Input field             | #TBD            | open    |
-| Text editor             | #TBD            | open    |
-| Data grid               | #TBD            | open    |
-| Tab bar                 | #TBD            | open    |
-| Modal/dialog            | #TBD            | open    |
-| Keyboard input module   | #TBD            | open    |
-| Selection model         | #TBD            | open    |
-| Cursor model            | #TBD            | open    |
-| Clipping helpers        | #TBD            | open    |
-| App shell               | #TBD            | open    |
+| Component contract      | [#1](https://github.com/fissible/shellframe/issues/1) | open |
+| Layout contract         | [#2](https://github.com/fissible/shellframe/issues/2) | open |
+| Focus model             | [#3](https://github.com/fissible/shellframe/issues/3) | open |
+| Keyboard input module   | [#4](https://github.com/fissible/shellframe/issues/4) | open |
+| Selection model         | [#5](https://github.com/fissible/shellframe/issues/5) | open |
+| Cursor model            | [#6](https://github.com/fissible/shellframe/issues/6) | open |
+| Clipping helpers        | [#7](https://github.com/fissible/shellframe/issues/7) | open |
+| Text primitive          | [#8](https://github.com/fissible/shellframe/issues/8) | open |
+| Box/Panel               | [#9](https://github.com/fissible/shellframe/issues/9) | open |
+| Scroll container        | [#10](https://github.com/fissible/shellframe/issues/10) | open |
+| Selectable list         | [#11](https://github.com/fissible/shellframe/issues/11) | open |
+| Input field             | [#12](https://github.com/fissible/shellframe/issues/12) | open |
+| Tab bar                 | [#13](https://github.com/fissible/shellframe/issues/13) | open |
+| Modal/dialog            | [#14](https://github.com/fissible/shellframe/issues/14) | open |
+| Tree view               | [#15](https://github.com/fissible/shellframe/issues/15) | open |
+| Text editor             | [#16](https://github.com/fissible/shellframe/issues/16) | open |
+| Data grid               | [#17](https://github.com/fissible/shellframe/issues/17) | open |
+| App shell               | [#18](https://github.com/fissible/shellframe/issues/18) | open |
 
 ---
 
@@ -38,30 +38,30 @@ ShellQL cannot be built until these shellframe components exist:
 
 Build with fake data (SHQL_MOCK=1) to validate the framework before any SQLite work.
 
-### 5.1 Welcome screen
+### 5.1 Welcome screen — [shellql#1](https://github.com/fissible/shellql/issues/1)
 - Recent files list (selectable list)
 - Open database action
 - Empty state message
 - **Effort:** M (half day)
 
-### 5.2 Schema browser
+### 5.2 Schema browser — [shellql#2](https://github.com/fissible/shellql/issues/2)
 - Sidebar: tree view of tables/views/indexes
 - Main pane: selected object DDL/details
 - **Effort:** M (half day)
 
-### 5.3 Table view
+### 5.3 Table view — [shellql#3](https://github.com/fissible/shellql/issues/3)
 - Tab bar: Structure / Data / Query
 - Data tab: data grid with mock rows
 - Structure tab: schema text
 - **Effort:** L (1 day)
 
-### 5.4 Query screen
+### 5.4 Query screen — [shellql#4](https://github.com/fissible/shellql/issues/4)
 - Multiline text editor (SQL input)
 - Results data grid
 - Status/error area below
 - **Effort:** M (half day)
 
-### 5.5 Record inspector
+### 5.5 Record inspector — [shellql#5](https://github.com/fissible/shellql/issues/5)
 - Modal or side panel
 - Key/value layout from row data
 - Scroll for long values
@@ -73,11 +73,15 @@ Build with fake data (SHQL_MOCK=1) to validate the framework before any SQLite w
 
 Wire real sqlite3 behind the adapter seam defined in db.sh.
 
-### 6.1 CLI entry point (`bin/shql`)
+### 6.1 Mock adapter — [shellql#6](https://github.com/fissible/shellql/issues/6)
+- `src/db_mock.sh` with fixture data for all adapter functions
+- **Effort:** S (1–2h)
+
+### 6.2 CLI entry point (`bin/shql`) — [shellql#8](https://github.com/fissible/shellql/issues/8)
 - Argument parsing for all modes (open, -q, --query, table, pipe, databases)
 - **Effort:** M (half day)
 
-### 6.2 SQLite adapter (`src/db.sh`)
+### 6.3 SQLite adapter (`src/db.sh`) — [shellql#7](https://github.com/fissible/shellql/issues/7)
 - `shql_db_list_tables`
 - `shql_db_describe`
 - `shql_db_fetch`
@@ -85,12 +89,12 @@ Wire real sqlite3 behind the adapter seam defined in db.sh.
 - Error handling and output formatting
 - **Effort:** L (1 day)
 
-### 6.3 Discovery mode
+### 6.4 Discovery mode
 - List recent/known databases
 - Resolve database path from name
 - **Effort:** S (1–2h)
 
-### 6.4 Integration tests
+### 6.5 Integration tests — [shellql#9](https://github.com/fissible/shellql/issues/9)
 - Real sqlite3 round-trips
 - All CLI modes
 - **Effort:** M (half day)

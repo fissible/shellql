@@ -60,6 +60,16 @@ See [PLAN.md](./PLAN.md) for phased build order. In short:
 2. Build mock screens against mock adapter
 3. Wire real sqlite3 adapter last
 
+## Running tests
+
+```bash
+bash tests/ptyunit/run.sh          # all suites
+bash tests/ptyunit/run.sh --unit   # unit only (no Python needed)
+```
+
+Tests live in `tests/unit/test-*.sh` and `tests/integration/test-*.sh`.
+Each file sources `tests/ptyunit/assert.sh` and ends with `ptyunit_test_summary`.
+
 ## Related
 
 - shellframe: https://github.com/fissible/shellframe

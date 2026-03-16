@@ -135,13 +135,10 @@ _Last updated: 2026-03-16_
 **Repo is stub-stage. src/, bin/ empty. Test infrastructure wired up.**
 
 Completed 2026-03-16:
-- Added `tests/ptyunit` as git submodule (fissible/ptyunit, commit d683b90)
-- Added `tests/run.sh` — shellql-level runner discovering tests/unit/ and tests/integration/
+- Added `tests/ptyunit` as git submodule (fissible/ptyunit, now at commit 65d2593)
 - Added `tests/unit/test-stub.sh` — placeholder (1/1 passes)
-- Committed and pushed in `76bf2a3`
+- Run tests: `bash tests/ptyunit/run.sh` (no wrapper needed — ptyunit auto-detects consumer context)
 
 **Blocked on:** fissible/shellframe Phase 1–4 (shellframe primitives). ShellQL cannot be built until those shellframe issues are closed.
 
 **Next task:** Once shellframe primitives are available, begin Phase 5 — mock screens starting with the welcome screen (shellql#1).
-
-**Decision:** shellql's test runner is `tests/run.sh` (not `tests/ptyunit/run.sh`) because ptyunit's own `run.sh` discovers tests relative to itself. The wrapper pattern is the right approach for submodule consumers.

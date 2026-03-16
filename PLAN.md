@@ -124,3 +124,24 @@ shellframe primitives (P1–P4)
 | M1: Shellframe ready for ShellQL | All Phase 1–4 shellframe issues closed           |
 | M2: Mock app complete           | All Phase 5 screens working with mock adapter    |
 | M3: ShellQL v0.1 alpha          | Phase 6 complete; all integration tests passing  |
+
+---
+
+## Session handoff notes
+> Update this section at the end of each session.
+
+_Last updated: 2026-03-16_
+
+**Repo is stub-stage. src/, bin/ empty. Test infrastructure wired up.**
+
+Completed 2026-03-16:
+- Added `tests/ptyunit` as git submodule (fissible/ptyunit, commit d683b90)
+- Added `tests/run.sh` — shellql-level runner discovering tests/unit/ and tests/integration/
+- Added `tests/unit/test-stub.sh` — placeholder (1/1 passes)
+- Committed and pushed in `76bf2a3`
+
+**Blocked on:** fissible/shellframe Phase 1–4 (shellframe primitives). ShellQL cannot be built until those shellframe issues are closed.
+
+**Next task:** Once shellframe primitives are available, begin Phase 5 — mock screens starting with the welcome screen (shellql#1).
+
+**Decision:** shellql's test runner is `tests/run.sh` (not `tests/ptyunit/run.sh`) because ptyunit's own `run.sh` discovers tests relative to itself. The wrapper pattern is the right approach for submodule consumers.

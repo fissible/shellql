@@ -38,17 +38,18 @@ ShellQL cannot be built until these shellframe components exist:
 
 Build with fake data (SHQL_MOCK=1) to validate the framework before any SQLite work.
 
-### 5.1 Welcome screen — [shellql#1](https://github.com/fissible/shellql/issues/1) ✓
+### 5.1 Welcome screen — [shellql#1](https://github.com/fissible/shellql/issues/1) ✓ closed
 - Recent files list (selectable list)
 - Open database action
 - Empty state message
 - **Effort:** M (half day)
 - **Status:** Done — `src/screens/welcome.sh`, `src/state.sh`, `src/db_mock.sh`, `bin/shql` (minimal)
 
-### 5.2 Schema browser — [shellql#2](https://github.com/fissible/shellql/issues/2)
+### 5.2 Schema browser — [shellql#2](https://github.com/fissible/shellql/issues/2) ✓ closed
 - Sidebar: tree view of tables/views/indexes
 - Main pane: selected object DDL/details
 - **Effort:** M (half day)
+- **Status:** Done — `src/screens/schema.sh`; Tab switches panes, q returns to welcome
 
 ### 5.3 Table view — [shellql#3](https://github.com/fissible/shellql/issues/3)
 - Tab bar: Structure / Data / Query
@@ -133,19 +134,27 @@ shellframe primitives (P1–P4)
 
 _Last updated: 2026-03-15_
 
-**Phase 5.1 (welcome screen) complete. shellframe M1 already reached.**
+**Phases 5.1 and 5.2 complete. App navigates welcome → schema → welcome.**
 
 Completed 2026-03-15:
 - `src/state.sh` — SHQL_* globals, `shql_state_load_recent`, `shql_state_push_recent`
 - `src/db_mock.sh` — mock adapter: `shql_mock_load_recent` + all `shql_db_*` stubs
-- `src/screens/welcome.sh` — welcome screen (shellframe_shell + shellframe_list); header / list / empty-state / footer regions; Enter opens selected DB, q quits
-- `bin/shql` — minimal launcher; discovers shellframe via `SHELLFRAME_DIR` env or sibling-dir default; dispatches to welcome screen
-- `tests/unit/test-welcome.sh` — 7 assertions (state + mock); all pass (8/8 total)
+- `src/screens/welcome.sh` — welcome screen; recent files list; Enter → SCHEMA, q → quit
+- `src/screens/schema.sh` — schema browser; sidebar (tables) + detail (DDL); Tab switches panes; q → WELCOME
+- `bin/shql` — launcher; discovers shellframe via `SHELLFRAME_DIR` or sibling-dir default
+- `tests/unit/test-welcome.sh`, `tests/unit/test-schema.sh` — 15/15 assertions passing
+
+Shellframe bugs fixed this session (committed to fissible/shellframe):
+- `shell.sh`: add `shellframe_raw_enter/exit` + cursor hide/show (echo was on, keys leaked)
+- `shell.sh`: `on_key` dispatch now `set -e`-safe (`cmd || _rc=$?`)
+- `selection.sh`: `shellframe_sel_cursor` gains optional output-var arg (stdout was leaking to tty)
+- `widgets/list.sh`: clear uses width-bounded `%*s` instead of `\033[2K` (was wiping adjacent panes)
 
 **Run:** `SHQL_MOCK=1 SHELLFRAME_DIR=../shellframe bash bin/shql`
 **Run tests:** `bash tests/ptyunit/run.sh --unit`
 
-**Next task:** Phase 5.2 — Schema browser ([shellql#2](https://github.com/fissible/shellql/issues/2))
-- Sidebar: tree view of tables/views/indexes
-- Main pane: selected object DDL/details
-- Uses: shellframe_shell + shellframe_list (sidebar) + shellframe_panel (DDL pane)
+**Next task:** Phase 5.3 — Table view ([shellql#3](https://github.com/fissible/shellql/issues/3))
+- Tab bar: Structure / Data / Query tabs
+- Data tab: data grid with mock rows
+- Structure tab: schema text (reuse schema browser DDL pane)
+- Effort: L (1 day)

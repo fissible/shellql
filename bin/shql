@@ -41,6 +41,7 @@ fi
 
 source "$_SHQL_ROOT/src/screens/welcome.sh"
 source "$_SHQL_ROOT/src/screens/schema.sh"
+source "$_SHQL_ROOT/src/screens/table.sh"
 
 # ── Argument parsing (minimal — Phase 6 expands this) ────────────────────────
 

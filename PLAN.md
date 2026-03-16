@@ -13,24 +13,24 @@ ShellQL cannot be built until these shellframe components exist:
 
 | Component               | Shellframe Issue | Status  |
 |-------------------------|-----------------|---------|
-| Component contract      | [#1](https://github.com/fissible/shellframe/issues/1) | open |
-| Layout contract         | [#2](https://github.com/fissible/shellframe/issues/2) | open |
-| Focus model             | [#3](https://github.com/fissible/shellframe/issues/3) | open |
-| Keyboard input module   | [#4](https://github.com/fissible/shellframe/issues/4) | open |
-| Selection model         | [#5](https://github.com/fissible/shellframe/issues/5) | open |
-| Cursor model            | [#6](https://github.com/fissible/shellframe/issues/6) | open |
-| Clipping helpers        | [#7](https://github.com/fissible/shellframe/issues/7) | open |
-| Text primitive          | [#8](https://github.com/fissible/shellframe/issues/8) | open |
-| Box/Panel               | [#9](https://github.com/fissible/shellframe/issues/9) | open |
-| Scroll container        | [#10](https://github.com/fissible/shellframe/issues/10) | open |
-| Selectable list         | [#11](https://github.com/fissible/shellframe/issues/11) | open |
-| Input field             | [#12](https://github.com/fissible/shellframe/issues/12) | open |
-| Tab bar                 | [#13](https://github.com/fissible/shellframe/issues/13) | open |
-| Modal/dialog            | [#14](https://github.com/fissible/shellframe/issues/14) | open |
+| Component contract      | [#1](https://github.com/fissible/shellframe/issues/1) | ✓ closed |
+| Layout contract         | [#2](https://github.com/fissible/shellframe/issues/2) | ✓ closed |
+| Focus model             | [#3](https://github.com/fissible/shellframe/issues/3) | ✓ closed |
+| Keyboard input module   | [#4](https://github.com/fissible/shellframe/issues/4) | ✓ closed |
+| Selection model         | [#5](https://github.com/fissible/shellframe/issues/5) | ✓ closed |
+| Cursor model            | [#6](https://github.com/fissible/shellframe/issues/6) | ✓ closed |
+| Clipping helpers        | [#7](https://github.com/fissible/shellframe/issues/7) | ✓ closed |
+| Text primitive          | [#8](https://github.com/fissible/shellframe/issues/8) | ✓ closed |
+| Box/Panel               | [#9](https://github.com/fissible/shellframe/issues/9) | ✓ closed |
+| Scroll container        | [#10](https://github.com/fissible/shellframe/issues/10) | ✓ closed |
+| Selectable list         | [#11](https://github.com/fissible/shellframe/issues/11) | ✓ closed |
+| Input field             | [#12](https://github.com/fissible/shellframe/issues/12) | ✓ closed |
+| Tab bar                 | [#13](https://github.com/fissible/shellframe/issues/13) | ✓ closed |
+| Modal/dialog            | [#14](https://github.com/fissible/shellframe/issues/14) | ✓ closed |
 | Tree view               | [#15](https://github.com/fissible/shellframe/issues/15) | open |
 | Text editor             | [#16](https://github.com/fissible/shellframe/issues/16) | open |
 | Data grid               | [#17](https://github.com/fissible/shellframe/issues/17) | open |
-| App shell               | [#18](https://github.com/fissible/shellframe/issues/18) | open |
+| App shell               | [#18](https://github.com/fissible/shellframe/issues/18) | ✓ closed |
 
 ---
 
@@ -51,11 +51,13 @@ Build with fake data (SHQL_MOCK=1) to validate the framework before any SQLite w
 - **Effort:** M (half day)
 - **Status:** Done — `src/screens/schema.sh`; Tab switches panes, q returns to welcome
 
-### 5.3 Table view — [shellql#3](https://github.com/fissible/shellql/issues/3)
+### 5.3 Table view — [shellql#3](https://github.com/fissible/shellql/issues/3) ✓ closed
 - Tab bar: Structure / Data / Query
 - Data tab: data grid with mock rows
-- Structure tab: schema text
+- Structure tab: schema DDL text (scrollable)
+- Query tab: placeholder ("coming in Phase 5.4")
 - **Effort:** L (1 day)
+- **Status:** Done — `src/screens/table.sh`; Enter on schema table → TABLE; q → SCHEMA
 
 ### 5.4 Query screen — [shellql#4](https://github.com/fissible/shellql/issues/4)
 - Multiline text editor (SQL input)
@@ -132,29 +134,24 @@ shellframe primitives (P1–P4)
 ## Session handoff notes
 > Update this section at the end of each session.
 
-_Last updated: 2026-03-15_
+_Last updated: 2026-03-16_
 
-**Phases 5.1 and 5.2 complete. App navigates welcome → schema → welcome.**
+**Phases 5.1–5.3 complete. App navigates welcome → schema → table → schema.**
 
-Completed 2026-03-15:
-- `src/state.sh` — SHQL_* globals, `shql_state_load_recent`, `shql_state_push_recent`
-- `src/db_mock.sh` — mock adapter: `shql_mock_load_recent` + all `shql_db_*` stubs
-- `src/screens/welcome.sh` — welcome screen; recent files list; Enter → SCHEMA, q → quit
-- `src/screens/schema.sh` — schema browser; sidebar (tables) + detail (DDL); Tab switches panes; q → WELCOME
-- `bin/shql` — launcher; discovers shellframe via `SHELLFRAME_DIR` or sibling-dir default
-- `tests/unit/test-welcome.sh`, `tests/unit/test-schema.sh` — 15/15 assertions passing
-
-Shellframe bugs fixed this session (committed to fissible/shellframe):
-- `shell.sh`: add `shellframe_raw_enter/exit` + cursor hide/show (echo was on, keys leaked)
-- `shell.sh`: `on_key` dispatch now `set -e`-safe (`cmd || _rc=$?`)
-- `selection.sh`: `shellframe_sel_cursor` gains optional output-var arg (stdout was leaking to tty)
-- `widgets/list.sh`: clear uses width-bounded `%*s` instead of `\033[2K` (was wiping adjacent panes)
+Completed 2026-03-16:
+- `src/screens/table.sh` — TABLE screen; tab bar (Structure/Data/Query); Structure tab scrolls DDL; Data tab renders grid from `shql_db_fetch`; Query tab placeholder; q → SCHEMA
+- `src/screens/schema.sh` — added `_shql_SCHEMA_sidebar_action`; Enter on table → TABLE
+- `bin/shql` — sources `table.sh`
+- `tests/unit/test-table.sh` — 19/19 assertions passing (34/34 total)
 
 **Run:** `SHQL_MOCK=1 SHELLFRAME_DIR=../shellframe bash bin/shql`
 **Run tests:** `bash tests/ptyunit/run.sh --unit`
 
-**Next task:** Phase 5.3 — Table view ([shellql#3](https://github.com/fissible/shellql/issues/3))
-- Tab bar: Structure / Data / Query tabs
-- Data tab: data grid with mock rows
-- Structure tab: schema text (reuse schema browser DDL pane)
-- Effort: L (1 day)
+**Next task:** Phase 5.5 — Record inspector ([shellql#5](https://github.com/fissible/shellql/issues/5))
+- Modal or side panel
+- Key/value layout from row data (read grid cursor row)
+- Scroll for long values
+- Effort: S (1–2h)
+- Dependency: Enter on data grid row → inspector (body_action already triggers this flow)
+
+After that: Phase 5.4 — Query screen ([shellql#4](https://github.com/fissible/shellql/issues/4))

@@ -150,6 +150,15 @@ _shql_SCHEMA_sidebar_on_key() {
     shellframe_list_on_key "$1"
 }
 
+_shql_SCHEMA_sidebar_action() {
+    local _table
+    _shql_schema_current_table _table
+    [[ -z "$_table" ]] && return 0
+    _SHQL_TABLE_NAME="$_table"
+    shql_table_init
+    _SHELLFRAME_SHELL_NEXT="TABLE"
+}
+
 _shql_SCHEMA_sidebar_on_focus() {
     _SHQL_SCHEMA_SIDEBAR_FOCUSED="${1:-0}"
     SHELLFRAME_LIST_FOCUSED=$_SHQL_SCHEMA_SIDEBAR_FOCUSED

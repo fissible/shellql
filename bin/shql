@@ -1,0 +1,81 @@
+#!/usr/bin/env bash
+# bin/shql — ShellQL CLI entry point
+#
+# Usage: shql [db_path] [-q <sql>] [--query] [table] [databases]
+#
+# Environment:
+#   SHQL_MOCK=1          Use mock adapter (no sqlite3 required)
+#   SHELLFRAME_DIR=path  Override path to shellframe checkout
+
+set -uo pipefail
+
+# ── Locate shellframe ─────────────────────────────────────────────────────────
+
+_SHQL_BIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+_SHQL_ROOT="$(cd "$_SHQL_BIN_DIR/.." && pwd)"
+
+if [[ -n "${SHELLFRAME_DIR:-}" ]]; then
+    _SHELLFRAME_ENTRY="$SHELLFRAME_DIR/shellframe.sh"
+else
+    # Default: sibling checkout at ../shellframe relative to this repo
+    _SHELLFRAME_ENTRY="$(cd "$_SHQL_ROOT/.." && pwd)/shellframe/shellframe.sh"
+fi
+
+if [[ ! -f "$_SHELLFRAME_ENTRY" ]]; then
+    printf 'error: shellframe not found at %s\n' "$_SHELLFRAME_ENTRY" >&2
+    printf 'Set SHELLFRAME_DIR to the shellframe checkout directory.\n' >&2
+    exit 1
+fi
+
+source "$_SHELLFRAME_ENTRY"
+
+# ── Load ShellQL modules ──────────────────────────────────────────────────────
+
+source "$_SHQL_ROOT/src/state.sh"
+
+if (( SHQL_MOCK )); then
+    source "$_SHQL_ROOT/src/db_mock.sh"
+else
+    source "$_SHQL_ROOT/src/db.sh" 2>/dev/null || true
+fi
+
+source "$_SHQL_ROOT/src/screens/welcome.sh"
+source "$_SHQL_ROOT/src/screens/schema.sh"
+
+# ── Argument parsing (minimal — Phase 6 expands this) ────────────────────────
+
+_shql_mode="welcome"
+_shql_db_arg=""
+
+while (( $# > 0 )); do
+    case "$1" in
+        databases) _shql_mode="databases"; shift ;;
+        --query|-q) _shql_mode="query"; shift ;;
+        -*)
+            printf 'unknown option: %s\n' "$1" >&2; exit 1 ;;
+        *)
+            if [[ -z "$_shql_db_arg" ]]; then
+                _shql_db_arg="$1"
+                _shql_mode="open"
+            fi
+            shift ;;
+    esac
+done
+
+# ── Dispatch ──────────────────────────────────────────────────────────────────
+
+case "$_shql_mode" in
+    welcome)
+        shql_welcome_run   # runs shellframe_shell; navigates to SCHEMA on selection
+        ;;
+    open)
+        SHQL_DB_PATH="$_shql_db_arg"
+        printf 'TODO: open %s\n' "$SHQL_DB_PATH"
+        ;;
+    query)
+        printf 'TODO: query mode\n'
+        ;;
+    databases)
+        printf 'TODO: list databases\n'
+        ;;
+esac

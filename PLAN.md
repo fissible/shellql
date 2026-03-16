@@ -38,11 +38,12 @@ ShellQL cannot be built until these shellframe components exist:
 
 Build with fake data (SHQL_MOCK=1) to validate the framework before any SQLite work.
 
-### 5.1 Welcome screen — [shellql#1](https://github.com/fissible/shellql/issues/1)
+### 5.1 Welcome screen — [shellql#1](https://github.com/fissible/shellql/issues/1) ✓
 - Recent files list (selectable list)
 - Open database action
 - Empty state message
 - **Effort:** M (half day)
+- **Status:** Done — `src/screens/welcome.sh`, `src/state.sh`, `src/db_mock.sh`, `bin/shql` (minimal)
 
 ### 5.2 Schema browser — [shellql#2](https://github.com/fissible/shellql/issues/2)
 - Sidebar: tree view of tables/views/indexes
@@ -130,15 +131,21 @@ shellframe primitives (P1–P4)
 ## Session handoff notes
 > Update this section at the end of each session.
 
-_Last updated: 2026-03-16_
+_Last updated: 2026-03-15_
 
-**Repo is stub-stage. src/, bin/ empty. Test infrastructure wired up.**
+**Phase 5.1 (welcome screen) complete. shellframe M1 already reached.**
 
-Completed 2026-03-16:
-- Added `tests/ptyunit` as git submodule (fissible/ptyunit, now at commit 65d2593)
-- Added `tests/unit/test-stub.sh` — placeholder (1/1 passes)
-- Run tests: `bash tests/ptyunit/run.sh` (no wrapper needed — ptyunit auto-detects consumer context)
+Completed 2026-03-15:
+- `src/state.sh` — SHQL_* globals, `shql_state_load_recent`, `shql_state_push_recent`
+- `src/db_mock.sh` — mock adapter: `shql_mock_load_recent` + all `shql_db_*` stubs
+- `src/screens/welcome.sh` — welcome screen (shellframe_shell + shellframe_list); header / list / empty-state / footer regions; Enter opens selected DB, q quits
+- `bin/shql` — minimal launcher; discovers shellframe via `SHELLFRAME_DIR` env or sibling-dir default; dispatches to welcome screen
+- `tests/unit/test-welcome.sh` — 7 assertions (state + mock); all pass (8/8 total)
 
-**Blocked on:** fissible/shellframe Phase 1–4 (shellframe primitives). ShellQL cannot be built until those shellframe issues are closed.
+**Run:** `SHQL_MOCK=1 SHELLFRAME_DIR=../shellframe bash bin/shql`
+**Run tests:** `bash tests/ptyunit/run.sh --unit`
 
-**Next task:** Once shellframe primitives are available, begin Phase 5 — mock screens starting with the welcome screen (shellql#1).
+**Next task:** Phase 5.2 — Schema browser ([shellql#2](https://github.com/fissible/shellql/issues/2))
+- Sidebar: tree view of tables/views/indexes
+- Main pane: selected object DDL/details
+- Uses: shellframe_shell + shellframe_list (sidebar) + shellframe_panel (DDL pane)

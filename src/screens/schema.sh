@@ -114,8 +114,7 @@ _shql_SCHEMA_render() {
 # ── _shql_SCHEMA_header_render ────────────────────────────────────────────────
 
 _shql_SCHEMA_header_render() {
-    local _db; _db="$(basename "${SHQL_DB_PATH:-<no database>}")"
-    _shql_header_render "$1" "$2" "$3" "ShellQL  ›  ${_db}"
+    _shql_header_render "$1" "$2" "$3" "$(_shql_breadcrumb)"
 }
 
 # ── _shql_SCHEMA_sidebar_render ───────────────────────────────────────────────

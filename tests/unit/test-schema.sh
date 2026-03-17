@@ -30,6 +30,32 @@ source "$SHQL_ROOT/src/db_mock.sh"
 # Source schema module (skipping the shellframe_list_init call by stubbing it)
 shellframe_list_init() { true; }
 source "$SHQL_ROOT/src/screens/schema.sh"
+source "$SHQL_ROOT/src/screens/header.sh"
+
+# ── Test: _shql_breadcrumb — sqlite driver ────────────────────────────────────
+
+ptyunit_test_begin "breadcrumb: sqlite driver with table"
+SHQL_DRIVER=sqlite SHQL_DB_PATH="/data/chinook.sqlite"
+result="$(_shql_breadcrumb "users")"
+assert_eq "sqlite://chinook.sqlite → users" "$result"
+
+ptyunit_test_begin "breadcrumb: sqlite driver without table"
+result="$(_shql_breadcrumb)"
+assert_eq "sqlite://chinook.sqlite" "$result"
+
+ptyunit_test_begin "breadcrumb: mysql driver with table"
+SHQL_DRIVER=mysql SHQL_DB_HOST=localhost SHQL_DB_NAME=chinook
+result="$(_shql_breadcrumb "users")"
+assert_eq "mysql://localhost/chinook → users" "$result"
+
+ptyunit_test_begin "breadcrumb: default driver with table"
+SHQL_DRIVER="" SHQL_DB_HOST=localhost SHQL_DB_NAME=chinook
+result="$(_shql_breadcrumb "users")"
+assert_eq "localhost › chinook › users" "$result"
+
+ptyunit_test_begin "breadcrumb: default driver without table"
+result="$(_shql_breadcrumb)"
+assert_eq "localhost › chinook" "$result"
 
 # ── Test: _shql_schema_load_tables populates array ───────────────────────────
 

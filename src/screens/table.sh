@@ -130,8 +130,7 @@ _shql_TABLE_gap_render() {
 # ── _shql_TABLE_header_render ─────────────────────────────────────────────────
 
 _shql_TABLE_header_render() {
-    local _db; _db="$(basename "${SHQL_DB_PATH:-<no database>}")"
-    _shql_header_render "$1" "$2" "$3" "ShellQL  ›  ${_db}  ›  ${_SHQL_TABLE_NAME:-<none>}"
+    _shql_header_render "$1" "$2" "$3" "$(_shql_breadcrumb "${_SHQL_TABLE_NAME:-}")"
 }
 
 # ── _shql_TABLE_tabbar_render / on_key / on_focus ─────────────────────────────

@@ -13,6 +13,9 @@ SHQL_MOCK="${SHQL_MOCK:-0}"
 
 SHQL_DB_PATH=""          # absolute path to the open database (empty if none)
 SHQL_DB_TABLE=""         # currently selected table name
+SHQL_DRIVER=""           # "sqlite" | "mysql" | "postgresql" | "" (default/unknown)
+SHQL_DB_HOST=""          # hostname for network drivers (mysql, postgresql)
+SHQL_DB_NAME=""          # database name for network drivers
 
 # ── Recent files ──────────────────────────────────────────────────────────────
 

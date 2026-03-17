@@ -14,6 +14,8 @@ _shql_header_render() {
     local _bg="${SHQL_THEME_HEADER_BG:-$'\033[7m'}"
     local _rst="${SHQL_THEME_RESET:-$'\033[0m'}"
     local _text=" ${_crumbs}"
+    # ${#_text} counts characters (not bytes) in UTF-8 locale; › (U+203A) = 1 char = 1 column.
+    # Assumes UTF-8 locale (LC_ALL=C environments will mis-count multi-byte separators).
     local _tlen=${#_text}
     local _pad=$(( _width - _tlen ))
     (( _pad < 0 )) && _pad=0

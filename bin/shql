@@ -41,7 +41,7 @@ fi
 
 # theme: after shellframe (SHELLFRAME_* populated), before screens
 source "$_SHQL_ROOT/src/theme.sh"
-shql_theme_load "$SHQL_THEME"
+shql_theme_load "${SHQL_THEME:-basic}"
 
 # screens (header.sh must come before welcome/schema/table)
 source "$_SHQL_ROOT/src/screens/header.sh"

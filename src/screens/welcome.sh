@@ -20,7 +20,6 @@
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 
-_SHQL_WELCOME_TITLE="ShellQL — Terminal SQLite Workbench"
 _SHQL_WELCOME_EMPTY_MSG="No recent databases.  Press [o] to open a file."
 _SHQL_WELCOME_FOOTER_HINTS="[↑↓] Navigate  [Enter] Open  [o] Open new  [q] Quit"
 

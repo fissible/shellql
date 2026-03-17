@@ -39,6 +39,12 @@ else
     source "$_SHQL_ROOT/src/db.sh" 2>/dev/null || true
 fi
 
+# theme: after shellframe (SHELLFRAME_* populated), before screens
+source "$_SHQL_ROOT/src/theme.sh"
+shql_theme_load "${SHQL_THEME:-basic}"
+
+# screens (header.sh must come before welcome/schema/table)
+source "$_SHQL_ROOT/src/screens/header.sh"
 source "$_SHQL_ROOT/src/screens/welcome.sh"
 source "$_SHQL_ROOT/src/screens/schema.sh"
 source "$_SHQL_ROOT/src/screens/table.sh"

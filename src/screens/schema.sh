@@ -114,12 +114,8 @@ _shql_SCHEMA_render() {
 # ── _shql_SCHEMA_header_render ────────────────────────────────────────────────
 
 _shql_SCHEMA_header_render() {
-    local _top="$1" _left="$2" _width="$3"
-    local _bold="${SHELLFRAME_BOLD:-}" _rst="${SHELLFRAME_RESET:-}"
-    local _gray="${SHELLFRAME_GRAY:-}"
-    local _label="Schema — ${SHQL_DB_PATH:-<no database>}"
-    printf '\033[%d;%dH\033[2K' "$_top" "$_left" >/dev/tty
-    printf '\033[%d;%dH%s%s%s' "$_top" "$_left" "$_bold" "$_label" "$_rst" >/dev/tty
+    local _db; _db="$(basename "${SHQL_DB_PATH:-<no database>}")"
+    _shql_header_render "$1" "$2" "$3" "ShellQL  ›  ${_db}"
 }
 
 # ── _shql_SCHEMA_sidebar_render ───────────────────────────────────────────────

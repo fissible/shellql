@@ -130,11 +130,8 @@ _shql_TABLE_gap_render() {
 # ── _shql_TABLE_header_render ─────────────────────────────────────────────────
 
 _shql_TABLE_header_render() {
-    local _top="$1" _left="$2" _width="$3"
-    local _bold="${SHELLFRAME_BOLD:-}" _rst="${SHELLFRAME_RESET:-}"
-    local _label="Table — ${_SHQL_TABLE_NAME:-<none>}  [${SHQL_DB_PATH:-}]"
-    printf '\033[%d;%dH\033[2K' "$_top" "$_left" >/dev/tty
-    printf '\033[%d;%dH%s%s%s' "$_top" "$_left" "$_bold" "$_label" "$_rst" >/dev/tty
+    local _db; _db="$(basename "${SHQL_DB_PATH:-<no database>}")"
+    _shql_header_render "$1" "$2" "$3" "ShellQL  ›  ${_db}  ›  ${_SHQL_TABLE_NAME:-<none>}"
 }
 
 # ── _shql_TABLE_tabbar_render / on_key / on_focus ─────────────────────────────

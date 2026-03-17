@@ -55,12 +55,7 @@ _shql_WELCOME_render() {
 # ── _shql_WELCOME_header_render ───────────────────────────────────────────────
 
 _shql_WELCOME_header_render() {
-    local _top="$1" _left="$2" _width="$3"
-    local _bold="${SHELLFRAME_BOLD:-}"
-    local _rst="${SHELLFRAME_RESET:-}"
-    printf '\033[%d;%dH\033[2K' "$_top" "$_left" >/dev/tty
-    printf '\033[%d;%dH%s%s%s' "$_top" "$_left" \
-        "$_bold" "$_SHQL_WELCOME_TITLE" "$_rst" >/dev/tty
+    _shql_header_render "$1" "$2" "$3" "ShellQL"
 }
 
 # ── _shql_WELCOME_list_render ─────────────────────────────────────────────────

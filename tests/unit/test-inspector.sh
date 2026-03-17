@@ -78,9 +78,8 @@ assert_eq "$_top" "0" "on_key: up moves scroll top back to 0"
 # ── Test: on_key dismiss keys ─────────────────────────────────────────────────
 
 _SHQL_INSPECTOR_ACTIVE=1
-_shql_inspector_on_key $'\033'
+_shql_inspector_on_key $'\033'; _rc=$?
 assert_eq "$_SHQL_INSPECTOR_ACTIVE" "0" "on_key: Esc sets ACTIVE=0"
-_rc=$?
 assert_eq "$_rc" "0" "on_key: Esc returns 0"
 
 _SHQL_INSPECTOR_ACTIVE=1
@@ -93,8 +92,7 @@ assert_eq "$_SHQL_INSPECTOR_ACTIVE" "0" "on_key: q sets ACTIVE=0"
 
 # Verify q returns 0 (not 1 — would leak to global quit handler)
 _SHQL_INSPECTOR_ACTIVE=1
-_shql_inspector_on_key 'q'
-_rc=$?
+_shql_inspector_on_key 'q'; _rc=$?
 assert_eq "$_rc" "0" "on_key: q returns 0 not 1"
 
 # ── Test: on_key passes unknown keys through ──────────────────────────────────
@@ -108,14 +106,14 @@ assert_eq "$_rc" "1" "on_key: unknown key returns 1"
 
 _SHQL_INSPECTOR_PAIRS=("id	1" "name	Alice" "email	a@b.com")
 _shql_inspector_key_width _kw
-assert_eq "8" "$_kw" "key_width: max key length is 'email'=5, clamped to min 8"
+assert_eq "$_kw" "8" "key_width: max key length is 'email'=5, clamped to min 8"
 
 _SHQL_INSPECTOR_PAIRS=("x	1")
 _shql_inspector_key_width _kw
-assert_eq "8" "$_kw" "key_width: min clamped to 8"
+assert_eq "$_kw" "8" "key_width: min clamped to 8"
 
 _SHQL_INSPECTOR_PAIRS=("averylongcolumnnameextra	val" "b	2")
 _shql_inspector_key_width _kw
-assert_eq "20" "$_kw" "key_width: max clamped to 20"
+assert_eq "$_kw" "20" "key_width: max clamped to 20"
 
 ptyunit_test_summary

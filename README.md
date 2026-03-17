@@ -41,6 +41,17 @@ The `shql` binary is also distributed via [fissible/macbin](https://github.com/f
 - sqlite3
 - [shellframe](https://github.com/fissible/shellframe) (bundled or sourced)
 
+## Themes
+
+Set `SHQL_THEME` before launching to choose a colour scheme:
+
+```bash
+SHQL_THEME=uranium shql my.db   # neon green header, rounded borders, cyan values
+SHQL_THEME=basic   shql my.db   # default: reverse-video header, single borders
+```
+
+Available themes: `basic` (default), `uranium`.
+
 ## Architecture
 
 ShellQL is a thin application layer on top of shellframe's TUI primitives:

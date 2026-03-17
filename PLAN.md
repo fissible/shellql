@@ -135,33 +135,31 @@ shellframe primitives (P1–P4)
 ## Session handoff notes
 > Update this section at the end of each session.
 
-_Last updated: 2026-03-16_
+_Last updated: 2026-03-17_
 
-**Phases 5.1–5.3 complete. App navigates welcome → schema → table → schema.**
+**Phases 5.1–5.5 complete. Theme system, breadcrumb header, and two-column inspector all done.**
 
-Completed 2026-03-16 (Phase 5.3):
-- `src/screens/table.sh` — TABLE screen; tab bar (Structure/Data/Query); `[`/`]` switch tabs from anywhere; `↓` from tab bar focuses body; `↑` at top of body returns focus to tab bar; q → SCHEMA
-- `src/screens/schema.sh` — added `_shql_SCHEMA_sidebar_action`; Enter on table → TABLE
-- `src/db_mock.sh` — expanded to 15-column users table and richer fixture data for all 4 tables
-- `bin/shql` — sources `table.sh`
-- `tests/unit/test-table.sh` — 19/19 assertions passing (34/34 total)
-
-Shellframe bugs fixed and polish applied this session (shellframe repo, not yet committed there):
-- `widgets/grid.sh`: H-scroll viewport was `_ncols` (total), making `_max_left=0`; fixed to `_n_vis_cols`
-- `widgets/grid.sh`: `_trailing_vis_cols` right-to-left pixel scan ensures last column fully visible at max scroll
-- `widgets/grid.sh`: 1-char left padding per cell; right end-of-data `│`/`┘` border when last column in view
-- `widgets/grid.sh`: cursor highlight suppressed when grid not focused
-- `widgets/tab-bar.sh`: persistent white bar (reverse video) on inactive tabs + fill; active tab bold + clear bg; focused/unfocused style separated
-- `src/screens/table.sh`: 1-row gap below tab bar; down-arrow tab→body focus handoff; up-arrow-at-top body→tab focus handoff
+Completed 2026-03-17:
+- `src/theme.sh` — `shql_theme_load`; reads `SHQL_THEME` env var; falls back to basic
+- `src/themes/basic.sh` — default theme; bold reverse-video header and inactive tabs
+- `src/themes/uranium.sh` — rounded borders; neon green header (RGB 80,186,42); dark grey tabs; bold true-color black text throughout
+- `src/screens/header.sh` — shared `_shql_header_render`; `_shql_breadcrumb` driver-aware breadcrumb: `sqlite://file`, `mysql://host/db`, or `host › db › table`
+- `src/state.sh` — added `SHQL_DRIVER`, `SHQL_DB_HOST`, `SHQL_DB_NAME` globals
+- `src/screens/schema.sh`, `table.sh` — header wrappers now delegate to `_shql_breadcrumb`
+- `src/screens/inspector.sh` — two-column key/value layout; `ceil(N/2)` scroll model
+- `src/screens/welcome.sh` — header wrapper uses shared `_shql_header_render`
+- `~/lib/fissible/shellframe/src/widgets/tab-bar.sh` — `SHELLFRAME_TABBAR_BG` override global
+- `tests/unit/test-schema.sh` — 5 new breadcrumb assertions (65/65 total)
+- `docs/shellframe-panel-mode-issue.md` — draft GitHub issue for `SHELLFRAME_PANEL_MODE` (windowed vs framed); file manually at fissible/shellframe (API returned 401)
 
 **Run:** `SHQL_MOCK=1 SHELLFRAME_DIR=../shellframe bash bin/shql`
+**Run:** `SHQL_MOCK=1 SHQL_THEME=uranium SHELLFRAME_DIR=../shellframe bash bin/shql`
 **Run tests:** `bash tests/ptyunit/run.sh --unit`
 
-**Next task:** Phase 5.5 — Record inspector ([shellql#5](https://github.com/fissible/shellql/issues/5))
-- Modal or side panel
-- Key/value layout from row data (read grid cursor row)
-- Scroll for long values
-- Effort: S (1–2h)
-- Dependency: Enter on data grid row → `_shql_TABLE_body_action` (hook already in place)
+**Next task:** Phase 5.4 — Query screen ([shellql#4](https://github.com/fissible/shellql/issues/4))
+- Multiline text editor (SQL input)
+- Results data grid
+- Status/error area below
+- Effort: M (half day)
 
-After that: Phase 5.4 — Query screen ([shellql#4](https://github.com/fissible/shellql/issues/4))
+**Pending (not ShellQL):** File `docs/shellframe-panel-mode-issue.md` as a GitHub issue at fissible/shellframe

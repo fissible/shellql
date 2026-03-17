@@ -47,7 +47,8 @@ _shql_inspector_open() {
     done
 
     local _n=${#_SHQL_INSPECTOR_PAIRS[@]}
-    shellframe_scroll_init "$_SHQL_INSPECTOR_CTX" "$_n" 1 10 1
+    local _scroll_n=$(( (_n + 1) / 2 ))   # ceil(N/2) logical rows for two-column layout
+    shellframe_scroll_init "$_SHQL_INSPECTOR_CTX" "$_scroll_n" 1 10 1
     _SHQL_INSPECTOR_ACTIVE=1
 }
 
@@ -97,8 +98,6 @@ _shql_inspector_on_key() {
 
 _shql_inspector_render() {
     local _top="$1" _left="$2" _width="$3" _height="$4"
-    local _bold="${SHELLFRAME_BOLD:-$'\033[1m'}"
-    local _rst="${SHELLFRAME_RESET:-$'\033[0m'}"
 
     # ── Panel dimensions (centered) ──
     local _panel_w=$(( _width * 2 / 3 ))
@@ -107,12 +106,13 @@ _shql_inspector_render() {
     (( _panel_w < 1            )) && _panel_w=1
 
     local _n_pairs=${#_SHQL_INSPECTOR_PAIRS[@]}
-    local _panel_h=$(( _n_pairs + 2 ))   # content rows + top/bottom border
+    local _n_rows=$(( (_n_pairs + 1) / 2 ))   # ceil(N/2) logical rows
+    local _panel_h=$(( _n_rows + 2 ))          # logical rows + top/bottom border
     local _panel_h_max=$(( _height * 3 / 4 ))
     (( _panel_h_max < 10          )) && _panel_h_max=10
     (( _panel_h_max > _height - 2 )) && _panel_h_max=$(( _height - 2 ))
     (( _panel_h > _panel_h_max    )) && _panel_h=$_panel_h_max
-    (( _panel_h < 4               )) && _panel_h=4   # minimum: 2 border + 2 content
+    (( _panel_h < 4               )) && _panel_h=4   # min: 2 border + 2 content
 
     local _panel_top=$(( _top  + (_height - _panel_h) / 2 ))
     local _panel_left=$(( _left + (_width  - _panel_w) / 2 ))
@@ -129,7 +129,6 @@ _shql_inspector_render() {
     SHELLFRAME_PANEL_FOCUSED=1
     shellframe_panel_render "$_panel_top" "$_panel_left" "$_panel_w" "$_panel_h"
 
-    # Get inner content bounds via panel API
     local _inner_top _inner_left _inner_w _inner_h
     shellframe_panel_inner "$_panel_top" "$_panel_left" "$_panel_w" "$_panel_h" \
         _inner_top _inner_left _inner_w _inner_h
@@ -139,40 +138,74 @@ _shql_inspector_render() {
     SHELLFRAME_PANEL_TITLE_ALIGN="$_save_ptalign"
     SHELLFRAME_PANEL_FOCUSED="$_save_pfocused"
 
-    # ── Clear inner area (targeted: only _inner_w cols, preserving border chars) ──
+    # ── Clear inner area (targeted width — preserves border chars) ──
     local _ir _blank
     printf -v _blank '%*s' "$_inner_w" ''
     for (( _ir=0; _ir<_inner_h; _ir++ )); do
         printf '\033[%d;%dH%s' "$(( _inner_top + _ir ))" "$_inner_left" "$_blank" >/dev/tty
     done
 
-    # ── Compute key column width (1-char left pad for breathing room) ──
-    local _kw _content_left=$(( _inner_left + 1 )) _content_w=$(( _inner_w - 2 ))
-    (( _content_w < 1 )) && _content_w=1
-    _shql_inspector_key_width _kw
-    local _val_avail=$(( _content_w - _kw - 2 ))
-    (( _val_avail < 1 )) && _val_avail=1
+    # ── Two-column layout dimensions ──
+    local _col_w=$(( (_inner_w - 1) / 2 ))
+    (( _col_w < 1 )) && _col_w=1
+    local _divider_col=$(( _inner_left + _col_w ))
 
-    # ── Update scroll viewport to actual height ──
+    local _kw
+    _shql_inspector_key_width _kw
+
+    # Left column: 1-char pad from inner_left
+    local _l_left=$(( _inner_left + 1 ))
+    local _val_avail_l=$(( _col_w - 1 - _kw - 2 ))
+    (( _val_avail_l < 1 )) && _val_avail_l=1
+
+    # Right column: past divider + 1-char pad
+    local _r_left=$(( _divider_col + 2 ))
+    local _val_avail_r=$(( _inner_w - _col_w - 2 - _kw - 2 ))
+    (( _val_avail_r < 1 )) && _val_avail_r=1
+
+    # ── Theme colors ──
+    local _kc="${SHQL_THEME_KEY_COLOR:-}"
+    local _vc="${SHQL_THEME_VALUE_COLOR:-}"
+    local _rst="${SHQL_THEME_RESET:-$'\033[0m'}"
+
+    # ── Update scroll viewport to actual inner height ──
     shellframe_scroll_resize "$_SHQL_INSPECTOR_CTX" "$_inner_h" 1
     local _scroll_top=0
     shellframe_scroll_top "$_SHQL_INSPECTOR_CTX" _scroll_top
 
-    # ── Render key/value rows ──
-    local _n=${#_SHQL_INSPECTOR_PAIRS[@]}
-    local _r _idx _pair _key _val _val_clipped
+    # ── Render two-column key/value rows ──
+    local _r _logical_r _l_idx _r_idx _pair _key _val _val_clipped
     for (( _r=0; _r<_inner_h; _r++ )); do
-        _idx=$(( _scroll_top + _r ))
-        [[ $_idx -ge $_n ]] && continue
-        _pair="${_SHQL_INSPECTOR_PAIRS[$_idx]}"
-        _key="${_pair%%	*}"
-        _val="${_pair#*	}"
-        # shellframe_str_clip_ellipsis raw rendered width
-        # raw and rendered are the same for plain text (no ANSI escapes in cell values)
-        _val_clipped=$(shellframe_str_clip_ellipsis "$_val" "$_val" "$_val_avail")
-        printf '\033[%d;%dH%s%-*s%s  %s' \
-            "$(( _inner_top + _r ))" "$_content_left" \
-            "$_bold" "$_kw" "$_key" "$_rst" \
-            "$_val_clipped" >/dev/tty
+        _logical_r=$(( _scroll_top + _r ))
+        [[ $_logical_r -ge $_n_rows ]] && continue
+
+        # Left column pair
+        _l_idx=$(( _logical_r * 2 ))
+        if [[ $_l_idx -lt $_n_pairs ]]; then
+            _pair="${_SHQL_INSPECTOR_PAIRS[$_l_idx]}"
+            _key="${_pair%%	*}"
+            _val="${_pair#*	}"
+            _val_clipped=$(shellframe_str_clip_ellipsis "$_val" "$_val" "$_val_avail_l")
+            printf '\033[%d;%dH%s%-*s%s  %s%s%s' \
+                "$(( _inner_top + _r ))" "$_l_left" \
+                "$_kc" "$_kw" "$_key" "$_rst" \
+                "$_vc" "$_val_clipped" "$_rst" >/dev/tty
+        fi
+
+        # Divider
+        printf '\033[%d;%dH│' "$(( _inner_top + _r ))" "$_divider_col" >/dev/tty
+
+        # Right column pair
+        _r_idx=$(( _logical_r * 2 + 1 ))
+        if [[ $_r_idx -lt $_n_pairs ]]; then
+            _pair="${_SHQL_INSPECTOR_PAIRS[$_r_idx]}"
+            _key="${_pair%%	*}"
+            _val="${_pair#*	}"
+            _val_clipped=$(shellframe_str_clip_ellipsis "$_val" "$_val" "$_val_avail_r")
+            printf '\033[%d;%dH%s%-*s%s  %s%s%s' \
+                "$(( _inner_top + _r ))" "$_r_left" \
+                "$_kc" "$_kw" "$_key" "$_rst" \
+                "$_vc" "$_val_clipped" "$_rst" >/dev/tty
+        fi
     done
 }

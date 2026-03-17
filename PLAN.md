@@ -65,11 +65,12 @@ Build with fake data (SHQL_MOCK=1) to validate the framework before any SQLite w
 - Status/error area below
 - **Effort:** M (half day)
 
-### 5.5 Record inspector — [shellql#5](https://github.com/fissible/shellql/issues/5)
+### 5.5 Record inspector — [shellql#5](https://github.com/fissible/shellql/issues/5) ✓ closed
 - Modal or side panel
 - Key/value layout from row data
 - Scroll for long values
 - **Effort:** S (1–2h)
+- **Status:** Done — `src/screens/inspector.sh`; Enter on data row → centered "Row Inspector" overlay; ↑/↓/PgUp/PgDn scroll; Esc/Enter/q dismiss
 
 ---
 

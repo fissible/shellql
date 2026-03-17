@@ -136,4 +136,11 @@ _shql_SCHEMA_sidebar_action
 assert_eq "users" "$_SHQL_TABLE_NAME"
 assert_eq "TABLE" "$_SHELLFRAME_SHELL_NEXT"
 
+# ── Test: inspector footer hint constant ──────────────────────────────────────
+
+ptyunit_test_begin "inspector footer hint constant defined with correct text"
+assert_eq "$_SHQL_TABLE_FOOTER_HINTS_INSPECTOR" \
+    "[↑↓] Scroll  [PgUp/PgDn] Page  [Enter/Esc/q] Close" \
+    "footer: inspector hint string"
+
 ptyunit_test_summary

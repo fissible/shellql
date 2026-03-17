@@ -112,6 +112,10 @@ _SHQL_INSPECTOR_PAIRS=("x	1")
 _shql_inspector_key_width _kw
 assert_eq "$_kw" "8" "key_width: min clamped to 8"
 
+_SHQL_INSPECTOR_PAIRS=("twelve_chars	val" "b	2")
+_shql_inspector_key_width _kw
+assert_eq "$_kw" "12" "key_width: mid-range value passes through unclamped"
+
 _SHQL_INSPECTOR_PAIRS=("averylongcolumnnameextra	val" "b	2")
 _shql_inspector_key_width _kw
 assert_eq "$_kw" "20" "key_width: max clamped to 20"

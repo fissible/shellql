@@ -124,7 +124,7 @@ _shql_SCHEMA_sidebar_render() {
     local _top="$1" _left="$2" _width="$3" _height="$4"
 
     # Draw panel border
-    SHELLFRAME_PANEL_STYLE="single"
+    SHELLFRAME_PANEL_STYLE="${SHQL_THEME_PANEL_STYLE:-single}"
     SHELLFRAME_PANEL_TITLE="Tables"
     SHELLFRAME_PANEL_TITLE_ALIGN="left"
     SHELLFRAME_PANEL_FOCUSED=$_SHQL_SCHEMA_SIDEBAR_FOCUSED
@@ -173,7 +173,7 @@ _shql_SCHEMA_detail_render() {
     fi
 
     # Draw panel border
-    SHELLFRAME_PANEL_STYLE="single"
+    SHELLFRAME_PANEL_STYLE="${SHQL_THEME_PANEL_STYLE:-single}"
     SHELLFRAME_PANEL_TITLE="DDL"
     SHELLFRAME_PANEL_TITLE_ALIGN="left"
     SHELLFRAME_PANEL_FOCUSED=$_SHQL_SCHEMA_DETAIL_FOCUSED

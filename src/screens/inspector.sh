@@ -106,10 +106,13 @@ _shql_inspector_render() {
     (( _panel_w > _width - 4   )) && _panel_w=$(( _width - 4 ))
     (( _panel_w < 1            )) && _panel_w=1
 
-    local _panel_h=$(( _height * 3 / 4 ))
-    (( _panel_h < 10           )) && _panel_h=10
-    (( _panel_h > _height - 2  )) && _panel_h=$(( _height - 2 ))
-    (( _panel_h < 1            )) && _panel_h=1
+    local _n_pairs=${#_SHQL_INSPECTOR_PAIRS[@]}
+    local _panel_h=$(( _n_pairs + 2 ))   # content rows + top/bottom border
+    local _panel_h_max=$(( _height * 3 / 4 ))
+    (( _panel_h_max < 10          )) && _panel_h_max=10
+    (( _panel_h_max > _height - 2 )) && _panel_h_max=$(( _height - 2 ))
+    (( _panel_h > _panel_h_max    )) && _panel_h=$_panel_h_max
+    (( _panel_h < 4               )) && _panel_h=4   # minimum: 2 border + 2 content
 
     local _panel_top=$(( _top  + (_height - _panel_h) / 2 ))
     local _panel_left=$(( _left + (_width  - _panel_w) / 2 ))
@@ -120,7 +123,7 @@ _shql_inspector_render() {
     local _save_ptalign="$SHELLFRAME_PANEL_TITLE_ALIGN"
     local _save_pfocused="$SHELLFRAME_PANEL_FOCUSED"
 
-    SHELLFRAME_PANEL_STYLE="single"
+    SHELLFRAME_PANEL_STYLE="${SHQL_THEME_PANEL_STYLE:-single}"
     SHELLFRAME_PANEL_TITLE="Row Inspector"
     SHELLFRAME_PANEL_TITLE_ALIGN="center"
     SHELLFRAME_PANEL_FOCUSED=1
@@ -136,16 +139,18 @@ _shql_inspector_render() {
     SHELLFRAME_PANEL_TITLE_ALIGN="$_save_ptalign"
     SHELLFRAME_PANEL_FOCUSED="$_save_pfocused"
 
-    # ── Clear inner area ──
-    local _ir
+    # ── Clear inner area (targeted: only _inner_w cols, preserving border chars) ──
+    local _ir _blank
+    printf -v _blank '%*s' "$_inner_w" ''
     for (( _ir=0; _ir<_inner_h; _ir++ )); do
-        printf '\033[%d;%dH\033[2K' "$(( _inner_top + _ir ))" "$_inner_left" >/dev/tty
+        printf '\033[%d;%dH%s' "$(( _inner_top + _ir ))" "$_inner_left" "$_blank" >/dev/tty
     done
 
-    # ── Compute key column width ──
-    local _kw
+    # ── Compute key column width (1-char left pad for breathing room) ──
+    local _kw _content_left=$(( _inner_left + 1 )) _content_w=$(( _inner_w - 2 ))
+    (( _content_w < 1 )) && _content_w=1
     _shql_inspector_key_width _kw
-    local _val_avail=$(( _inner_w - _kw - 2 ))
+    local _val_avail=$(( _content_w - _kw - 2 ))
     (( _val_avail < 1 )) && _val_avail=1
 
     # ── Update scroll viewport to actual height ──
@@ -166,7 +171,7 @@ _shql_inspector_render() {
         # raw and rendered are the same for plain text (no ANSI escapes in cell values)
         _val_clipped=$(shellframe_str_clip_ellipsis "$_val" "$_val" "$_val_avail")
         printf '\033[%d;%dH%s%-*s%s  %s' \
-            "$(( _inner_top + _r ))" "$_inner_left" \
+            "$(( _inner_top + _r ))" "$_content_left" \
             "$_bold" "$_kw" "$_key" "$_rst" \
             "$_val_clipped" >/dev/tty
     done

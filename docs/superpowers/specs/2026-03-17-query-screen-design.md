@@ -52,14 +52,14 @@ The TABLE screen's `body` region is the single focus recipient. The Query tab ma
 _SHQL_QUERY_FOCUSED_PANE="editor"   # "editor" | "results"
 ```
 
-**Before each render call**, sync to framework globals:
+**Before each render call**, sync to framework globals using the bash 3.2-compatible form:
 
 ```bash
-SHELLFRAME_EDITOR_FOCUSED=$(( _SHQL_QUERY_FOCUSED_PANE == "editor" ? 1 : 0 ))
-SHELLFRAME_GRID_FOCUSED=$(( _SHQL_QUERY_FOCUSED_PANE == "results" ? 1 : 0 ))
+[[ "$_SHQL_QUERY_FOCUSED_PANE" == "editor" ]]  && SHELLFRAME_EDITOR_FOCUSED=1 || SHELLFRAME_EDITOR_FOCUSED=0
+[[ "$_SHQL_QUERY_FOCUSED_PANE" == "results" ]] && SHELLFRAME_GRID_FOCUSED=1   || SHELLFRAME_GRID_FOCUSED=0
 ```
 
-Note: `_shql_TABLE_body_on_focus` unconditionally sets `SHELLFRAME_GRID_FOCUSED=$_SHQL_TABLE_BODY_FOCUSED` when the body region gains focus. This is harmless because `_shql_query_render` always re-syncs `SHELLFRAME_GRID_FOCUSED` from `_SHQL_QUERY_FOCUSED_PANE` on every render. No change to `_shql_TABLE_body_on_focus` is needed.
+Note: `_shql_TABLE_body_on_focus` unconditionally sets `SHELLFRAME_GRID_FOCUSED=$_SHQL_TABLE_BODY_FOCUSED` when the body region gains focus. This is harmless because `_shql_query_render` always re-syncs those globals from `_SHQL_QUERY_FOCUSED_PANE` on every render. No change to `_shql_TABLE_body_on_focus` is needed.
 
 Focus cycle:
 
@@ -70,6 +70,7 @@ Shift-Tab:  reverse
 
 - On first entry to the Query tab, `_SHQL_QUERY_FOCUSED_PANE="editor"`
 - Focus state is preserved when switching away to another tab and back
+- Up-at-top of editor does **not** return focus to the tab bar in this phase — use Escape instead. (The existing Up-at-top → tabbar path in `_shql_TABLE_body_on_key` is bypassed for the Query tab; see Architecture section.)
 
 ---
 
@@ -79,49 +80,48 @@ Shift-Tab:  reverse
 |-----|---------|--------|
 | Ctrl-D | editor focused | run query (editor emits rc=2; `SHELLFRAME_EDITOR_RESULT` contains the SQL) |
 | Ctrl-Enter | editor focused | run query where terminal distinguishes from Enter; Ctrl-D is the universal fallback |
-| Ctrl-D / Ctrl-Enter | results focused | run query (re-run last query) |
+| Ctrl-D / Ctrl-Enter | results focused | re-run (reads editor text via `shellframe_editor_get_text`) |
 | Tab | either | cycle focus: editor → results → editor |
-| Shift-Tab | either | cycle focus: results → editor → results |
+| Shift-Tab | either | cycle focus backward: editor → results → editor |
 | Escape | editor focused | return focus to tab bar (`shellframe_shell_focus_set "tabbar"`) |
-| ↑ ↓ ← → | editor focused | editor cursor movement (consumed by editor, never reaches query handler) |
+| ↑ ↓ ← → | editor focused | editor cursor movement (consumed by editor) |
 | ↑ ↓ ← → | results focused | grid navigation |
-| Enter | results focused | open row inspector (see Body Action section) |
+| Enter | results focused | open row inspector |
 | q | results focused | return focus to tab bar |
 | q | **editor focused** | **insert 'q' into SQL — do NOT intercept** |
 
-**Important — `q` key:** When the editor pane is focused, all keys are passed to `shellframe_editor_on_key` first. Only keys it returns unhandled (rc=1) reach the query tab's own logic. `q` is consumed by the editor and never seen by the query handler. `[q] Back` must NOT appear in the footer hint when the editor pane is focused (it would be misleading).
+**Important — `q` key:** When the editor pane is focused, all keys are passed to `shellframe_editor_on_key` first. Only keys it returns unhandled (rc=1) reach the query tab's own logic. `q` is consumed by the editor. `[q] Back` must NOT appear in the footer hint when the editor pane is focused.
 
-**Important — `[` / `]` keys in `_shql_TABLE_body_on_key`:** The current `[`/`]` tab-switch check runs *before* tab delegation. When the Query tab is active and the editor has focus, `[` and `]` must reach the editor. See the Architecture section for the required pseudocode change.
+**Important — `[` / `]` keys:** When the Query tab is active, `_shql_query_on_key` is called before the `[`/`]` tab-switch check in `_shql_TABLE_body_on_key`. The editor consumes `[` and `]` as printable characters (returns rc=0), preventing the tab-switch logic from firing. See Architecture section for exact pseudocode.
 
 ---
 
 ## Footer States
 
-The TABLE screen footer (`_shql_TABLE_footer_render`) sets `_hint` based on active tab. When the Query tab is active, it calls `_shql_query_footer_hint _hint` to populate the variable:
+The TABLE screen footer (`_shql_TABLE_footer_render`) sets `_hint` based on active tab. The wildcard `*)` case currently handling Query must be changed to an explicit `"$_SHQL_TABLE_TAB_QUERY"`)  case (to prevent future tabs from accidentally triggering this logic):
 
 ```bash
-# In _shql_TABLE_footer_render, replace the QUERY case:
+# In _shql_TABLE_footer_render:
 "$_SHQL_TABLE_TAB_QUERY") _shql_query_footer_hint _hint ;;
 ```
 
-`_shql_query_footer_hint` signature — sets a named variable via `printf -v`, matching the existing footer pattern:
+`_shql_query_footer_hint` sets a named variable via `printf -v`, matching the existing footer pattern. The hint varies by both status and focused pane:
 
 ```bash
 _shql_query_footer_hint() {
     local _out_var="$1"
     local _run="[Ctrl-Enter/Ctrl-D] Run"
+    local _escape="[Esc] Tab bar"
+    local _quit="[q] Back"
+    local _switch="[Tab] Switch pane"
+
+    local _back
+    [[ "$_SHQL_QUERY_FOCUSED_PANE" == "results" ]] && _back="$_quit" || _back="$_escape"
+
     if [[ -n "$_SHQL_QUERY_STATUS" ]]; then
-        if [[ "$_SHQL_QUERY_FOCUSED_PANE" == "results" ]]; then
-            printf -v "$_out_var" '%s  %s  [Tab] Switch pane  [q] Back' "$_SHQL_QUERY_STATUS" "$_run"
-        else
-            printf -v "$_out_var" '%s  %s  [Tab] Switch pane  [Esc] Tab bar' "$_SHQL_QUERY_STATUS" "$_run"
-        fi
+        printf -v "$_out_var" '%s  %s  %s  %s' "$_SHQL_QUERY_STATUS" "$_run" "$_switch" "$_back"
     else
-        if [[ "$_SHQL_QUERY_FOCUSED_PANE" == "results" ]]; then
-            printf -v "$_out_var" '%s  [Tab] Switch pane  [q] Back' "$_run"
-        else
-            printf -v "$_out_var" '%s  [Tab] Switch pane  [Esc] Tab bar' "$_run"
-        fi
+        printf -v "$_out_var" '%s  %s  %s' "$_run" "$_switch" "$_back"
     fi
 }
 ```
@@ -130,7 +130,8 @@ Status persists until the next run — does not clear on keypress. Example value
 
 - `""` (empty) — before first run
 - `"5 rows"` — after successful run
-- `"ERROR: no such table: usr"` — after error
+- `"ERROR: no such table: usr"` — after error (first line of stderr)
+- `"ERROR: "` — if `shql_db_query` exits non-zero with no stderr output (acceptable; implementor need not add a secondary guard)
 
 ---
 
@@ -163,7 +164,7 @@ Called from `shql_table_init` (eagerly, at TABLE screen startup). Sets state glo
 
 ```
 1. On first call (_SHQL_QUERY_INITIALIZED=0):
-   - Set SHELLFRAME_EDITOR_LINES=()  ← clear stale content before init
+   - Set SHELLFRAME_EDITOR_LINES=()  ← clear any stale content before init
    - Call shellframe_editor_init "$_SHQL_QUERY_EDITOR_CTX"
    - Set SHELLFRAME_GRID_CTX="$_SHQL_QUERY_GRID_CTX"
    - Call shellframe_grid_init "$_SHQL_QUERY_GRID_CTX"
@@ -171,11 +172,11 @@ Called from `shql_table_init` (eagerly, at TABLE screen startup). Sets state glo
 
 2. Compute split (see Layout section).
 
-3. Sync framework focus globals:
+3. Sync framework focus globals (bash 3.2-compatible):
    SHELLFRAME_EDITOR_CTX="$_SHQL_QUERY_EDITOR_CTX"
-   SHELLFRAME_EDITOR_FOCUSED=$([ "$_SHQL_QUERY_FOCUSED_PANE" = "editor" ] && echo 1 || echo 0)
+   [[ "$_SHQL_QUERY_FOCUSED_PANE" == "editor" ]]  && SHELLFRAME_EDITOR_FOCUSED=1 || SHELLFRAME_EDITOR_FOCUSED=0
    SHELLFRAME_GRID_CTX="$_SHQL_QUERY_GRID_CTX"
-   SHELLFRAME_GRID_FOCUSED=$([ "$_SHQL_QUERY_FOCUSED_PANE" = "results" ] && echo 1 || echo 0)
+   [[ "$_SHQL_QUERY_FOCUSED_PANE" == "results" ]] && SHELLFRAME_GRID_FOCUSED=1   || SHELLFRAME_GRID_FOCUSED=0
 
 4. Render editor pane:
    shellframe_editor_render _top _left _width _editor_rows
@@ -200,14 +201,15 @@ Called from `shql_table_init` (eagerly, at TABLE screen startup). Sets state glo
 if _SHQL_QUERY_FOCUSED_PANE = "editor":
     SHELLFRAME_EDITOR_CTX="$_SHQL_QUERY_EDITOR_CTX"
     shellframe_editor_on_key "$_key" → rc
-    if rc=2 (submit / Ctrl-D):
-        _shql_query_run "$SHELLFRAME_EDITOR_RESULT"   ← SQL is in SHELLFRAME_EDITOR_RESULT
+    if rc=2 (Ctrl-D submit):
+        # SHELLFRAME_EDITOR_RESULT already contains the SQL text (set by editor on Ctrl-D)
+        _shql_query_run "$SHELLFRAME_EDITOR_RESULT"
         return 0
-    if rc=0 (handled by editor):
+    if rc=0 (handled by editor, including q, [, ]):
         return 0
-    # rc=1: not handled by editor — check query-level keys
+    # rc=1: key not handled by editor — check query-level bindings
     if key=Tab:       _SHQL_QUERY_FOCUSED_PANE="results"; return 0
-    if key=Shift-Tab: _SHQL_QUERY_FOCUSED_PANE="results"; return 0  (already at start)
+    if key=Shift-Tab: _SHQL_QUERY_FOCUSED_PANE="results"; return 0  # wraps to end of cycle
     if key=Escape:    shellframe_shell_focus_set "tabbar"; return 0
     return 1
 
@@ -215,14 +217,13 @@ if _SHQL_QUERY_FOCUSED_PANE = "results":
     if key=Tab:       _SHQL_QUERY_FOCUSED_PANE="editor"; return 0
     if key=Shift-Tab: _SHQL_QUERY_FOCUSED_PANE="editor"; return 0
     if key=Ctrl-D or Ctrl-Enter:
-        SHELLFRAME_EDITOR_CTX="$_SHQL_QUERY_EDITOR_CTX"
         shellframe_editor_get_text "$_SHQL_QUERY_EDITOR_CTX" _sql
         _shql_query_run "$_sql"
         return 0
     if key=q: shellframe_shell_focus_set "tabbar"; return 0
     SHELLFRAME_GRID_CTX="$_SHQL_QUERY_GRID_CTX"
     shellframe_grid_on_key "$_key"
-    return $?   ← rc=2 (Enter) bubbles up to _shql_TABLE_body_action
+    return $?   # rc=2 (Enter on row) bubbles up to _shql_TABLE_body_action
 ```
 
 ---
@@ -232,7 +233,7 @@ if _SHQL_QUERY_FOCUSED_PANE = "results":
 ```bash
 _shql_query_run() {
     local _sql="$1"
-    local _tmpfile="/tmp/shql_query_err.$$"
+    local _tmpfile="/tmp/shql_query_err.$$"   # $$ = current PID, avoids collisions
 
     local _out
     _out=$(shql_db_query "$SHQL_DB_PATH" "$_sql" 2>"$_tmpfile")
@@ -240,28 +241,30 @@ _shql_query_run() {
 
     if (( _rc != 0 )) || [[ -s "$_tmpfile" ]]; then
         _SHQL_QUERY_STATUS="ERROR: $(head -1 "$_tmpfile")"
+        # Note: if exit is non-zero with no stderr, status = "ERROR: " (empty msg) — acceptable
         rm -f "$_tmpfile"
         return 0
     fi
     rm -f "$_tmpfile"
 
-    # Parse TSV: first line = header row, subsequent lines = data rows
-    # (same contract as shql_db_fetch; same parsing logic as _shql_table_load_data)
+    # Parse TSV: first line = header row, subsequent lines = data rows.
+    # Identical logic to _shql_table_load_data in table.sh — copy that implementation directly.
+    # Column widths: header_width + 2, clamped 8..30, grown by data cell widths.
+    # Set SHELLFRAME_GRID_PK_COLS=0 (no PK highlight for ad-hoc query results).
     SHELLFRAME_GRID_HEADERS=()
     SHELLFRAME_GRID_DATA=()
     SHELLFRAME_GRID_ROWS=0
     SHELLFRAME_GRID_COLS=0
     SHELLFRAME_GRID_COL_WIDTHS=()
+    SHELLFRAME_GRID_PK_COLS=0
     local _idx=0
     while IFS=$'\t' read -r -a _row; do
         [[ ${#_row[@]} -eq 0 ]] && continue
         if (( _idx == 0 )); then
-            SHELLFRAME_GRID_HEADERS=("${_row[@]}")
-            SHELLFRAME_GRID_COLS=${#_row[@]}
-            # size columns to header width, bounded 8..30
+            # header row — copy sizing logic from _shql_table_load_data
             ...
         else
-            # append cells, grow column widths as needed
+            # data row — copy append logic from _shql_table_load_data
             ...
             (( SHELLFRAME_GRID_ROWS++ ))
         fi
@@ -275,13 +278,13 @@ _shql_query_run() {
 }
 ```
 
+The `...` blocks are a direct copy of `_shql_table_load_data` in `table.sh` — do not rewrite them; copy exactly to preserve tested behaviour.
+
 ---
 
 ### Body Action — Enter on results grid
 
-When `_shql_query_on_key` passes a key to `shellframe_grid_on_key` and it returns rc=2 (Enter on a row), the value bubbles up through `_shql_TABLE_body_on_key` to shellframe, which calls `_shql_TABLE_body_action`.
-
-`_shql_TABLE_body_action` currently guards: `[[ "$_tab" != "$_SHQL_TABLE_TAB_DATA" ]] && return 0`. This guard must be extended to also allow the Query tab:
+When `shellframe_grid_on_key` returns rc=2 (Enter on a row) from within `_shql_query_on_key`, the value propagates to `_shql_TABLE_body_action`. That function's guard must be extended:
 
 ```bash
 _shql_TABLE_body_action() {
@@ -298,9 +301,9 @@ _shql_TABLE_body_action() {
 
 ---
 
-### Modified `_shql_TABLE_body_on_key` — `[`/`]` fix
+### Modified `_shql_TABLE_body_on_key`
 
-The `[`/`]` tab-switch check must be moved after the Query tab delegation so the editor can consume those characters. Exact pseudocode for the modified function preamble:
+The Query tab must be handled before the `[`/`]` switch check and before the Up-at-top check. The following replaces the top of the function:
 
 ```bash
 _shql_TABLE_body_on_key() {
@@ -309,32 +312,34 @@ _shql_TABLE_body_on_key() {
         _shql_inspector_on_key "$1"; return $?
     fi
 
-    # When Query tab is active, delegate first so the editor can consume
-    # printable characters (including [ and ]) before the tab-switch check.
+    # Query tab: delegate first. The editor consumes printable chars (including
+    # [ and ]) before they reach the tab-switch logic. Up-at-top is not handled
+    # for the Query tab in this phase — users use Escape to return to the tab bar.
     if [[ "${SHELLFRAME_TABBAR_ACTIVE:-0}" == "$_SHQL_TABLE_TAB_QUERY" ]]; then
         _shql_query_on_key "$1"
         return $?
     fi
 
-    # [ / ] switch tabs from the body for Structure and Data tabs.
+    # [ / ] switch tabs from body for Structure and Data tabs only.
     case "$1" in
         '[') (( SHELLFRAME_TABBAR_ACTIVE > 0 )) && (( SHELLFRAME_TABBAR_ACTIVE-- )) || true; return 0 ;;
         ']') (( SHELLFRAME_TABBAR_ACTIVE < _SHQL_TABLE_TAB_QUERY )) && (( SHELLFRAME_TABBAR_ACTIVE++ )) || true; return 0 ;;
     esac
 
-    # ... rest of existing on_key logic for Structure and Data tabs ...
+    # ... rest of existing on_key logic (Up-at-top check, Structure/Data dispatch) unchanged ...
 }
 ```
+
+Behavioral note: the existing `*) _at_top=1 ;;` fallthrough that fired for the Query tab (when Up was pressed on the placeholder) is now unreachable for the Query tab. This is intentional — Up-at-top → tabbar for the Query tab is deferred to a later phase. Users use Escape from the editor or `q` from the results pane.
 
 ---
 
 ### Other modifications to `src/screens/table.sh`
 
 1. **`_shql_TABLE_body_render`**: replace `_shql_table_query_render "$@"` with `_shql_query_render "$@"`
-2. **`_shql_TABLE_footer_render`**: replace `_hint="$_SHQL_TABLE_FOOTER_HINTS_QUERY"` with `_shql_query_footer_hint _hint`
+2. **`_shql_TABLE_footer_render`**: replace `*) _hint="$_SHQL_TABLE_FOOTER_HINTS_QUERY" ;;` with the explicit case `"$_SHQL_TABLE_TAB_QUERY") _shql_query_footer_hint _hint ;;` followed by `*) _hint="" ;;`
 3. **`shql_table_init`**: call `_shql_query_init`
-4. Remove the `_shql_table_query_render` stub function (replaced by `src/screens/query.sh`)
-5. See `_shql_TABLE_body_on_key` and `_shql_TABLE_body_action` changes above
+4. Remove the `_shql_table_query_render` stub function
 
 ### `bin/shql`
 
@@ -342,7 +347,7 @@ Add `source "$_SHQL_ROOT/src/screens/query.sh"` after `table.sh`.
 
 ### Modifications to `src/db_mock.sh`
 
-Update the existing `shql_db_query` stub (replace; do not add a second definition):
+**Replace** (do not add a second definition) the existing `shql_db_query` stub. The current stub returns 2 columns/1 row; replace it with 3 columns/3 rows to match test assertions:
 
 ```bash
 # shql_db_query <db_path> <sql>
@@ -359,9 +364,11 @@ shql_db_query() {
 
 ## Test file: `tests/unit/test-query.sh`
 
-Stub requirements: `shellframe_editor_init`, `shellframe_editor_get_text`, `shellframe_grid_init`, `shellframe_grid_on_key`, `shellframe_shell_focus_set` (all no-ops or minimal stubs). Source `db_mock.sh` and `query.sh`.
+**Prerequisites:** The `db_mock.sh` stub must be updated as described above (3 columns, 3 rows) before writing or running these tests. The assertions are calibrated to that mock output.
 
-Concrete assertions:
+**Stub requirements:** `shellframe_editor_init`, `shellframe_grid_init`, `shellframe_grid_on_key`, `shellframe_shell_focus_set` (all no-ops). `shellframe_editor_get_text` stub: sets the named out-variable to any non-empty string (e.g. `"SELECT 1"`) — the value is passed to `_shql_query_run` but is irrelevant to the assertions below since the mock ignores SQL input.
+
+**Concrete assertions:**
 
 1. After `_shql_query_init`: `_SHQL_QUERY_INITIALIZED` equals `0`, `_SHQL_QUERY_FOCUSED_PANE` equals `"editor"`, `_SHQL_QUERY_STATUS` equals `""`
 2. After `_shql_query_run "SELECT 1"` with mock adapter: `_SHQL_QUERY_HAS_RESULTS` equals `1`, `SHELLFRAME_GRID_ROWS` equals `3`, `SHELLFRAME_GRID_COLS` equals `3`
@@ -369,7 +376,7 @@ Concrete assertions:
 4. After `_shql_query_run`: `_SHQL_QUERY_STATUS` equals `"3 rows"`
 5. After `_shql_query_footer_hint _hint` with `_SHQL_QUERY_STATUS="3 rows"` and `_SHQL_QUERY_FOCUSED_PANE="results"`: `_hint` contains `"3 rows"` and contains `"[q] Back"`
 6. After `_shql_query_footer_hint _hint` with `_SHQL_QUERY_STATUS=""` and `_SHQL_QUERY_FOCUSED_PANE="editor"`: `_hint` does NOT contain `"[q] Back"`, contains `"[Esc] Tab bar"`
-7. Simulating Tab key via `_shql_query_on_key` when `_SHQL_QUERY_FOCUSED_PANE="editor"`: `_SHQL_QUERY_FOCUSED_PANE` becomes `"results"`
+7. Simulating Tab key via `_shql_query_on_key "$k_tab"` when `_SHQL_QUERY_FOCUSED_PANE="editor"`: `_SHQL_QUERY_FOCUSED_PANE` becomes `"results"`
 8. Simulating Tab key again: `_SHQL_QUERY_FOCUSED_PANE` becomes `"editor"`
 
 ---
@@ -387,7 +394,8 @@ Same contract as `shql_db_fetch`.
 
 ## Out of Scope (this phase)
 
-- Movable/resizable divider (deferred)
+- Movable/resizable divider
+- Up-at-top of editor → tab bar focus (use Escape instead)
 - SQL history (previous queries)
 - Syntax highlighting in editor
 - Query cancellation

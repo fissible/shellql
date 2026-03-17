@@ -139,6 +139,7 @@ _shql_TABLE_header_render() {
 _shql_TABLE_tabbar_render() {
     SHELLFRAME_TABBAR_LABELS=("Structure" "Data" "Query")
     SHELLFRAME_TABBAR_FOCUSED=$_SHQL_TABLE_TABBAR_FOCUSED
+    SHELLFRAME_TABBAR_BG="${SHQL_THEME_TABBAR_BG:-}"
     shellframe_tabbar_render "$@"
 }
 

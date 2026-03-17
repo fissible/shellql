@@ -14,6 +14,12 @@ shellframe_sel_init()    { true; }
 shellframe_scroll_init() { true; }
 shellframe_sel_cursor()  { printf -v "$2" '%d' 0; }
 
+# Theme preamble
+SHELLFRAME_BOLD='' SHELLFRAME_RESET='' SHELLFRAME_REVERSE=''
+_SHQL_ROOT="$SHQL_ROOT"
+source "$SHQL_ROOT/src/theme.sh"
+shql_theme_load basic
+
 # ── Source state and mock modules ─────────────────────────────────────────────
 
 SHQL_MOCK=1

@@ -13,6 +13,12 @@ source "$_SHELLFRAME_DIR/src/widgets/list.sh"
 source "$_SHQL_ROOT/src/state.sh"
 SHQL_MOCK=1
 source "$_SHQL_ROOT/src/db_mock.sh"
+
+# Theme preamble (test-inspector.sh uses _SHQL_ROOT; bridge SHQL_ROOT for theme.sh)
+SHQL_ROOT="$_SHQL_ROOT"
+source "$_SHQL_ROOT/src/theme.sh"
+shql_theme_load basic
+
 source "$_SHQL_ROOT/src/screens/inspector.sh"
 source "$_SHQL_ROOT/tests/ptyunit/assert.sh"
 
@@ -64,7 +70,7 @@ _setup_mock_grid
 
 _SHQL_INSPECTOR_ACTIVE=1
 _SHQL_INSPECTOR_PAIRS=("a	1" "b	2" "c	3" "d	4" "e	5")
-shellframe_scroll_init "$_SHQL_INSPECTOR_CTX" 5 1 3 1
+shellframe_scroll_init "$_SHQL_INSPECTOR_CTX" 3 1 2 1
 
 _shql_inspector_on_key $'\033[B'  # down
 _top=0

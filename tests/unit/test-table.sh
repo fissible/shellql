@@ -19,6 +19,13 @@ shellframe_str_clip_ellipsis() { printf '%s' "$2"; }
 shellframe_str_pad()     { printf '%s' "$2"; }
 shellframe_scroll_move() { true; }
 
+# Theme preamble — declare shellframe color globals so basic.sh :- expansions
+# work under set -u (stubs don't set these variables)
+SHELLFRAME_BOLD='' SHELLFRAME_RESET='' SHELLFRAME_REVERSE=''
+_SHQL_ROOT="$SHQL_ROOT"
+source "$SHQL_ROOT/src/theme.sh"
+shql_theme_load basic
+
 # ── Source state and mock modules ─────────────────────────────────────────────
 
 SHQL_MOCK=1

@@ -44,6 +44,7 @@ _SHQL_TABLE_FOOTER_HINTS_TABBAR="[←→] Switch tab  [Tab] Body  [q] Back"
 _SHQL_TABLE_FOOTER_HINTS_DATA="[↑↓] Navigate  [Enter] Inspect  [Tab] Tabs  [q] Back"
 _SHQL_TABLE_FOOTER_HINTS_STRUCTURE="[↑↓] Scroll  [Tab] Tabs  [q] Back"
 _SHQL_TABLE_FOOTER_HINTS_QUERY="[Tab] Tabs  [q] Back"
+_SHQL_TABLE_FOOTER_HINTS_INSPECTOR="[↑↓] Scroll  [PgUp/PgDn] Page  [Enter/Esc/q] Close"
 
 # ── _shql_table_load_ddl ──────────────────────────────────────────────────────
 
@@ -232,9 +233,17 @@ _shql_TABLE_body_render() {
         "$_SHQL_TABLE_TAB_QUERY")     _shql_table_query_render "$@" ;;
         *)                            _shql_table_structure_render "$@" ;;
     esac
+    # Overlay the record inspector if active
+    (( _SHQL_INSPECTOR_ACTIVE )) && _shql_inspector_render "$@"
 }
 
 _shql_TABLE_body_on_key() {
+    # Route all keys to the inspector when it is open
+    if (( _SHQL_INSPECTOR_ACTIVE )); then
+        _shql_inspector_on_key "$1"
+        return $?
+    fi
+
     # [ / ] switch tabs from the body regardless of which tab is active.
     # A future editor (query tab) will consume these keys itself when in insert
     # mode, so they will never reach here in that context.
@@ -289,6 +298,16 @@ _shql_TABLE_body_on_focus() {
     SHELLFRAME_GRID_FOCUSED=$_SHQL_TABLE_BODY_FOCUSED
 }
 
+# ── _shql_TABLE_body_action ───────────────────────────────────────────────────
+# Called by shellframe shell when body on_key returns 2 (Enter on grid row).
+
+_shql_TABLE_body_action() {
+    local _tab="${SHELLFRAME_TABBAR_ACTIVE:-0}"
+    [[ "$_tab" != "$_SHQL_TABLE_TAB_DATA" ]] && return 0
+    SHELLFRAME_GRID_CTX="$_SHQL_TABLE_GRID_CTX"
+    _shql_inspector_open
+}
+
 # ── _shql_TABLE_footer_render ─────────────────────────────────────────────────
 
 _shql_TABLE_footer_render() {
@@ -296,7 +315,9 @@ _shql_TABLE_footer_render() {
     local _gray="${SHELLFRAME_GRAY:-}" _rst="${SHELLFRAME_RESET:-}"
     printf '\033[%d;%dH\033[2K' "$_top" "$_left" >/dev/tty
     local _hint
-    if (( _SHQL_TABLE_TABBAR_FOCUSED )); then
+    if (( _SHQL_INSPECTOR_ACTIVE )); then
+        _hint="$_SHQL_TABLE_FOOTER_HINTS_INSPECTOR"
+    elif (( _SHQL_TABLE_TABBAR_FOCUSED )); then
         _hint="$_SHQL_TABLE_FOOTER_HINTS_TABBAR"
     else
         local _tab="${SHELLFRAME_TABBAR_ACTIVE:-0}"
@@ -323,6 +344,7 @@ shql_table_init() {
     _SHQL_TABLE_TABBAR_FOCUSED=0
     _SHQL_TABLE_BODY_FOCUSED=0
     SHELLFRAME_TABBAR_ACTIVE=0
+    _SHQL_INSPECTOR_ACTIVE=0    # reset inspector state on table entry
 
     _shql_table_load_ddl
     _shql_table_load_data

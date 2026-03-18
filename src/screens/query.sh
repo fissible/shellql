@@ -118,7 +118,8 @@ _shql_query_on_key() {
     local _k_shift_tab=$'\033[Z'
     local _k_escape=$'\033'
     local _k_ctrl_d=$'\004'
-    local _k_ctrl_enter=$'\015'   # Ctrl-Enter is terminal-specific; treat same as Ctrl-D
+    # Note: Ctrl-Enter is not reliably distinguishable from Enter through shellframe's
+    # input layer (bash read converts \r → \n). Ctrl-D is the supported run shortcut.
 
     if [[ "$_SHQL_QUERY_FOCUSED_PANE" == "editor" ]]; then
         SHELLFRAME_EDITOR_CTX="$_SHQL_QUERY_EDITOR_CTX"
@@ -148,7 +149,7 @@ _shql_query_on_key() {
     if   [[ "$_key" == "$_k_tab" ]] || [[ "$_key" == "$_k_shift_tab" ]]; then
         _SHQL_QUERY_FOCUSED_PANE="editor"
         return 0
-    elif [[ "$_key" == "$_k_ctrl_d" ]] || [[ "$_key" == "$_k_ctrl_enter" ]]; then
+    elif [[ "$_key" == "$_k_ctrl_d" ]]; then
         local _sql
         shellframe_editor_get_text "$_SHQL_QUERY_EDITOR_CTX" _sql
         _shql_query_run "$_sql"
@@ -208,9 +209,11 @@ _shql_query_render() {
         for (( _r=0; _r<_results_rows; _r++ )); do
             printf '\033[%d;%dH\033[2K' "$(( _results_top + _r ))" "$_left" >/dev/tty
         done
-        local _placeholder="Run a query to see results  [Ctrl-Enter/Ctrl-D]"
+        local _placeholder="Run a query to see results  [Ctrl-D]"
         local _mid=$(( _results_top + _results_rows / 2 ))
+        local _pcol=$(( _left + (_width - ${#_placeholder}) / 2 ))
+        (( _pcol < _left )) && _pcol=$_left
         local _gray="${SHELLFRAME_GRAY:-}" _rst="${SHELLFRAME_RESET:-}"
-        printf '\033[%d;%dH%s%s%s' "$_mid" "$_left" "$_gray" "$_placeholder" "$_rst" >/dev/tty
+        printf '\033[%d;%dH%s%s%s' "$_mid" "$_pcol" "$_gray" "$_placeholder" "$_rst" >/dev/tty
     fi
 }

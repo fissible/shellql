@@ -66,4 +66,36 @@ assert_eq "email" "${SHELLFRAME_GRID_HEADERS[2]}"
 ptyunit_test_begin "query_run: STATUS is '3 rows'"
 assert_eq "3 rows" "$_SHQL_QUERY_STATUS"
 
+# ── Test 5: footer hint with status + results pane ───────────────────────────
+
+ptyunit_test_begin "footer_hint: status + results pane shows status and [q] Back"
+_SHQL_QUERY_STATUS="3 rows"
+_SHQL_QUERY_FOCUSED_PANE="results"
+_shql_query_footer_hint _hint
+assert_contains "$_hint" "3 rows"
+assert_contains "$_hint" "[q] Back"
+
+# ── Test 6: footer hint with no status + editor pane ─────────────────────────
+
+ptyunit_test_begin "footer_hint: no status + editor pane shows [Esc] Tab bar, no [q] Back"
+_SHQL_QUERY_STATUS=""
+_SHQL_QUERY_FOCUSED_PANE="editor"
+_shql_query_footer_hint _hint
+assert_contains "$_hint" "[Esc] Tab bar"
+assert_eq 0 $(echo "$_hint" | grep -c "\[q\] Back" || true)
+
+# ── Test 7: Tab key cycles editor → results ───────────────────────────────────
+
+ptyunit_test_begin "on_key: Tab from editor switches to results"
+_SHQL_QUERY_FOCUSED_PANE="editor"
+_k_tab=$'\t'
+_shql_query_on_key "$_k_tab"
+assert_eq "results" "$_SHQL_QUERY_FOCUSED_PANE"
+
+# ── Test 8: Tab key cycles results → editor ───────────────────────────────────
+
+ptyunit_test_begin "on_key: Tab from results switches to editor"
+_shql_query_on_key "$_k_tab"
+assert_eq "editor" "$_SHQL_QUERY_FOCUSED_PANE"
+
 ptyunit_test_summary

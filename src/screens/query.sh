@@ -85,3 +85,79 @@ _shql_query_run() {
     _SHQL_QUERY_HAS_RESULTS=1
     _SHQL_QUERY_STATUS="${SHELLFRAME_GRID_ROWS} rows"
 }
+
+# ── _shql_query_footer_hint ───────────────────────────────────────────────────
+# Sets named variable _out_var to the footer hint string for the Query tab.
+# Varies by focused pane and whether a status string is set.
+
+_shql_query_footer_hint() {
+    local _out_var="$1"
+    local _run="[Ctrl-Enter/Ctrl-D] Run"
+    local _escape="[Esc] Tab bar"
+    local _quit="[q] Back"
+    local _switch="[Tab] Switch pane"
+
+    local _back
+    [[ "$_SHQL_QUERY_FOCUSED_PANE" == "results" ]] && _back="$_quit" || _back="$_escape"
+
+    if [[ -n "$_SHQL_QUERY_STATUS" ]]; then
+        printf -v "$_out_var" '%s  %s  %s  %s' "$_SHQL_QUERY_STATUS" "$_run" "$_switch" "$_back"
+    else
+        printf -v "$_out_var" '%s  %s  %s' "$_run" "$_switch" "$_back"
+    fi
+}
+
+# ── _shql_query_on_key ────────────────────────────────────────────────────────
+# Key handler for the Query tab. Called from _shql_TABLE_body_on_key when
+# SHELLFRAME_TABBAR_ACTIVE == _SHQL_TABLE_TAB_QUERY.
+# Returns: 0 = handled, 1 = unhandled, 2 = action (Enter on grid row)
+
+_shql_query_on_key() {
+    local _key="$1"
+    local _k_tab=$'\t'
+    local _k_shift_tab=$'\033[Z'
+    local _k_escape=$'\033'
+    local _k_ctrl_d=$'\004'
+    local _k_ctrl_enter=$'\015'   # Ctrl-Enter is terminal-specific; treat same as Ctrl-D
+
+    if [[ "$_SHQL_QUERY_FOCUSED_PANE" == "editor" ]]; then
+        SHELLFRAME_EDITOR_CTX="$_SHQL_QUERY_EDITOR_CTX"
+        shellframe_editor_on_key "$_key"
+        local _rc=$?
+        if (( _rc == 2 )); then
+            # Ctrl-D submit: SHELLFRAME_EDITOR_RESULT contains the SQL
+            _shql_query_run "$SHELLFRAME_EDITOR_RESULT"
+            return 0
+        fi
+        if (( _rc == 0 )); then
+            # Editor consumed the key (printable char, navigation, etc.)
+            return 0
+        fi
+        # rc=1: editor did not handle it — check query-level bindings
+        if   [[ "$_key" == "$_k_tab" ]] || [[ "$_key" == "$_k_shift_tab" ]]; then
+            _SHQL_QUERY_FOCUSED_PANE="results"
+            return 0
+        elif [[ "$_key" == "$_k_escape" ]]; then
+            shellframe_shell_focus_set "tabbar"
+            return 0
+        fi
+        return 1
+    fi
+
+    # results pane focused
+    if   [[ "$_key" == "$_k_tab" ]] || [[ "$_key" == "$_k_shift_tab" ]]; then
+        _SHQL_QUERY_FOCUSED_PANE="editor"
+        return 0
+    elif [[ "$_key" == "$_k_ctrl_d" ]] || [[ "$_key" == "$_k_ctrl_enter" ]]; then
+        local _sql
+        shellframe_editor_get_text "$_SHQL_QUERY_EDITOR_CTX" _sql
+        _shql_query_run "$_sql"
+        return 0
+    elif [[ "$_key" == "q" ]]; then
+        shellframe_shell_focus_set "tabbar"
+        return 0
+    fi
+    SHELLFRAME_GRID_CTX="$_SHQL_QUERY_GRID_CTX"
+    shellframe_grid_on_key "$_key"
+    return $?
+}

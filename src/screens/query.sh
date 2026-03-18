@@ -84,6 +84,7 @@ _shql_query_run() {
     shellframe_grid_init "$_SHQL_QUERY_GRID_CTX"
     _SHQL_QUERY_HAS_RESULTS=1
     _SHQL_QUERY_STATUS="${SHELLFRAME_GRID_ROWS} rows"
+    _SHQL_QUERY_FOCUSED_PANE="results"
 }
 
 # ── _shql_query_footer_hint ───────────────────────────────────────────────────
@@ -92,18 +93,20 @@ _shql_query_run() {
 
 _shql_query_footer_hint() {
     local _out_var="$1"
-    local _run="[Ctrl-Enter/Ctrl-D] Run"
-    local _escape="[Esc] Tab bar"
-    local _quit="[q] Back"
-    local _switch="[Tab] Switch pane"
+    local _run="[Ctrl-D] Run"
 
-    local _back
-    [[ "$_SHQL_QUERY_FOCUSED_PANE" == "results" ]] && _back="$_quit" || _back="$_escape"
-
-    if [[ -n "$_SHQL_QUERY_STATUS" ]]; then
-        printf -v "$_out_var" '%s  %s  %s  %s' "$_SHQL_QUERY_STATUS" "$_run" "$_switch" "$_back"
+    if [[ "$_SHQL_QUERY_FOCUSED_PANE" == "results" ]]; then
+        if [[ -n "$_SHQL_QUERY_STATUS" ]]; then
+            printf -v "$_out_var" '%s  %s  %s  %s' "$_SHQL_QUERY_STATUS" "$_run" "[Esc] Editor" "[q] Back"
+        else
+            printf -v "$_out_var" '%s  %s  %s' "$_run" "[Esc] Editor" "[q] Back"
+        fi
     else
-        printf -v "$_out_var" '%s  %s  %s' "$_run" "$_switch" "$_back"
+        if [[ -n "$_SHQL_QUERY_STATUS" ]]; then
+            printf -v "$_out_var" '%s  %s  %s' "$_SHQL_QUERY_STATUS" "$_run" "[Esc] Tab bar"
+        else
+            printf -v "$_out_var" '%s  %s' "$_run" "[Esc] Tab bar"
+        fi
     fi
 }
 
@@ -153,6 +156,9 @@ _shql_query_on_key() {
         local _sql
         shellframe_editor_get_text "$_SHQL_QUERY_EDITOR_CTX" _sql
         _shql_query_run "$_sql"
+        return 0
+    elif [[ "$_key" == "$_k_escape" ]]; then
+        _SHQL_QUERY_FOCUSED_PANE="editor"
         return 0
     elif [[ "$_key" == "q" ]]; then
         shellframe_shell_focus_set "tabbar"

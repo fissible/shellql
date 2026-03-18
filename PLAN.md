@@ -59,11 +59,12 @@ Build with fake data (SHQL_MOCK=1) to validate the framework before any SQLite w
 - **Effort:** L (1 day)
 - **Status:** Done — `src/screens/table.sh`; Enter on schema table → TABLE; q → SCHEMA
 
-### 5.4 Query screen — [shellql#4](https://github.com/fissible/shellql/issues/4)
+### 5.4 Query screen — [shellql#4](https://github.com/fissible/shellql/issues/4) ✓ closed
 - Multiline text editor (SQL input)
 - Results data grid
 - Status/error area below
 - **Effort:** M (half day)
+- **Status:** Done — `src/screens/query.sh`; editor 30 % / divider / results grid split; Ctrl-D runs query; Tab cycles editor → results (stops); Shift-Tab reverses; auto-focuses editor on Query tab entry
 
 ### 5.5 Record inspector — [shellql#5](https://github.com/fissible/shellql/issues/5) ✓ closed
 - Modal or side panel
@@ -137,29 +138,26 @@ shellframe primitives (P1–P4)
 
 _Last updated: 2026-03-17_
 
-**Phases 5.1–5.5 complete. Theme system, breadcrumb header, and two-column inspector all done.**
+**Phases 5.1–5.5 complete. Phase 5.4 Query screen complete. All mock screens done.**
 
-Completed 2026-03-17:
-- `src/theme.sh` — `shql_theme_load`; reads `SHQL_THEME` env var; falls back to basic
-- `src/themes/basic.sh` — default theme; bold reverse-video header and inactive tabs
-- `src/themes/uranium.sh` — rounded borders; neon green header (RGB 80,186,42); dark grey tabs; bold true-color black text throughout
-- `src/screens/header.sh` — shared `_shql_header_render`; `_shql_breadcrumb` driver-aware breadcrumb: `sqlite://file`, `mysql://host/db`, or `host › db › table`
-- `src/state.sh` — added `SHQL_DRIVER`, `SHQL_DB_HOST`, `SHQL_DB_NAME` globals
-- `src/screens/schema.sh`, `table.sh` — header wrappers now delegate to `_shql_breadcrumb`
-- `src/screens/inspector.sh` — two-column key/value layout; `ceil(N/2)` scroll model
-- `src/screens/welcome.sh` — header wrapper uses shared `_shql_header_render`
-- `~/lib/fissible/shellframe/src/widgets/tab-bar.sh` — `SHELLFRAME_TABBAR_BG` override global
-- `tests/unit/test-schema.sh` — 5 new breadcrumb assertions (65/65 total)
-- `docs/shellframe-panel-mode-issue.md` — draft GitHub issue for `SHELLFRAME_PANEL_MODE` (windowed vs framed); file manually at fissible/shellframe (API returned 401)
+Completed 2026-03-17 (Phase 5.4 — Query screen, shellql#4):
+- `src/screens/query.sh` — state globals, `_shql_query_init`, `_shql_query_run` (TSV parser), `_shql_query_footer_hint`, `_shql_query_on_key`, `_shql_query_render`
+- `src/screens/table.sh` — wired Query tab: `_shql_query_render`, `_shql_query_footer_hint`, `_shql_query_on_key` delegation; auto-focus editor on tab entry via `]/[` and focus transition
+- `bin/shql` — added `source query.sh`
+- `src/db_mock.sh` — updated `shql_db_query` fixture to 3-col/3-row (id/name/email)
+- `tests/unit/test-query.sh` — 19 assertions; covers init, run, footer hints, Tab/Shift-Tab cycling, no-results stop
+- `shellframe/src/shell.sh` — allow `on_key` handlers to consume Tab/Shift-Tab (backward-compatible); committed to fissible/shellframe main
+- Layout: editor 30% / `─` divider / results grid; Ctrl-D runs query; auto-focuses results after run; Tab: editor→results→stop; Shift-Tab: results→editor→tabbar→stop
 
-**Run:** `SHQL_MOCK=1 SHELLFRAME_DIR=../shellframe bash bin/shql`
-**Run:** `SHQL_MOCK=1 SHQL_THEME=uranium SHELLFRAME_DIR=../shellframe bash bin/shql`
+**Run:** `SHQL_MOCK=1 SHELLFRAME_DIR=/path/to/shellframe bash bin/shql`
+**Run from worktree:** `SHELLFRAME_DIR=/Users/allenmccabe/lib/fissible/shellframe SHQL_MOCK=1 bash .worktrees/feature-query-screen/bin/shql`
 **Run tests:** `bash tests/ptyunit/run.sh --unit`
+**Test counts:** 62/62 unit assertions pass (2 test-inspector.sh failures are pre-existing submodule path issue in worktree)
 
-**Next task:** Phase 5.4 — Query screen ([shellql#4](https://github.com/fissible/shellql/issues/4))
-- Multiline text editor (SQL input)
-- Results data grid
-- Status/error area below
-- Effort: M (half day)
+**Next task:** Phase 6 — SQLite integration ([shellql#6](https://github.com/fissible/shellql/issues/6), [shellql#7](https://github.com/fissible/shellql/issues/7), [shellql#8](https://github.com/fissible/shellql/issues/8))
+- 6.1 Mock adapter cleanup (shql_db_query already done; verify shql_db_fetch, shql_db_list_tables, shql_db_describe)
+- 6.2 CLI entry point argument parsing (bin/shql: open, -q, --query, table, pipe, databases modes)
+- 6.3 Real sqlite3 adapter (src/db.sh — all four adapter functions with error handling)
 
 **Pending (not ShellQL):** File `docs/shellframe-panel-mode-issue.md` as a GitHub issue at fissible/shellframe
+**Pending (branch):** Merge or PR `feature/query-screen` → `main` once tested

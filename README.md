@@ -64,14 +64,25 @@ shql (CLI entry point)
     ├── screens/      # shellframe_app screen definitions
     │   ├── welcome.sh
     │   ├── schema.sh
-    │   ├── table.sh
-    │   ├── query.sh
-    │   └── record.sh
+    │   ├── table.sh   # Structure / Data / Query tabs
+    │   ├── query.sh   # SQL editor + results grid (Query tab)
+    │   └── inspector.sh  # row inspector overlay
     └── state.sh      # application globals
 ```
 
 The UI depends entirely on shellframe interfaces — no raw tput/stty calls in ShellQL itself.
 
+## Development (mock mode)
+
+All screens can be exercised without a real database:
+
+```bash
+SHQL_MOCK=1 SHELLFRAME_DIR=../shellframe bash bin/shql
+```
+
 ## Status
 
-Early development. See [PLAN.md](./PLAN.md) for the roadmap.
+All mock screens complete (Phases 5.1–5.5): welcome, schema browser, table view
+(Structure / Data / Query tabs), row inspector. SQLite integration is Phase 6.
+
+See [PLAN.md](./PLAN.md) for the roadmap.

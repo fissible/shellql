@@ -18,6 +18,12 @@ shellframe_grid_init()   { true; }
 shellframe_str_clip_ellipsis() { printf '%s' "$2"; }
 shellframe_str_pad()     { printf '%s' "$2"; }
 shellframe_scroll_move() { true; }
+shellframe_editor_init()  { true; }
+shellframe_grid_on_key()  { return 1; }
+shellframe_shell_focus_set() { true; }
+shellframe_editor_get_text() { printf -v "$2" '%s' "SELECT 1"; }
+shellframe_editor_on_key()   { return 1; }
+SHELLFRAME_EDITOR_RESULT=""
 
 # Theme preamble — declare shellframe color globals so basic.sh :- expansions
 # work under set -u (stubs don't set these variables)
@@ -39,6 +45,7 @@ source "$SHQL_ROOT/src/screens/schema.sh"
 
 # Source table module
 source "$SHQL_ROOT/src/screens/table.sh"
+source "$SHQL_ROOT/src/screens/query.sh"
 
 # ── Test: load_ddl populates DDL lines ───────────────────────────────────────
 

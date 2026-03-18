@@ -143,8 +143,13 @@ _shql_TABLE_tabbar_render() {
 
 _shql_TABLE_tabbar_on_key() {
     local _k_down="${SHELLFRAME_KEY_DOWN:-$'\033[B'}"
+    local _k_shift_tab=$'\033[Z'
     if [[ "$1" == "$_k_down" ]]; then
         shellframe_shell_focus_set "body"
+        return 0
+    fi
+    # Shift+Tab at the tabbar stops focus traversal (start of focus order).
+    if [[ "$1" == "$_k_shift_tab" ]]; then
         return 0
     fi
     case "$1" in
@@ -281,10 +286,14 @@ _shql_TABLE_body_on_key() {
 }
 
 _shql_TABLE_body_on_focus() {
+    local _was_focused=$_SHQL_TABLE_BODY_FOCUSED
     _SHQL_TABLE_BODY_FOCUSED="${1:-0}"
     SHELLFRAME_GRID_FOCUSED=$_SHQL_TABLE_BODY_FOCUSED
-    # When body gains focus on the Query tab, always start in the editor pane.
-    if (( _SHQL_TABLE_BODY_FOCUSED )) && [[ "${SHELLFRAME_TABBAR_ACTIVE:-0}" == "$_SHQL_TABLE_TAB_QUERY" ]]; then
+    # On the transition from unfocused → focused, reset the Query tab to the editor
+    # pane so Tab-into-Query always lands in the text editor.  Guard with _was_focused
+    # so repeated on_focus(1) calls during redraws don't override internal pane state.
+    if (( _SHQL_TABLE_BODY_FOCUSED && ! _was_focused )) && \
+       [[ "${SHELLFRAME_TABBAR_ACTIVE:-0}" == "$_SHQL_TABLE_TAB_QUERY" ]]; then
         _SHQL_QUERY_FOCUSED_PANE="editor"
     fi
 }

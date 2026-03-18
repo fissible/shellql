@@ -92,10 +92,23 @@ _k_tab=$'\t'
 _shql_query_on_key "$_k_tab"
 assert_eq "results" "$_SHQL_QUERY_FOCUSED_PANE"
 
-# ── Test 8: Tab key cycles results → editor ───────────────────────────────────
+# ── Test 8: Tab from results stays in results (stop) ─────────────────────────
 
-ptyunit_test_begin "on_key: Tab from results switches to editor"
+ptyunit_test_begin "on_key: Tab from results stops (stays in results)"
 _shql_query_on_key "$_k_tab"
+assert_eq "results" "$_SHQL_QUERY_FOCUSED_PANE"
+
+# ── Test 9: Shift+Tab from results → editor ───────────────────────────────────
+
+ptyunit_test_begin "on_key: Shift+Tab from results switches to editor"
+_k_shift_tab=$'\033[Z'
+_shql_query_on_key "$_k_shift_tab"
 assert_eq "editor" "$_SHQL_QUERY_FOCUSED_PANE"
+
+# ── Test 10: Shift+Tab from editor returns 1 (passes to shellframe) ──────────
+
+ptyunit_test_begin "on_key: Shift+Tab from editor returns 1 (shellframe moves to tabbar)"
+_shql_query_on_key "$_k_shift_tab"
+assert_eq 1 $?
 
 ptyunit_test_summary

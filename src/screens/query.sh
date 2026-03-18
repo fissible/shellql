@@ -138,9 +138,13 @@ _shql_query_on_key() {
             return 0
         fi
         # rc=1: editor did not handle it — check query-level bindings
-        if   [[ "$_key" == "$_k_tab" ]] || [[ "$_key" == "$_k_shift_tab" ]]; then
+        if [[ "$_key" == "$_k_tab" ]]; then
+            # Tab: advance into results pane (consumed; prevents shellframe cycling to tabbar)
             _SHQL_QUERY_FOCUSED_PANE="results"
             return 0
+        elif [[ "$_key" == "$_k_shift_tab" ]]; then
+            # Shift+Tab: not consumed; let shellframe retreat focus to tabbar
+            return 1
         elif [[ "$_key" == "$_k_escape" ]]; then
             shellframe_shell_focus_set "tabbar"
             return 0
@@ -149,7 +153,11 @@ _shql_query_on_key() {
     fi
 
     # results pane focused
-    if   [[ "$_key" == "$_k_tab" ]] || [[ "$_key" == "$_k_shift_tab" ]]; then
+    if [[ "$_key" == "$_k_tab" ]]; then
+        # Tab at end of focus order: stop (consume and do nothing)
+        return 0
+    elif [[ "$_key" == "$_k_shift_tab" ]]; then
+        # Shift+Tab: retreat to editor pane
         _SHQL_QUERY_FOCUSED_PANE="editor"
         return 0
     elif [[ "$_key" == "$_k_ctrl_d" ]]; then

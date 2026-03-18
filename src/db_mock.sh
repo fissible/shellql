@@ -160,7 +160,10 @@ shql_db_fetch() {
 }
 
 # shql_db_query <db_path> <sql>
+# First line: tab-separated column headers. Subsequent lines: data rows.
 shql_db_query() {
-    printf '%s\t%s\n' count result
-    printf '%s\t%s\n' 42 "mock row"
+    printf 'id\tname\temail\n'
+    printf '1\tAlice\talice@example.com\n'
+    printf '2\tBob\tbob@example.com\n'
+    printf '3\tCarol\tcarol@example.com\n'
 }

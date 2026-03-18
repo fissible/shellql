@@ -153,8 +153,12 @@ _shql_TABLE_tabbar_on_key() {
         return 0
     fi
     case "$1" in
-        '[') (( SHELLFRAME_TABBAR_ACTIVE > 0 )) && (( SHELLFRAME_TABBAR_ACTIVE-- )) || true; return 0 ;;
-        ']') (( SHELLFRAME_TABBAR_ACTIVE < _SHQL_TABLE_TAB_QUERY )) && (( SHELLFRAME_TABBAR_ACTIVE++ )) || true; return 0 ;;
+        '[') (( SHELLFRAME_TABBAR_ACTIVE > 0 )) && (( SHELLFRAME_TABBAR_ACTIVE-- )) || true
+             [[ "${SHELLFRAME_TABBAR_ACTIVE:-0}" == "$_SHQL_TABLE_TAB_QUERY" ]] && _SHQL_QUERY_FOCUSED_PANE="editor" || true
+             return 0 ;;
+        ']') (( SHELLFRAME_TABBAR_ACTIVE < _SHQL_TABLE_TAB_QUERY )) && (( SHELLFRAME_TABBAR_ACTIVE++ )) || true
+             [[ "${SHELLFRAME_TABBAR_ACTIVE:-0}" == "$_SHQL_TABLE_TAB_QUERY" ]] && _SHQL_QUERY_FOCUSED_PANE="editor" || true
+             return 0 ;;
     esac
     shellframe_tabbar_on_key "$1"
 }
@@ -241,8 +245,12 @@ _shql_TABLE_body_on_key() {
 
     # [ / ] switch tabs from the body for Structure and Data tabs only.
     case "$1" in
-        '[') (( SHELLFRAME_TABBAR_ACTIVE > 0 )) && (( SHELLFRAME_TABBAR_ACTIVE-- )) || true; return 0 ;;
-        ']') (( SHELLFRAME_TABBAR_ACTIVE < _SHQL_TABLE_TAB_QUERY )) && (( SHELLFRAME_TABBAR_ACTIVE++ )) || true; return 0 ;;
+        '[') (( SHELLFRAME_TABBAR_ACTIVE > 0 )) && (( SHELLFRAME_TABBAR_ACTIVE-- )) || true
+             [[ "${SHELLFRAME_TABBAR_ACTIVE:-0}" == "$_SHQL_TABLE_TAB_QUERY" ]] && _SHQL_QUERY_FOCUSED_PANE="editor" || true
+             return 0 ;;
+        ']') (( SHELLFRAME_TABBAR_ACTIVE < _SHQL_TABLE_TAB_QUERY )) && (( SHELLFRAME_TABBAR_ACTIVE++ )) || true
+             [[ "${SHELLFRAME_TABBAR_ACTIVE:-0}" == "$_SHQL_TABLE_TAB_QUERY" ]] && _SHQL_QUERY_FOCUSED_PANE="editor" || true
+             return 0 ;;
     esac
 
     local _tab="${SHELLFRAME_TABBAR_ACTIVE:-0}"

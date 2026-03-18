@@ -139,8 +139,8 @@ _shql_query_on_key() {
         fi
         # rc=1: editor did not handle it — check query-level bindings
         if [[ "$_key" == "$_k_tab" ]]; then
-            # Tab: advance into results pane (consumed; prevents shellframe cycling to tabbar)
-            _SHQL_QUERY_FOCUSED_PANE="results"
+            # Tab: advance into results pane only if results exist; otherwise stop.
+            (( _SHQL_QUERY_HAS_RESULTS )) && _SHQL_QUERY_FOCUSED_PANE="results" || true
             return 0
         elif [[ "$_key" == "$_k_shift_tab" ]]; then
             # Shift+Tab: not consumed; let shellframe retreat focus to tabbar

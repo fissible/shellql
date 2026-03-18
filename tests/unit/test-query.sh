@@ -111,4 +111,12 @@ ptyunit_test_begin "on_key: Shift+Tab from editor returns 1 (shellframe moves to
 _shql_query_on_key "$_k_shift_tab"
 assert_eq 1 $?
 
+# ── Test 11: Tab from editor with no results stays in editor ─────────────────
+
+ptyunit_test_begin "on_key: Tab from editor with no results stays in editor (stop)"
+_shql_query_init
+_SHQL_QUERY_FOCUSED_PANE="editor"
+_shql_query_on_key $'\t'
+assert_eq "editor" "$_SHQL_QUERY_FOCUSED_PANE"
+
 ptyunit_test_summary

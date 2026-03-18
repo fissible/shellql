@@ -283,6 +283,10 @@ _shql_TABLE_body_on_key() {
 _shql_TABLE_body_on_focus() {
     _SHQL_TABLE_BODY_FOCUSED="${1:-0}"
     SHELLFRAME_GRID_FOCUSED=$_SHQL_TABLE_BODY_FOCUSED
+    # When body gains focus on the Query tab, always start in the editor pane.
+    if (( _SHQL_TABLE_BODY_FOCUSED )) && [[ "${SHELLFRAME_TABBAR_ACTIVE:-0}" == "$_SHQL_TABLE_TAB_QUERY" ]]; then
+        _SHQL_QUERY_FOCUSED_PANE="editor"
+    fi
 }
 
 # ── _shql_TABLE_body_action ───────────────────────────────────────────────────

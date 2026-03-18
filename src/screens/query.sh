@@ -161,3 +161,56 @@ _shql_query_on_key() {
     shellframe_grid_on_key "$_key"
     return $?
 }
+
+# ── _shql_query_render ────────────────────────────────────────────────────────
+# Renders the Query tab: editor pane / divider / results pane.
+# top left width height passed from _shql_TABLE_body_render.
+
+_shql_query_render() {
+    local _top="$1" _left="$2" _width="$3" _height="$4"
+
+    # Lazy widget init: requires viewport dimensions, so deferred from _shql_query_init.
+    if (( ! _SHQL_QUERY_INITIALIZED )); then
+        SHELLFRAME_EDITOR_LINES=()
+        shellframe_editor_init "$_SHQL_QUERY_EDITOR_CTX"
+        SHELLFRAME_GRID_CTX="$_SHQL_QUERY_GRID_CTX"
+        shellframe_grid_init "$_SHQL_QUERY_GRID_CTX"
+        _SHQL_QUERY_INITIALIZED=1
+    fi
+
+    # Compute split
+    local _editor_rows=$(( _height * 30 / 100 ))
+    (( _editor_rows < 3 )) && _editor_rows=3
+    local _divider_row=$(( _top + _editor_rows ))
+    local _results_top=$(( _divider_row + 1 ))
+    local _results_rows=$(( _height - _editor_rows - 1 ))
+    (( _results_rows < 3 )) && _results_rows=3
+
+    # Sync framework focus globals (bash 3.2-compatible)
+    SHELLFRAME_EDITOR_CTX="$_SHQL_QUERY_EDITOR_CTX"
+    [[ "$_SHQL_QUERY_FOCUSED_PANE" == "editor" ]]  && SHELLFRAME_EDITOR_FOCUSED=1 || SHELLFRAME_EDITOR_FOCUSED=0
+    SHELLFRAME_GRID_CTX="$_SHQL_QUERY_GRID_CTX"
+    [[ "$_SHQL_QUERY_FOCUSED_PANE" == "results" ]] && SHELLFRAME_GRID_FOCUSED=1   || SHELLFRAME_GRID_FOCUSED=0
+
+    # Render editor pane
+    shellframe_editor_render "$_top" "$_left" "$_width" "$_editor_rows"
+
+    # Render divider row
+    local _divider='' _i
+    for (( _i=0; _i<_width; _i++ )); do _divider+='─'; done
+    printf '\033[%d;%dH%s' "$_divider_row" "$_left" "$_divider" >/dev/tty
+
+    # Render results pane
+    if (( _SHQL_QUERY_HAS_RESULTS )); then
+        shellframe_grid_render "$_results_top" "$_left" "$_width" "$_results_rows"
+    else
+        local _r
+        for (( _r=0; _r<_results_rows; _r++ )); do
+            printf '\033[%d;%dH\033[2K' "$(( _results_top + _r ))" "$_left" >/dev/tty
+        done
+        local _placeholder="Run a query to see results  [Ctrl-Enter/Ctrl-D]"
+        local _mid=$(( _results_top + _results_rows / 2 ))
+        local _gray="${SHELLFRAME_GRAY:-}" _rst="${SHELLFRAME_RESET:-}"
+        printf '\033[%d;%dH%s%s%s' "$_mid" "$_left" "$_gray" "$_placeholder" "$_rst" >/dev/tty
+    fi
+}

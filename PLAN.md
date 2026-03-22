@@ -79,9 +79,10 @@ Build with fake data (SHQL_MOCK=1) to validate the framework before any SQLite w
 
 Wire real sqlite3 behind the adapter seam defined in db.sh.
 
-### 6.1 Mock adapter — [shellql#6](https://github.com/fissible/shellql/issues/6)
+### 6.1 Mock adapter — [shellql#6](https://github.com/fissible/shellql/issues/6) ✓ done
 - `src/db_mock.sh` with fixture data for all adapter functions
 - **Effort:** S (1–2h)
+- **Status:** Done — `src/db_mock.sh`; implements `shql_mock_load_recent`, `shql_db_list_tables`, `shql_db_describe`, `shql_db_fetch`, `shql_db_query` with fixture data
 
 ### 6.2 CLI entry point (`bin/shql`) — [shellql#8](https://github.com/fissible/shellql/issues/8) ✓ done
 - Argument parsing for all modes (open, -q, --query, table, pipe, databases)

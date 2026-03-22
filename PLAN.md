@@ -168,6 +168,12 @@ Also 2026-03-22:
 **Run (query):** `SHELLFRAME_DIR=../shellframe bash bin/shql tests/fixtures/demo.sqlite -q "SELECT * FROM users"`
 **Run tests:** `SHELLFRAME_DIR=/path/to/shellframe bash tests/ptyunit/run.sh --unit`
 
+Also 2026-03-22 (workflow session):
+- Reviewed fissible release procedure (`fissible/.github`: `release.sh`, `RELEASE.md`, `.cliff.toml`)
+- Updated `~/.claude/CLAUDE.md` — all fissible project sessions now read `.github/README.md` at start
+- Saved reference memory for release procedure
+- No code changes; `release.sh` + `VERSION` + `CHANGELOG.md` still need to be added before first release
+
 **Next task (choose one):**
 - Phase 6.4 — Discovery mode ([shellql#9](https://github.com/fissible/shellql/issues/9)) — list recent/known databases, resolve path from name
 - Phase 6.5 — Integration tests — real sqlite3 round-trips, all CLI modes

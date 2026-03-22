@@ -32,11 +32,13 @@ source "$_SHELLFRAME_ENTRY"
 # ── Load ShellQL modules ──────────────────────────────────────────────────────
 
 source "$_SHQL_ROOT/src/state.sh"
+source "$_SHQL_ROOT/src/json.sh"
+source "$_SHQL_ROOT/src/config.sh"
 
 if (( SHQL_MOCK )); then
     source "$_SHQL_ROOT/src/db_mock.sh"
 else
-    source "$_SHQL_ROOT/src/db.sh" 2>/dev/null || true
+    source "$_SHQL_ROOT/src/db.sh"
 fi
 
 # theme: after shellframe (SHELLFRAME_* populated), before screens

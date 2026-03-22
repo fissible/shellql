@@ -141,7 +141,10 @@ shellframe primitives (P1–P4)
 
 _Last updated: 2026-03-22_
 
-**Phase 6.2 (CLI entry point) complete. UI issues filed. Phase 6.4 Discovery mode or UI fixes are next.**
+**Phases 6.1, 6.2, 6.3 complete. Next: Phase 6.4 Discovery mode or UI fixes.**
+
+Completed 2026-03-22 (Phase 6.1):
+- `src/db_mock.sh` — fixture data for all adapter functions (`shql_mock_load_recent`, `shql_db_list_tables`, `shql_db_describe`, `shql_db_fetch`, `shql_db_query`)
 
 Completed 2026-03-22 (Phase 6.2):
 - `src/cli.sh` — `shql_cli_parse` (7-mode arg resolution: welcome/open/table/query-tui/query-out/pipe/databases); `shql_cli_format_table` (MySQL-style box output); idempotency guard; pipe detection via `[ -p /dev/stdin ]`
@@ -157,17 +160,15 @@ Completed 2026-03-22 (Phase 6.3):
 - `tests/integration/test-db.sh` — Real sqlite3, 24 integration tests
 
 Also 2026-03-22:
-- `.gitignore` — added `.superpowers/`
-- `tests/fixtures/` — added `demo.sqlite` + `.gitkeep`
-- UI issues filed on GitHub (shellql): data tab row nav perf, row highlight rendering, focus visibility / tab order, query tab layout
+- `tests/fixtures/demo.sqlite` — test database matching mock schema (users, orders, products, categories)
+- shellframe#24 (windowed panel mode) — implemented and merged to shellframe main; issue closed
 
 **Run (mock):** `SHQL_MOCK=1 SHELLFRAME_DIR=../shellframe bash bin/shql`
-**Run (real):** `SHELLFRAME_DIR=../shellframe bash bin/shql path/to/db.sqlite`
-**Run (query):** `SHELLFRAME_DIR=../shellframe bash bin/shql db.sqlite -q "SELECT 1"`
+**Run (real):** `SHELLFRAME_DIR=../shellframe bash bin/shql tests/fixtures/demo.sqlite`
+**Run (query):** `SHELLFRAME_DIR=../shellframe bash bin/shql tests/fixtures/demo.sqlite -q "SELECT * FROM users"`
 **Run tests:** `SHELLFRAME_DIR=/path/to/shellframe bash tests/ptyunit/run.sh --unit`
 
 **Next task (choose one):**
-- Phase 6.4 — Discovery mode — list recent/known databases, resolve path from name
-- UI fixes — data tab perf, row highlight, focus indicators, query tab layout (shellql issues filed 2026-03-22)
-
-**Pending (not ShellQL):** [fissible/shellframe#24](https://github.com/fissible/shellframe/issues/24) — Panel rendering modes: add `windowed` mode with dedicated title bar row
+- Phase 6.4 — Discovery mode ([shellql#9](https://github.com/fissible/shellql/issues/9)) — list recent/known databases, resolve path from name
+- Phase 6.5 — Integration tests — real sqlite3 round-trips, all CLI modes
+- UI fixes — data tab perf, row highlight, focus indicators, query tab layout

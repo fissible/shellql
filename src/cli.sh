@@ -137,3 +137,118 @@ shql_cli_parse() {
     _SHQL_CLI_MODE="welcome"
     return 0
 }
+
+# ── shql_cli_format_table ─────────────────────────────────────────────────────
+#
+# Print a TSV result as a MySQL-style box table to stdout.
+#
+# Usage: shql_cli_format_table <tsv_string>
+#
+#   <tsv_string>  Full multi-line TSV. First line = tab-separated headers.
+#                 Subsequent lines are data rows — including empty lines, which
+#                 render as blank cells. Pass the TSV without a trailing newline
+#                 (i.e. as returned by command substitution) to avoid a phantom
+#                 blank row at the end. If empty: no output.
+#                 If _SHQL_CLI_PORCELAIN=1: no output.
+#
+# Output format:
+#   +----+-------+
+#   | id | name  |
+#   +----+-------+
+#   | 1  | Alice |
+#   +----+-------+
+#
+# Column width = max(header_length, max_data_cell_length).
+# Each cell: | {space}{content padded to column_width}{space} |
+# Separator dashes per column = column_width + 2.
+
+shql_cli_format_table() {
+    local _tsv="$1"
+    [[ -z "$_tsv" ]] && return 0
+    (( ${_SHQL_CLI_PORCELAIN:-0} )) && return 0
+
+    # Split TSV into header line and data lines.
+    # <<< appends exactly one \n; $(…) strips trailing newlines, so normal
+    # multi-row inputs never produce a phantom blank row.  When the caller
+    # explicitly passes a string ending in \n (e.g. $'name\n'), the extra
+    # empty line IS a real data row (empty cell), so we keep all elements.
+    local _header="" _rows=() _line _first=1
+    while IFS= read -r _line; do
+        if (( _first )); then
+            _header="$_line"
+            _first=0
+        else
+            _rows+=("$_line")
+        fi
+    done <<< "$_tsv"
+
+    # Parse header into column array (tab-delimited)
+    local _headers=() _IFS_SAVE="$IFS"
+    IFS=$'\t' read -ra _headers <<< "$_header"
+    IFS="$_IFS_SAVE"
+    local _ncols=${#_headers[@]}
+
+    # Initialise column widths from header lengths
+    local _widths=() _i
+    for (( _i = 0; _i < _ncols; _i++ )); do
+        _widths+=( "${#_headers[$_i]}" )
+    done
+
+    # Expand widths from data cell lengths
+    local _row _cells=() _cell _clen
+    for _row in "${_rows[@]+"${_rows[@]}"}"; do
+        _cells=()
+        IFS=$'\t' read -ra _cells <<< "$_row"
+        IFS="$_IFS_SAVE"
+        for (( _i = 0; _i < _ncols; _i++ )); do
+            _cell="${_cells[$_i]:-}"
+            _clen=${#_cell}
+            (( _clen > _widths[$_i] )) && _widths[$_i]=$_clen
+        done
+    done
+
+    # Build separator line: +---+---+
+    local _sep="+" _j _dashes _w
+    for (( _i = 0; _i < _ncols; _i++ )); do
+        _dashes=""
+        _w=$(( _widths[$_i] + 2 ))
+        for (( _j = 0; _j < _w; _j++ )); do _dashes="${_dashes}-"; done
+        _sep="${_sep}${_dashes}+"
+    done
+
+    # Print top border
+    printf '%s\n' "$_sep"
+
+    # Print header row: | col1 | col2 |
+    local _row_str="|" _v _pad _sp _m
+    for (( _i = 0; _i < _ncols; _i++ )); do
+        _v="${_headers[$_i]}"
+        _pad=$(( _widths[$_i] - ${#_v} ))
+        _sp=""
+        for (( _m = 0; _m < _pad; _m++ )); do _sp="${_sp} "; done
+        _row_str="${_row_str} ${_v}${_sp} |"
+    done
+    printf '%s\n' "$_row_str"
+
+    # Print header separator
+    printf '%s\n' "$_sep"
+
+    # Print data rows
+    for _row in "${_rows[@]+"${_rows[@]}"}"; do
+        _cells=()
+        IFS=$'\t' read -ra _cells <<< "$_row"
+        IFS="$_IFS_SAVE"
+        _row_str="|"
+        for (( _i = 0; _i < _ncols; _i++ )); do
+            _v="${_cells[$_i]:-}"
+            _pad=$(( _widths[$_i] - ${#_v} ))
+            _sp=""
+            for (( _m = 0; _m < _pad; _m++ )); do _sp="${_sp} "; done
+            _row_str="${_row_str} ${_v}${_sp} |"
+        done
+        printf '%s\n' "$_row_str"
+    done
+
+    # Print bottom border
+    printf '%s\n' "$_sep"
+}

@@ -124,4 +124,51 @@ _pipe_rc=$(printf "SELECT 1" | bash -c "
 ")
 assert_eq "1" "$_pipe_rc" "pipe no db: returns 1"
 
+ptyunit_test_begin "cli-format"
+
+# ── basic box: 2 columns, 2 rows ─────────────────────────────────────────────
+# id width=2, name width=5 ("Alice"), separator=+----+-------+
+_tsv="$(printf 'id\tname\n1\tAlice\n2\tBob')"
+_expected="$(printf '+----+-------+\n| id | name  |\n+----+-------+\n| 1  | Alice |\n| 2  | Bob   |\n+----+-------+')"
+_actual="$(shql_cli_format_table "$_tsv")"
+assert_eq "$_expected" "$_actual" "basic box: 2-col 2-row"
+
+# ── column width driven by data (wider than header) ──────────────────────────
+# header "id" (len 2), data "1000000" (len 7) → column_width=7
+# separator: +---------+  (7+2=9 dashes)
+_tsv="$(printf 'id\n1000000')"
+_expected="$(printf '+---------+\n| id      |\n+---------+\n| 1000000 |\n+---------+')"
+_actual="$(shql_cli_format_table "$_tsv")"
+assert_eq "$_expected" "$_actual" "column width from data"
+
+# ── header only (no data rows): double separator ─────────────────────────────
+_tsv="$(printf 'id\tname\temail')"
+_expected="$(printf '+----+------+-------+\n| id | name | email |\n+----+------+-------+\n+----+------+-------+')"
+_actual="$(shql_cli_format_table "$_tsv")"
+assert_eq "$_expected" "$_actual" "header only: double separator"
+
+# ── single column ─────────────────────────────────────────────────────────────
+_tsv="$(printf 'val\nhello')"
+_expected="$(printf '+-------+\n| val   |\n+-------+\n| hello |\n+-------+')"
+_actual="$(shql_cli_format_table "$_tsv")"
+assert_eq "$_expected" "$_actual" "single column"
+
+# ── empty cell: renders as spaces filling column width ───────────────────────
+# header "name" (len 4), data: "" (len 0) → column_width=4
+# Use $'name\n' to preserve the trailing newline ($(printf...) strips it).
+_tsv=$'name\n'
+_expected="$(printf '+------+\n| name |\n+------+\n|      |\n+------+')"
+_actual="$(shql_cli_format_table "$_tsv")"
+assert_eq "$_expected" "$_actual" "empty cell"
+
+# ── empty input: no output ────────────────────────────────────────────────────
+_actual="$(shql_cli_format_table "")"
+assert_eq "" "$_actual" "empty input: no output"
+
+# ── --porcelain=1: format_table produces no output ───────────────────────────
+_SHQL_CLI_PORCELAIN=1
+_actual="$(shql_cli_format_table "$(printf 'id\n1')")"
+assert_eq "" "$_actual" "porcelain=1: no output from format_table"
+_SHQL_CLI_PORCELAIN=0
+
 ptyunit_test_summary

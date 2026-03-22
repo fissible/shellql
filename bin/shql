@@ -34,6 +34,7 @@ source "$_SHELLFRAME_ENTRY"
 source "$_SHQL_ROOT/src/state.sh"
 source "$_SHQL_ROOT/src/json.sh"
 source "$_SHQL_ROOT/src/config.sh"
+source "$_SHQL_ROOT/src/cli.sh"
 
 if (( SHQL_MOCK )); then
     source "$_SHQL_ROOT/src/db_mock.sh"
@@ -53,40 +54,81 @@ source "$_SHQL_ROOT/src/screens/table.sh"
 source "$_SHQL_ROOT/src/screens/query.sh"
 source "$_SHQL_ROOT/src/screens/inspector.sh"
 
-# ── Argument parsing (minimal — Phase 6 expands this) ────────────────────────
+# ── Argument parsing ──────────────────────────────────────────────────────────
 
-_shql_mode="welcome"
-_shql_db_arg=""
-
-while (( $# > 0 )); do
-    case "$1" in
-        databases) _shql_mode="databases"; shift ;;
-        --query|-q) _shql_mode="query"; shift ;;
-        -*)
-            printf 'unknown option: %s\n' "$1" >&2; exit 1 ;;
-        *)
-            if [[ -z "$_shql_db_arg" ]]; then
-                _shql_db_arg="$1"
-                _shql_mode="open"
-            fi
-            shift ;;
-    esac
-done
+shql_cli_parse "$@" || exit $?
 
 # ── Dispatch ──────────────────────────────────────────────────────────────────
 
-case "$_shql_mode" in
+case "$_SHQL_CLI_MODE" in
     welcome)
-        shql_welcome_run   # runs shellframe_shell; navigates to SCHEMA on selection
+        shql_welcome_run
         ;;
+
     open)
-        SHQL_DB_PATH="$_shql_db_arg"
-        printf 'TODO: open %s\n' "$SHQL_DB_PATH"
+        SHQL_DB_PATH="$_SHQL_CLI_DB"
+        if ! (( SHQL_MOCK )); then _shql_db_check_path "$SHQL_DB_PATH" || exit 1; fi
+        shql_state_push_recent "$SHQL_DB_PATH"
+        shql_schema_init
+        shellframe_shell "_shql" "SCHEMA"
         ;;
-    query)
-        printf 'TODO: query mode\n'
+
+    table)
+        # _SHQL_TABLE_NAME is the screen-private name used by table.sh;
+        # SHQL_DB_TABLE is the public state global — set both.
+        # shql_schema_init is needed so pressing q in TABLE navigates back to SCHEMA.
+        # shql_table_init must be called after _SHQL_TABLE_NAME is set.
+        SHQL_DB_PATH="$_SHQL_CLI_DB"
+        SHQL_DB_TABLE="$_SHQL_CLI_TABLE"
+        _SHQL_TABLE_NAME="$_SHQL_CLI_TABLE"
+        if ! (( SHQL_MOCK )); then _shql_db_check_path "$SHQL_DB_PATH" || exit 1; fi
+        shql_state_push_recent "$SHQL_DB_PATH"
+        shql_schema_init
+        shql_table_init
+        shellframe_shell "_shql" "TABLE"
         ;;
+
+    query-tui)
+        # Open TABLE screen with the QUERY tab (index 2) pre-selected.
+        # _SHQL_TABLE_NAME is left empty — no table pre-selected; user starts
+        # in the query editor. shql_table_init resets SHELLFRAME_TABBAR_ACTIVE=0,
+        # so the tab override must come AFTER shql_table_init.
+        SHQL_DB_PATH="$_SHQL_CLI_DB"
+        _SHQL_TABLE_NAME=""
+        if ! (( SHQL_MOCK )); then _shql_db_check_path "$SHQL_DB_PATH" || exit 1; fi
+        shql_state_push_recent "$SHQL_DB_PATH"
+        shql_schema_init
+        shql_table_init
+        SHELLFRAME_TABBAR_ACTIVE=$_SHQL_TABLE_TAB_QUERY
+        shellframe_shell "_shql" "TABLE"
+        ;;
+
+    query-out|pipe)
+        # Path validation delegated to shql_db_query (_shql_db_check_path inside).
+        # Record to recent history only on success so invalid paths are never saved.
+        # Route sqlite3 errors to /dev/tty when available (project convention: errors to
+        # tty, data to stdout). Fall back to stderr (not /dev/null as TUI modes do) so
+        # errors remain visible in CI and scripted contexts.
+        SHQL_DB_PATH="$_SHQL_CLI_DB"
+        _err_tty=/dev/stderr; ( exec 9>/dev/tty ) 2>/dev/null && _err_tty=/dev/tty
+        _tsv=$(shql_db_query "$SHQL_DB_PATH" "$_SHQL_CLI_SQL" 2>"$_err_tty")
+        _rc=$?
+        if [ "$_rc" -ne 0 ]; then
+            exit $_rc
+        fi
+        shql_state_push_recent "$SHQL_DB_PATH"
+        if (( ${_SHQL_CLI_PORCELAIN:-0} )); then
+            printf '%s\n' "$_tsv"
+        else
+            shql_cli_format_table "$_tsv"
+        fi
+        ;;
+
     databases)
-        printf 'TODO: list databases\n'
+        shql_state_load_recent
+        _p=""
+        for _p in "${SHQL_RECENT_FILES[@]+"${SHQL_RECENT_FILES[@]}"}"; do
+            printf '%s\n' "$_p"
+        done
         ;;
 esac

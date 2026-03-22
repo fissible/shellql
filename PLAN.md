@@ -83,9 +83,10 @@ Wire real sqlite3 behind the adapter seam defined in db.sh.
 - `src/db_mock.sh` with fixture data for all adapter functions
 - **Effort:** S (1–2h)
 
-### 6.2 CLI entry point (`bin/shql`) — [shellql#8](https://github.com/fissible/shellql/issues/8)
+### 6.2 CLI entry point (`bin/shql`) — [shellql#8](https://github.com/fissible/shellql/issues/8) ✓ done
 - Argument parsing for all modes (open, -q, --query, table, pipe, databases)
 - **Effort:** M (half day)
+- **Status:** Done — `src/cli.sh` (`shql_cli_parse` + `shql_cli_format_table`), `bin/shql` (7-mode dispatch), `tests/unit/test-cli.sh` (42 assertions)
 
 ### 6.3 SQLite adapter (`src/db.sh`) — [shellql#7](https://github.com/fissible/shellql/issues/7) ✓ done
 - `shql_db_list_tables`
@@ -139,23 +140,26 @@ shellframe primitives (P1–P4)
 
 _Last updated: 2026-03-22_
 
-**Phase 6.3 (SQLite adapter) complete. Phase 6.2 CLI entry point is next.**
+**Phase 6.2 (CLI entry point) complete. Phase 6.4 Discovery mode is next.**
 
-Completed 2026-03-22:
+Completed 2026-03-22 (Phase 6.2):
+- `src/cli.sh` — `shql_cli_parse` (7-mode arg resolution: welcome/open/table/query-tui/query-out/pipe/databases); `shql_cli_format_table` (MySQL-style box output); idempotency guard; pipe detection via `[ -p /dev/stdin ]`
+- `bin/shql` — Sources `cli.sh`; replaces stub parser + dispatch with full 7-mode `case` statement; TTY probe (`exec 9>/dev/tty`) with `/dev/stderr` fallback for non-TUI error routing
+- `tests/unit/test-cli.sh` — 42 assertions (35 parser + 7 formatter)
+- **Total: 143/143 assertions passing**
+
+Completed 2026-03-22 (Phase 6.3):
 - `src/json.sh` — JSON get/set backed by `sqlite3 :memory:`; idempotency guard
 - `src/config.sh` — Config read/write via json.sh; two-tier `fetch_limit` default (1000 no-file / 500 key-absent); sqlite3 detection guard
 - `src/db.sh` — Real SQLite adapter: `shql_db_list_tables`, `shql_db_describe`, `shql_db_fetch`, `shql_db_query`; DB path validation; row buffering + truncation warning; SELECT wrapping
-- `bin/shql` — Sources json.sh + config.sh after state.sh, before SHQL_MOCK guard
-- `src/screens/table.sh` — `_SHQL_STDERR_TTY` probe; surfaces warnings from db calls
-- `src/screens/query.sh` — Three-way result logic: error / warning+results / clean
 - `tests/unit/test-json.sh`, `tests/unit/test-config.sh` — PATH-stub sqlite3; 20 unit tests
 - `tests/integration/test-db.sh` — Real sqlite3, 24 integration tests
-- **Total: 101/101 assertions passing**
 
 **Run (mock):** `SHQL_MOCK=1 SHELLFRAME_DIR=../shellframe bash bin/shql`
 **Run (real):** `SHELLFRAME_DIR=../shellframe bash bin/shql path/to/db.sqlite`
-**Run tests:** `SHELLFRAME_DIR=/path/to/shellframe bash tests/ptyunit/run.sh`
+**Run (query):** `SHELLFRAME_DIR=../shellframe bash bin/shql db.sqlite -q "SELECT 1"`
+**Run tests:** `SHELLFRAME_DIR=/path/to/shellframe bash tests/ptyunit/run.sh --unit`
 
-**Next task:** Phase 6.2 — CLI entry point ([shellql#8](https://github.com/fissible/shellql/issues/8)) — argument parsing in `src/cli.sh`
+**Next task:** Phase 6.4 — Discovery mode — list recent/known databases, resolve path from name
 
-**Pending (not ShellQL):** File `docs/shellframe-panel-mode-issue.md` as a GitHub issue at fissible/shellframe
+**Pending (not ShellQL):** [fissible/shellframe#24](https://github.com/fissible/shellframe/issues/24) — Panel rendering modes: add `windowed` mode with dedicated title bar row

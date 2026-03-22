@@ -75,9 +75,10 @@ Scans arguments in a single pass. Mode resolution order (first match wins):
    NOT trigger this rule — `mydb.sqlite` is collected as the db path first,
    making `databases` the table name, resulting in `table` mode.
 2. `-q <sql>` flag present → `query-out`; `_SHQL_CLI_SQL` = next arg (error if absent)
-3. Stdin is not a TTY (`[ ! -t 0 ]`) and no `-q` given → `pipe`. When `-q` is
-   also present, rule 2 wins and this rule is not reached. In the pure-pipe
-   case, read SQL from stdin:
+3. Stdin is a pipe (`[ -p /dev/stdin ]`) and no `-q` given → `pipe`. `[ -p /dev/stdin ]`
+   checks that stdin is an actual FIFO, avoiding false positives in non-interactive
+   environments. When `-q` is also present, rule 2 wins and this rule is not reached.
+   In the pure-pipe case, read SQL from stdin:
    ```bash
    _SHQL_CLI_SQL=$(cat)
    ```

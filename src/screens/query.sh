@@ -36,11 +36,14 @@ _shql_query_run() {
     _out=$(shql_db_query "$SHQL_DB_PATH" "$_sql" 2>"$_tmpfile")
     local _rc=$?
 
-    if (( _rc != 0 )) || [[ -s "$_tmpfile" ]]; then
+    if (( _rc != 0 )); then
         _SHQL_QUERY_STATUS="ERROR: $(head -1 "$_tmpfile")"
         rm -f "$_tmpfile"
         return 0
     fi
+
+    local _warning=""
+    [[ -s "$_tmpfile" ]] && _warning="$(head -1 "$_tmpfile")"
     rm -f "$_tmpfile"
 
     # Parse TSV: first line = headers, subsequent lines = data.
@@ -83,7 +86,11 @@ _shql_query_run() {
     SHELLFRAME_GRID_CTX="$_SHQL_QUERY_GRID_CTX"
     shellframe_grid_init "$_SHQL_QUERY_GRID_CTX"
     _SHQL_QUERY_HAS_RESULTS=1
-    _SHQL_QUERY_STATUS="${SHELLFRAME_GRID_ROWS} rows"
+    if [[ -n "$_warning" ]]; then
+        _SHQL_QUERY_STATUS="${SHELLFRAME_GRID_ROWS} rows — $_warning"
+    else
+        _SHQL_QUERY_STATUS="${SHELLFRAME_GRID_ROWS} rows"
+    fi
 }
 
 # ── _shql_query_footer_hint ───────────────────────────────────────────────────

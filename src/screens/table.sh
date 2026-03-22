@@ -38,6 +38,16 @@ _SHQL_TABLE_TAB_STRUCTURE=0
 _SHQL_TABLE_TAB_DATA=1
 _SHQL_TABLE_TAB_QUERY=2
 
+# ── TTY for stderr passthrough ────────────────────────────────────────────────
+# Use /dev/tty when available (interactive terminal); fall back to /dev/null in
+# test environments where no controlling terminal exists.
+
+if ( exec 9>/dev/tty ) 2>/dev/null; then
+    _SHQL_STDERR_TTY=/dev/tty
+else
+    _SHQL_STDERR_TTY=/dev/null
+fi
+
 # ── Footer hint strings ────────────────────────────────────────────────────────
 
 _SHQL_TABLE_FOOTER_HINTS_TABBAR="[←→] Switch tab  [Tab] Body  [q] Back"
@@ -52,7 +62,7 @@ _shql_table_load_ddl() {
     local _line
     while IFS= read -r _line; do
         _SHQL_TABLE_DDL_LINES+=("$_line")
-    done < <(shql_db_describe "$SHQL_DB_PATH" "$_SHQL_TABLE_NAME" 2>/dev/null)
+    done < <(shql_db_describe "$SHQL_DB_PATH" "$_SHQL_TABLE_NAME" 2>"$_SHQL_STDERR_TTY")
     local _n=${#_SHQL_TABLE_DDL_LINES[@]}
     shellframe_scroll_init "$_SHQL_TABLE_DDL_CTX" "$_n" 1 10 1
 }
@@ -100,7 +110,7 @@ _shql_table_load_data() {
             (( SHELLFRAME_GRID_ROWS++ ))
         fi
         (( _idx++ ))
-    done < <(shql_db_fetch "$SHQL_DB_PATH" "$_SHQL_TABLE_NAME" 2>/dev/null)
+    done < <(shql_db_fetch "$SHQL_DB_PATH" "$_SHQL_TABLE_NAME" 2>"$_SHQL_STDERR_TTY")
 
     shellframe_grid_init "$_SHQL_TABLE_GRID_CTX"
 }

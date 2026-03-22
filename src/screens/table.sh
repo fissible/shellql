@@ -43,7 +43,6 @@ _SHQL_TABLE_TAB_QUERY=2
 _SHQL_TABLE_FOOTER_HINTS_TABBAR="[←→] Switch tab  [Tab] Body  [q] Back"
 _SHQL_TABLE_FOOTER_HINTS_DATA="[↑↓] Navigate  [Enter] Inspect  [Tab] Tabs  [q] Back"
 _SHQL_TABLE_FOOTER_HINTS_STRUCTURE="[↑↓] Scroll  [Tab] Tabs  [q] Back"
-_SHQL_TABLE_FOOTER_HINTS_QUERY="[Tab] Tabs  [q] Back"
 _SHQL_TABLE_FOOTER_HINTS_INSPECTOR="[↑↓] Scroll  [PgUp/PgDn] Page  [Enter/Esc/q] Close"
 
 # ── _shql_table_load_ddl ──────────────────────────────────────────────────────
@@ -207,27 +206,13 @@ _shql_table_data_render() {
     shellframe_grid_render "$@"
 }
 
-# ── _shql_table_query_render ──────────────────────────────────────────────────
-
-_shql_table_query_render() {
-    local _top="$1" _left="$2" _width="$3" _height="$4"
-    local _gray="${SHELLFRAME_GRAY:-}" _rst="${SHELLFRAME_RESET:-}"
-    local _mid=$(( _top + _height / 2 ))
-    local _msg="Query editor — coming in Phase 5.4"
-    local _r
-    for (( _r=0; _r<_height; _r++ )); do
-        printf '\033[%d;%dH\033[2K' "$(( _top + _r ))" "$_left" >/dev/tty
-    done
-    printf '\033[%d;%dH%s%s%s' "$_mid" "$_left" "$_gray" "$_msg" "$_rst" >/dev/tty
-}
-
 # ── _shql_TABLE_body_render / on_key / on_focus ───────────────────────────────
 
 _shql_TABLE_body_render() {
     local _tab="${SHELLFRAME_TABBAR_ACTIVE:-0}"
     case "$_tab" in
         "$_SHQL_TABLE_TAB_DATA")      _shql_table_data_render "$@" ;;
-        "$_SHQL_TABLE_TAB_QUERY")     _shql_table_query_render "$@" ;;
+        "$_SHQL_TABLE_TAB_QUERY")     _shql_query_render "$@" ;;
         *)                            _shql_table_structure_render "$@" ;;
     esac
     # Overlay the record inspector if active
@@ -241,9 +226,14 @@ _shql_TABLE_body_on_key() {
         return $?
     fi
 
-    # [ / ] switch tabs from the body regardless of which tab is active.
-    # A future editor (query tab) will consume these keys itself when in insert
-    # mode, so they will never reach here in that context.
+    # Query tab: delegate first. The editor consumes printable chars (including
+    # [ and ]) before they reach the tab-switch logic.
+    if [[ "${SHELLFRAME_TABBAR_ACTIVE:-0}" == "$_SHQL_TABLE_TAB_QUERY" ]]; then
+        _shql_query_on_key "$1"
+        return $?
+    fi
+
+    # [ / ] switch tabs from the body for Structure and Data tabs only.
     case "$1" in
         '[') (( SHELLFRAME_TABBAR_ACTIVE > 0 )) && (( SHELLFRAME_TABBAR_ACTIVE-- )) || true; return 0 ;;
         ']') (( SHELLFRAME_TABBAR_ACTIVE < _SHQL_TABLE_TAB_QUERY )) && (( SHELLFRAME_TABBAR_ACTIVE++ )) || true; return 0 ;;
@@ -253,8 +243,6 @@ _shql_TABLE_body_on_key() {
     local _k_up="${SHELLFRAME_KEY_UP:-$'\033[A'}"
 
     # Up at the top of content → return focus to the tab bar.
-    # Grid/scroll on_key always return 0 even at boundaries, so we must check
-    # position before delegating rather than relying on a boundary signal.
     if [[ "$1" == "$_k_up" ]]; then
         local _at_top=0
         case "$_tab" in
@@ -268,7 +256,6 @@ _shql_TABLE_body_on_key() {
                 shellframe_scroll_top "$_SHQL_TABLE_DDL_CTX" _scroll_top
                 (( _scroll_top == 0 )) && _at_top=1
                 ;;
-            *) _at_top=1 ;;
         esac
         if (( _at_top )); then
             shellframe_shell_focus_set "tabbar"
@@ -300,9 +287,13 @@ _shql_TABLE_body_on_focus() {
 
 _shql_TABLE_body_action() {
     local _tab="${SHELLFRAME_TABBAR_ACTIVE:-0}"
-    [[ "$_tab" != "$_SHQL_TABLE_TAB_DATA" ]] && return 0
-    SHELLFRAME_GRID_CTX="$_SHQL_TABLE_GRID_CTX"
-    _shql_inspector_open
+    if [[ "$_tab" == "$_SHQL_TABLE_TAB_DATA" ]]; then
+        SHELLFRAME_GRID_CTX="$_SHQL_TABLE_GRID_CTX"
+        _shql_inspector_open
+    elif [[ "$_tab" == "$_SHQL_TABLE_TAB_QUERY" ]]; then
+        SHELLFRAME_GRID_CTX="$_SHQL_QUERY_GRID_CTX"
+        _shql_inspector_open
+    fi
 }
 
 # ── _shql_TABLE_footer_render ─────────────────────────────────────────────────
@@ -321,7 +312,8 @@ _shql_TABLE_footer_render() {
         case "$_tab" in
             "$_SHQL_TABLE_TAB_DATA")      _hint="$_SHQL_TABLE_FOOTER_HINTS_DATA" ;;
             "$_SHQL_TABLE_TAB_STRUCTURE") _hint="$_SHQL_TABLE_FOOTER_HINTS_STRUCTURE" ;;
-            *)                            _hint="$_SHQL_TABLE_FOOTER_HINTS_QUERY" ;;
+            "$_SHQL_TABLE_TAB_QUERY") _shql_query_footer_hint _hint ;;
+            *)                        _hint="" ;;
         esac
     fi
     printf '\033[%d;%dH%s%s%s' "$_top" "$_left" "$_gray" "$_hint" "$_rst" >/dev/tty
@@ -345,4 +337,5 @@ shql_table_init() {
 
     _shql_table_load_ddl
     _shql_table_load_data
+    _shql_query_init
 }

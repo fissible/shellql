@@ -87,13 +87,14 @@ Wire real sqlite3 behind the adapter seam defined in db.sh.
 - Argument parsing for all modes (open, -q, --query, table, pipe, databases)
 - **Effort:** M (half day)
 
-### 6.3 SQLite adapter (`src/db.sh`) — [shellql#7](https://github.com/fissible/shellql/issues/7)
+### 6.3 SQLite adapter (`src/db.sh`) — [shellql#7](https://github.com/fissible/shellql/issues/7) ✓ done
 - `shql_db_list_tables`
 - `shql_db_describe`
 - `shql_db_fetch`
 - `shql_db_query`
 - Error handling and output formatting
 - **Effort:** L (1 day)
+- **Status:** Done — `src/json.sh`, `src/config.sh`, `src/db.sh`, unit + integration tests
 
 ### 6.4 Discovery mode
 - List recent/known databases
@@ -136,20 +137,25 @@ shellframe primitives (P1–P4)
 ## Session handoff notes
 > Update this section at the end of each session.
 
-_Last updated: 2026-03-21_
+_Last updated: 2026-03-22_
 
-**All Phase 5 mock screens complete (5.1–5.5). Phase 6 (SQLite integration) is next.**
+**Phase 6.3 (SQLite adapter) complete. Phase 6.2 CLI entry point is next.**
 
-Completed 2026-03-21:
-- `src/screens/query.sh` — `_shql_query_init`, `_shql_query_run` (TSV → grid globals), `_shql_query_footer_hint`, `_shql_query_on_key`, `_shql_query_render` (lazy init, 30/70 split, divider)
-- `src/screens/table.sh` — Query tab delegates to query.sh; placeholder removed; footer dynamic
-- `bin/shql` — sources query.sh after table.sh
-- `tests/unit/test-query.sh` — 8 assertions (81/81 total)
+Completed 2026-03-22:
+- `src/json.sh` — JSON get/set backed by `sqlite3 :memory:`; idempotency guard
+- `src/config.sh` — Config read/write via json.sh; two-tier `fetch_limit` default (1000 no-file / 500 key-absent); sqlite3 detection guard
+- `src/db.sh` — Real SQLite adapter: `shql_db_list_tables`, `shql_db_describe`, `shql_db_fetch`, `shql_db_query`; DB path validation; row buffering + truncation warning; SELECT wrapping
+- `bin/shql` — Sources json.sh + config.sh after state.sh, before SHQL_MOCK guard
+- `src/screens/table.sh` — `_SHQL_STDERR_TTY` probe; surfaces warnings from db calls
+- `src/screens/query.sh` — Three-way result logic: error / warning+results / clean
+- `tests/unit/test-json.sh`, `tests/unit/test-config.sh` — PATH-stub sqlite3; 20 unit tests
+- `tests/integration/test-db.sh` — Real sqlite3, 24 integration tests
+- **Total: 101/101 assertions passing**
 
-**Run:** `SHQL_MOCK=1 SHELLFRAME_DIR=../shellframe bash bin/shql`
-**Run:** `SHQL_MOCK=1 SHQL_THEME=uranium SHELLFRAME_DIR=../shellframe bash bin/shql`
-**Run tests:** `bash tests/ptyunit/run.sh --unit`
+**Run (mock):** `SHQL_MOCK=1 SHELLFRAME_DIR=../shellframe bash bin/shql`
+**Run (real):** `SHELLFRAME_DIR=../shellframe bash bin/shql path/to/db.sqlite`
+**Run tests:** `SHELLFRAME_DIR=/path/to/shellframe bash tests/ptyunit/run.sh`
 
-**Next task:** Phase 6.1 — Mock adapter audit ([shellql#6](https://github.com/fissible/shellql/issues/6)), then Phase 6.2 CLI / 6.3 SQLite adapter
+**Next task:** Phase 6.2 — CLI entry point ([shellql#8](https://github.com/fissible/shellql/issues/8)) — argument parsing in `src/cli.sh`
 
 **Pending (not ShellQL):** File `docs/shellframe-panel-mode-issue.md` as a GitHub issue at fissible/shellframe

@@ -73,13 +73,13 @@ assert_eq "welcome"  "$_SHQL_CLI_MODE"  "reset: mode=welcome on second call"
 assert_eq ""         "$_SHQL_CLI_TABLE" "reset: TABLE cleared on second call"
 assert_eq "0"        "$_SHQL_CLI_PORCELAIN" "reset: PORCELAIN cleared"
 
-# ── pipe mode: stdin not a TTY ───────────────────────────────────────────────
+# ── pipe mode: stdin is a pipe (FIFO) ───────────────────────────────────────
 _pipe_mode=$(printf "SELECT 1" | bash -c "
     source '${SHQL_ROOT}/src/cli.sh'
     shql_cli_parse mydb.sqlite 2>/dev/null
     printf '%s' \"\$_SHQL_CLI_MODE\"
 ")
-assert_eq "pipe" "$_pipe_mode" "pipe: mode=pipe when stdin not tty"
+assert_eq "pipe" "$_pipe_mode" "pipe: mode=pipe when stdin is a pipe"
 
 _pipe_sql=$(printf "SELECT 1" | bash -c "
     source '${SHQL_ROOT}/src/cli.sh'

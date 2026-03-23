@@ -35,11 +35,18 @@ source "$_SHQL_ROOT/src/state.sh"
 source "$_SHQL_ROOT/src/json.sh"
 source "$_SHQL_ROOT/src/config.sh"
 source "$_SHQL_ROOT/src/cli.sh"
+source "$_SHQL_ROOT/src/connections.sh"
 
 if (( SHQL_MOCK )); then
     source "$_SHQL_ROOT/src/db_mock.sh"
 else
     source "$_SHQL_ROOT/src/db.sh"
+fi
+
+# Initialise connection registry (real mode only — mock has no metadata DB)
+if ! (( SHQL_MOCK )); then
+    shql_conn_init || exit $?
+    shql_conn_migrate
 fi
 
 # theme: after shellframe (SHELLFRAME_* populated), before screens
@@ -68,7 +75,7 @@ case "$_SHQL_CLI_MODE" in
     open)
         SHQL_DB_PATH="$_SHQL_CLI_DB"
         if ! (( SHQL_MOCK )); then _shql_db_check_path "$SHQL_DB_PATH" || exit 1; fi
-        shql_state_push_recent "$SHQL_DB_PATH"
+        shql_conn_push "sqlite" "$SHQL_DB_PATH"
         shql_schema_init
         shellframe_shell "_shql" "SCHEMA"
         ;;
@@ -82,7 +89,7 @@ case "$_SHQL_CLI_MODE" in
         SHQL_DB_TABLE="$_SHQL_CLI_TABLE"
         _SHQL_TABLE_NAME="$_SHQL_CLI_TABLE"
         if ! (( SHQL_MOCK )); then _shql_db_check_path "$SHQL_DB_PATH" || exit 1; fi
-        shql_state_push_recent "$SHQL_DB_PATH"
+        shql_conn_push "sqlite" "$SHQL_DB_PATH"
         shql_schema_init
         shql_table_init
         shellframe_shell "_shql" "TABLE"
@@ -96,7 +103,7 @@ case "$_SHQL_CLI_MODE" in
         SHQL_DB_PATH="$_SHQL_CLI_DB"
         _SHQL_TABLE_NAME=""
         if ! (( SHQL_MOCK )); then _shql_db_check_path "$SHQL_DB_PATH" || exit 1; fi
-        shql_state_push_recent "$SHQL_DB_PATH"
+        shql_conn_push "sqlite" "$SHQL_DB_PATH"
         shql_schema_init
         shql_table_init
         SHELLFRAME_TABBAR_ACTIVE=$_SHQL_TABLE_TAB_QUERY
@@ -116,7 +123,7 @@ case "$_SHQL_CLI_MODE" in
         if [ "$_rc" -ne 0 ]; then
             exit $_rc
         fi
-        shql_state_push_recent "$SHQL_DB_PATH"
+        shql_conn_push "sqlite" "$SHQL_DB_PATH"
         if (( ${_SHQL_CLI_PORCELAIN:-0} )); then
             printf '%s\n' "$_tsv"
         else
@@ -125,10 +132,12 @@ case "$_SHQL_CLI_MODE" in
         ;;
 
     databases)
-        shql_state_load_recent
-        _p=""
-        for _p in "${SHQL_RECENT_FILES[@]+"${SHQL_RECENT_FILES[@]}"}"; do
-            printf '%s\n' "$_p"
-        done
+        _list=$(shql_conn_list | cut -f1-5)
+        if (( ${_SHQL_CLI_PORCELAIN:-0} )); then
+            printf '%s\n' "$_list"
+        else
+            _header=$'source\tdriver\tname\tdetail\tlast_used'
+            shql_cli_format_table "${_header}"$'\n'"${_list}"
+        fi
         ;;
 esac

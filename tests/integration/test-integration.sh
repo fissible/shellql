@@ -73,6 +73,18 @@ _rc=0; _out=$(_shql databases --porcelain 2>/dev/null) || _rc=$?
 assert_eq 0 "$_rc"
 assert_contains "$_out" "$_db"
 
+# ── Error paths ───────────────────────────────────────────────────────────────
+
+ptyunit_test_begin "error: missing DB file returns exit 1 with path in stderr"
+_rc=0; _err=$(_shql /tmp/_shql_no_such_db -q "SELECT 1" 2>&1 >/dev/null) || _rc=$?
+assert_eq 1 "$_rc"
+assert_contains "$_err" "/tmp/_shql_no_such_db"
+
+ptyunit_test_begin "error: bad SQL returns exit 1 with table name in stderr"
+_rc=0; _err=$(_shql "$_db" -q "SELECT * FROM nonexistent_table" 2>&1 >/dev/null) || _rc=$?
+assert_eq 1 "$_rc"
+assert_contains "$_err" "nonexistent_table"
+
 # ── Teardown ──────────────────────────────────────────────────────────────────
 
 rm -rf "$_data_dir"

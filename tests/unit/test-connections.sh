@@ -4,7 +4,7 @@
 set -u
 TESTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SHQL_ROOT="$(cd "$TESTS_DIR/.." && pwd)"
-source "$TESTS_DIR/ptyunit/assert.sh"
+source "$PTYUNIT_HOME/assert.sh"
 
 # ── Setup: temp data dir ───────────────────────────────────────────────────
 _data_dir=$(mktemp -d)

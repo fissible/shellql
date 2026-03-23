@@ -6,7 +6,7 @@ TESTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 _SHQL_ROOT="$(cd "$TESTS_DIR/.." && pwd)"
 SHQL_ROOT="$_SHQL_ROOT"
 
-source "$TESTS_DIR/ptyunit/assert.sh"
+source "$PTYUNIT_HOME/assert.sh"
 source "$_SHQL_ROOT/src/theme.sh"
 
 ptyunit_test_begin "shql_theme_load basic: SHQL_THEME_PANEL_STYLE=single"

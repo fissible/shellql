@@ -33,9 +33,13 @@ Read at the start of every session:
 ## Test Runner
 
 ```bash
-SHELLFRAME_DIR=../shellframe bash tests/ptyunit/run.sh --unit   # unit tests
-SHELLFRAME_DIR=../shellframe bash tests/ptyunit/run.sh          # all tests
+SHELLFRAME_DIR=../shellframe bash tests/run.sh --unit   # unit tests
+SHELLFRAME_DIR=../shellframe bash tests/run.sh          # all tests
 ```
+
+## Dependencies
+
+Run `bash bootstrap.sh` once to install ptyunit via Homebrew.
 
 ## Run the App
 
@@ -145,8 +149,8 @@ See [PLAN.md](./PLAN.md) for phased build order. In short:
 ## Running tests
 
 ```bash
-bash tests/ptyunit/run.sh          # all suites
-bash tests/ptyunit/run.sh --unit   # unit only (no Python needed)
+bash tests/run.sh          # all suites
+bash tests/run.sh --unit   # unit only (no Python needed)
 ```
 
 Tests live in `tests/unit/test-*.sh` and `tests/integration/test-*.sh`.

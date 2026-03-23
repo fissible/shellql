@@ -3,7 +3,7 @@
 
 set -u
 TESTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-source "$TESTS_DIR/ptyunit/assert.sh"
+source "$PTYUNIT_HOME/assert.sh"
 
 ptyunit_test_begin "stub: placeholder always passes"
 assert_eq "ok" "ok"

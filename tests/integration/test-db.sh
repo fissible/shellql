@@ -6,7 +6,7 @@ set -u
 TESTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SHQL_ROOT="$(cd "$TESTS_DIR/.." && pwd)"
 
-source "$TESTS_DIR/ptyunit/assert.sh"
+source "$PTYUNIT_HOME/assert.sh"
 
 if ! command -v sqlite3 >/dev/null 2>&1; then
     printf 'SKIP: sqlite3 not found\n'

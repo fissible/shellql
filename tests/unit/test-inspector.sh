@@ -20,7 +20,7 @@ source "$_SHQL_ROOT/src/theme.sh"
 shql_theme_load basic
 
 source "$_SHQL_ROOT/src/screens/inspector.sh"
-source "$_SHQL_ROOT/tests/ptyunit/assert.sh"
+source "$PTYUNIT_HOME/assert.sh"
 
 ptyunit_test_begin "inspector"
 

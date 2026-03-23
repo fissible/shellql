@@ -5,7 +5,7 @@ set -u
 TESTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SHQL_ROOT="$(cd "$TESTS_DIR/.." && pwd)"
 
-source "$TESTS_DIR/ptyunit/assert.sh"
+source "$PTYUNIT_HOME/assert.sh"
 
 # ── sqlite3 stub ──────────────────────────────────────────────────────────────
 # json.sh pipes SQL to `sqlite3 :memory:` via stdin. The stub reads stdin

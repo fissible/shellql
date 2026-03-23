@@ -140,6 +140,29 @@ assert_contains "$_list" "local"   # local results still returned
 
 rm -rf "$_list_dir"
 
+# ── shql_conn_load_recent tests ────────────────────────────────────────────
+_lr_dir=$(mktemp -d)
+export XDG_DATA_HOME="$_lr_dir"
+source "$SHQL_ROOT/src/state.sh"
+shql_conn_init
+shql_conn_push "sqlite" "/tmp/mydb.sqlite"
+
+ptyunit_test_begin "shql_conn_load_recent: populates SHQL_RECENT_NAMES"
+shql_conn_load_recent
+assert_eq "1" "${#SHQL_RECENT_NAMES[@]}"
+assert_eq "tmp/mydb.sqlite" "${SHQL_RECENT_NAMES[0]}"
+
+ptyunit_test_begin "shql_conn_load_recent: populates SHQL_RECENT_DETAILS with path"
+assert_eq "/tmp/mydb.sqlite" "${SHQL_RECENT_DETAILS[0]}"
+
+ptyunit_test_begin "shql_conn_load_recent: populates SHQL_RECENT_SOURCES"
+assert_eq "local" "${SHQL_RECENT_SOURCES[0]}"
+
+ptyunit_test_begin "shql_conn_load_recent: populates SHQL_RECENT_REFS with UUID"
+assert_eq "1" "$( [ -n "${SHQL_RECENT_REFS[0]:-}" ] && printf 1 || printf 0 )"
+
+rm -rf "$_lr_dir"
+
 # ── cleanup ────────────────────────────────────────────────────────────────
 rm -rf "$_data_dir"
 ptyunit_test_summary

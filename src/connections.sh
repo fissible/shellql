@@ -270,3 +270,33 @@ shql_conn_list() {
     "$_sort" -t$'\t' -k5,5r "$_tmpfile"
     "$_rm" -f "$_tmpfile"
 }
+
+# ── shql_conn_load_recent ──────────────────────────────────────────────────
+# Populate four parallel arrays from shql_conn_list output.
+# Note: uses a captured variable (not a subshell pipeline) for bash 3.2 compat —
+# array assignments inside `while ... | while` do not persist in bash 3.2.
+#
+# Populates (global):
+#   SHQL_RECENT_NAMES=()   — display names (e.g. "myapp/db.sqlite")
+#   SHQL_RECENT_DETAILS=() — path (sqlite) or host:port/db_name (network)
+#   SHQL_RECENT_SOURCES=() — 'local' | 'sigil'
+#   SHQL_RECENT_REFS=()    — connections.id (local) | sigil entry name (sigil)
+
+shql_conn_load_recent() {
+    SHQL_RECENT_NAMES=()
+    SHQL_RECENT_DETAILS=()
+    SHQL_RECENT_SOURCES=()
+    SHQL_RECENT_REFS=()
+
+    local _list _source _driver _name _detail _last _ref
+    _list=$(shql_conn_list)
+    [ -z "$_list" ] && return 0
+
+    while IFS=$'\t' read -r _source _driver _name _detail _last _ref; do
+        [ -z "$_source" ] && continue
+        SHQL_RECENT_NAMES+=("$_name")
+        SHQL_RECENT_DETAILS+=("$_detail")
+        SHQL_RECENT_SOURCES+=("$_source")
+        SHQL_RECENT_REFS+=("$_ref")
+    done <<< "$_list"
+}

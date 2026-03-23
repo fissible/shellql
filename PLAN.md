@@ -142,7 +142,7 @@ shellframe primitives (P1–P4)
 
 _Last updated: 2026-03-22_
 
-**Phases 6.1–6.4 complete. Branch `feature/phase-6.4-discovery` ready to merge. Next: Phase 6.5 integration tests or UI fixes.**
+**Phases 6.1–6.4 complete and merged to main. sigil cross-repo ticket filed. Next: Phase 6.5 integration tests.**
 
 Completed 2026-03-22 (Phase 6.1):
 - `src/db_mock.sh` — fixture data for all adapter functions (`shql_mock_load_recent`, `shql_db_list_tables`, `shql_db_describe`, `shql_db_fetch`, `shql_db_query`)
@@ -174,13 +174,13 @@ Completed 2026-03-22 (Phase 6.4 — branch `feature/phase-6.4-discovery`):
 - **Total: 174/174 assertions passing (169 unit + 5 integration)**
 - **Cross-repo dependency:** `sigil list --type database --porcelain` not yet implemented; graceful no-op until added
 
-**Run (from worktree — real mode):** `SHELLFRAME_DIR=../../../../shellframe bash bin/shql tests/fixtures/demo.sqlite`
-**Run (query):** `SHELLFRAME_DIR=../../../../shellframe bash bin/shql tests/fixtures/demo.sqlite -q "SELECT * FROM users"`
-**Run (databases):** `SHELLFRAME_DIR=../../../../shellframe bash bin/shql databases`
-**Run tests:** `SHELLFRAME_DIR=../../../../shellframe bash tests/ptyunit/run.sh`
+**Run (real mode):** `SHELLFRAME_DIR=../shellframe bash bin/shql tests/fixtures/demo.sqlite`
+**Run (query):** `SHELLFRAME_DIR=../shellframe bash bin/shql tests/fixtures/demo.sqlite -q "SELECT * FROM users"`
+**Run (databases):** `SHELLFRAME_DIR=../shellframe bash bin/shql databases`
+**Run tests:** `SHELLFRAME_DIR=../shellframe bash tests/ptyunit/run.sh`
+
+**Cross-repo:** `sigil list --type database --porcelain` — filed as [fissible/sigil-workspace#16](https://github.com/fissible/sigil-workspace/issues/16). ShellQL gracefully no-ops until this lands.
 
 **Next task (choose one):**
-- Merge `feature/phase-6.4-discovery` → main (PR or direct)
-- Phase 6.5 — Integration tests — all CLI modes, full round-trips
+- Phase 6.5 — Integration tests — all CLI modes, full round-trips ([shellql#9](https://github.com/fissible/shellql/issues/9))
 - UI fixes — data tab perf, row highlight, focus indicators, query tab layout
-- Create `sigil list --type database --porcelain` ticket in fissible/sigil-workspace

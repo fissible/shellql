@@ -21,9 +21,9 @@ SHQL_DB_NAME=""          # database name for network drivers
 
 SHQL_DATA_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/shellql"
 
-# ── Recent files (mock mode) ──────────────────────────────────────────────────
+# ── Recent connections ────────────────────────────────────────────────────────
 
-SHQL_RECENT_FILES=()     # ordered list of recently-opened database paths (mock mode)
+SHQL_RECENT_FILES=()     # ordered list of recently-opened database paths (mock mode only)
 SHQL_RECENT_NAMES=()     # display names (e.g. "myapp/db.sqlite")
 SHQL_RECENT_DETAILS=()   # path (sqlite) or host:port/db_name (network)
 SHQL_RECENT_SOURCES=()   # 'local' | 'sigil'

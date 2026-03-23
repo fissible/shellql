@@ -300,3 +300,35 @@ shql_conn_load_recent() {
         SHQL_RECENT_REFS+=("$_ref")
     done <<< "$_list"
 }
+
+# ── shql_conn_resolve_name ────────────────────────────────────────────────
+# Resolve a short name to a full path from the in-memory recent-connections
+# arrays. Caller must call shql_conn_load_recent first.
+#
+# Usage: shql_conn_resolve_name <name>
+#
+# Only entries where SHQL_RECENT_SOURCES[i] == 'local' are candidates.
+# Matching rules (case-sensitive, first match wins):
+#   1. basename == name           (chinook.sqlite → "chinook.sqlite")
+#   2. basename strip .sqlite     (chinook.sqlite → "chinook")
+#   3. basename strip .db         (budget.db → "budget")
+#
+# Echoes the full path on match; returns 0.
+# Echoes nothing; returns 1 on miss or empty array.
+
+shql_conn_resolve_name() {
+    local _name="$1"
+    local _i _detail _base
+    for _i in "${!SHQL_RECENT_DETAILS[@]}"; do
+        [[ "${SHQL_RECENT_SOURCES[$_i]:-}" == "local" ]] || continue
+        _detail="${SHQL_RECENT_DETAILS[$_i]}"
+        _base="${_detail##*/}"
+        if [[ "$_base" == "$_name" ]] ||
+           [[ "${_base%.sqlite}" == "$_name" ]] ||
+           [[ "${_base%.db}" == "$_name" ]]; then
+            printf '%s\n' "$_detail"
+            return 0
+        fi
+    done
+    return 1
+}

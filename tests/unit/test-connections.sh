@@ -171,6 +171,45 @@ assert_eq "${#SHQL_RECENT_NAMES[@]}" "${#SHQL_RECENT_REFS[@]}"
 
 rm -rf "$_lr_dir"
 
+# ── shql_conn_resolve_name ────────────────────────────────────────────────
+
+ptyunit_test_begin "conn_resolve_name: exact basename match"
+SHQL_RECENT_DETAILS=("/db/chinook.sqlite")
+SHQL_RECENT_SOURCES=("local")
+_rc=0; _result=$(shql_conn_resolve_name "chinook.sqlite") || _rc=$?
+assert_eq 0 "$_rc"
+assert_eq "/db/chinook.sqlite" "$_result"
+
+ptyunit_test_begin "conn_resolve_name: .sqlite strip match"
+_rc=0; _result=$(shql_conn_resolve_name "chinook") || _rc=$?
+assert_eq 0 "$_rc"
+assert_eq "/db/chinook.sqlite" "$_result"
+
+ptyunit_test_begin "conn_resolve_name: .db strip match"
+SHQL_RECENT_DETAILS=("/db/budget.db")
+SHQL_RECENT_SOURCES=("local")
+_rc=0; _result=$(shql_conn_resolve_name "budget") || _rc=$?
+assert_eq 0 "$_rc"
+assert_eq "/db/budget.db" "$_result"
+
+ptyunit_test_begin "conn_resolve_name: no match returns 1"
+SHQL_RECENT_DETAILS=("/db/chinook.sqlite")
+SHQL_RECENT_SOURCES=("local")
+_rc=0; shql_conn_resolve_name "nonexistent" >/dev/null 2>&1 || _rc=$?
+assert_eq 1 "$_rc"
+
+ptyunit_test_begin "conn_resolve_name: empty array returns 1"
+SHQL_RECENT_DETAILS=()
+SHQL_RECENT_SOURCES=()
+_rc=0; shql_conn_resolve_name "chinook" >/dev/null 2>&1 || _rc=$?
+assert_eq 1 "$_rc"
+
+ptyunit_test_begin "conn_resolve_name: sigil source not resolved"
+SHQL_RECENT_DETAILS=("/db/chinook.sqlite")
+SHQL_RECENT_SOURCES=("sigil")
+_rc=0; shql_conn_resolve_name "chinook" >/dev/null 2>&1 || _rc=$?
+assert_eq 1 "$_rc"
+
 # ── cleanup ────────────────────────────────────────────────────────────────
 rm -rf "$_data_dir"
 ptyunit_test_summary

@@ -101,7 +101,7 @@ source "$SHQL_ROOT/src/state.sh"
 shql_conn_init
 printf '/tmp/c.sqlite\n' > "$SHQL_DATA_DIR/recent"
 chmod 444 "$SHQL_DATA_DIR/shellql.db"   # make DB unwritable → force failure
-shql_conn_migrate
+shql_conn_migrate 2>/dev/null           # suppress expected error message
 _intact=$( [ -f "$SHQL_DATA_DIR/recent" ] && printf 1 || printf 0 )
 chmod 644 "$SHQL_DATA_DIR/shellql.db"   # restore for cleanup
 assert_eq "1" "$_intact"

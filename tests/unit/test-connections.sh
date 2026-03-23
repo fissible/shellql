@@ -22,8 +22,9 @@ last_accessed" "$_tables"
 
 # ── shql_conn_init: idempotent ─────────────────────────────────────────────
 ptyunit_test_begin "shql_conn_init: is idempotent"
-shql_conn_init
-assert_eq "0" "$?"
+_rc=0
+shql_conn_init || _rc=$?
+assert_eq "0" "$_rc"
 
 # ── cleanup ────────────────────────────────────────────────────────────────
 rm -rf "$_data_dir"

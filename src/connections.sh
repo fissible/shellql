@@ -27,7 +27,8 @@ shql_conn_init() {
         return 1
     fi
     _SHQL_CONN_DB="$SHQL_DATA_DIR/shellql.db"
-    sqlite3 "$_SHQL_CONN_DB" <<'SQL'
+    local _rc=0
+    sqlite3 "$_SHQL_CONN_DB" <<'SQL' || _rc=$?
 CREATE TABLE IF NOT EXISTS connections (
     id         TEXT NOT NULL PRIMARY KEY,
     driver     TEXT NOT NULL,
@@ -51,4 +52,8 @@ CREATE TABLE IF NOT EXISTS last_accessed (
 );
 CREATE INDEX IF NOT EXISTS idx_last_accessed_ref ON last_accessed (ref_id);
 SQL
+    if (( _rc != 0 )); then
+        printf 'error: failed to initialise schema: %s\n' "$_SHQL_CONN_DB" >&2
+        return "$_rc"
+    fi
 }

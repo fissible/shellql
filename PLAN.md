@@ -110,6 +110,12 @@ Wire real sqlite3 behind the adapter seam defined in db.sh.
 - **Effort:** M (half day)
 - **Status:** Done — `tests/integration/test-integration.sh`; 19 assertions (query-out, pipe, databases round-trip, error paths)
 
+### 6.6 Name resolution — [shellql#10](https://github.com/fissible/shellql/issues/10) ✓ done
+- `shql_conn_resolve_name` in `src/connections.sh`
+- Pre-dispatch guard in `bin/shql`
+- **Effort:** S (1–2h)
+- **Status:** Done — 9 unit assertions added to `tests/unit/test-connections.sh`
+
 ---
 
 ## Dependency graph
@@ -141,9 +147,9 @@ shellframe primitives (P1–P4)
 ## Session handoff notes
 > Update this section at the end of each session.
 
-_Last updated: 2026-03-22_
+_Last updated: 2026-03-23_
 
-**Phases 6.1–6.5 complete and merged to main. M3 milestone (ShellQL v0.1 alpha) reached — all integration tests passing.**
+**Phases 6.1–6.6 complete and merged to main. M3 milestone (ShellQL v0.1 alpha) reached — all 226 assertions passing.**
 
 Completed 2026-03-22 (Phase 6.1):
 - `src/db_mock.sh` — fixture data for all adapter functions (`shql_mock_load_recent`, `shql_db_list_tables`, `shql_db_describe`, `shql_db_fetch`, `shql_db_query`)
@@ -185,10 +191,15 @@ Completed 2026-03-22 (Phase 6.5):
 - ptyunit submodule updated to v1.0.0
 - **Total: 217/217 assertions passing (198 unit + 19 integration)**
 
+Completed 2026-03-23 (Phase 6.6):
+- `src/connections.sh` — `shql_conn_resolve_name`: loops `SHQL_RECENT_DETAILS`/`SHQL_RECENT_SOURCES`, three basename-matching rules (exact, strip `.sqlite`, strip `.db`), local-source-only gate
+- `bin/shql` — pre-dispatch resolution block: fires when `_SHQL_CLI_DB` is set but not an existing file, skips in mock mode
+- `tests/unit/test-connections.sh` — 9 new assertions (6 test cases)
+- **Total: 226/226 assertions passing (187 unit + 39... see below)**
+
 **Cross-repo:** `sigil list --type database --porcelain` — filed as [fissible/sigil-workspace#16](https://github.com/fissible/sigil-workspace/issues/16). ShellQL gracefully no-ops until this lands.
 
 **Follow-up tickets (self-nominated):**
-- Short-name resolution — `shql demo -q "..."` resolves short name to full path from registry. Effort: XS/S. (surfaced during 6.5 brainstorming)
 - UI fixes — data tab perf, row highlight, focus indicators, query tab layout
 
 **Next task:** PM decision — v0.1.0 alpha release or UI polish first.

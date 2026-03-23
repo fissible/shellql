@@ -42,6 +42,22 @@ assert_contains "$_out" "Alice"
 _found=0; [[ "$_out" == *"+"* ]] && _found=1
 assert_eq 0 "$_found"
 
+# ── pipe mode ─────────────────────────────────────────────────────────────────
+
+ptyunit_test_begin "pipe: exit 0 and data present"
+_rc=0
+_out=$(printf 'SELECT name FROM users LIMIT 1' | _shql "$_db" 2>/dev/null) || _rc=$?
+assert_eq 0 "$_rc"
+assert_contains "$_out" "Alice"
+
+ptyunit_test_begin "pipe: --porcelain suppresses box formatting, data present"
+_rc=0
+_out=$(printf 'SELECT name FROM users LIMIT 1' | _shql "$_db" --porcelain 2>/dev/null) || _rc=$?
+assert_eq 0 "$_rc"
+assert_contains "$_out" "Alice"
+_found=0; [[ "$_out" == *"+"* ]] && _found=1
+assert_eq 0 "$_found"
+
 # ── Teardown ──────────────────────────────────────────────────────────────────
 
 rm -rf "$_data_dir"

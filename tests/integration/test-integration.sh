@@ -58,6 +58,21 @@ assert_contains "$_out" "Alice"
 _found=0; [[ "$_out" == *"+"* ]] && _found=1
 assert_eq 0 "$_found"
 
+# ── databases mode (round-trip) ───────────────────────────────────────────────
+
+# Push a connection to the registry via a successful query-out call
+_shql "$_db" -q "SELECT 1" >/dev/null 2>&1
+
+ptyunit_test_begin "databases: path appears in output after query-out push"
+_rc=0; _out=$(_shql databases 2>/dev/null) || _rc=$?
+assert_eq 0 "$_rc"
+assert_contains "$_out" "$_db"
+
+ptyunit_test_begin "databases: --porcelain output contains path"
+_rc=0; _out=$(_shql databases --porcelain 2>/dev/null) || _rc=$?
+assert_eq 0 "$_rc"
+assert_contains "$_out" "$_db"
+
 # ── Teardown ──────────────────────────────────────────────────────────────────
 
 rm -rf "$_data_dir"

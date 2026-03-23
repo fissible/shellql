@@ -65,6 +65,17 @@ source "$_SHQL_ROOT/src/screens/inspector.sh"
 
 shql_cli_parse "$@" || exit $?
 
+# ── Name resolution ───────────────────────────────────────────────────────────
+# If _SHQL_CLI_DB is set but is not an existing path, attempt to resolve it as
+# a short name (e.g. "chinook") from the connection registry.
+# Skip in mock mode — there is no registry in SHQL_MOCK=1.
+
+if [[ -n "$_SHQL_CLI_DB" && ! -e "$_SHQL_CLI_DB" ]] && ! (( ${SHQL_MOCK:-0} )); then
+    shql_conn_load_recent
+    _resolved=$(shql_conn_resolve_name "$_SHQL_CLI_DB")
+    [[ -n "$_resolved" ]] && _SHQL_CLI_DB="$_resolved"
+fi
+
 # ── Dispatch ──────────────────────────────────────────────────────────────────
 
 case "$_SHQL_CLI_MODE" in

@@ -195,11 +195,12 @@ Completed 2026-03-23 (Phase 6.6):
 - `src/connections.sh` — `shql_conn_resolve_name`: loops `SHQL_RECENT_DETAILS`/`SHQL_RECENT_SOURCES`, three basename-matching rules (exact, strip `.sqlite`, strip `.db`), local-source-only gate
 - `bin/shql` — pre-dispatch resolution block: fires when `_SHQL_CLI_DB` is set but not an existing file, skips in mock mode
 - `tests/unit/test-connections.sh` — 9 new assertions (6 test cases)
-- **Total: 226/226 assertions passing (187 unit + 39... see below)**
+- **Total: 226/226 assertions passing (178 unit + 48 integration)**
+- v0.3.0 tagged and released
 
 **Cross-repo:** `sigil list --type database --porcelain` — filed as [fissible/sigil-workspace#16](https://github.com/fissible/sigil-workspace/issues/16). ShellQL gracefully no-ops until this lands.
 
 **Follow-up tickets (self-nominated):**
 - UI fixes — data tab perf, row highlight, focus indicators, query tab layout
 
-**Next task:** PM decision — v0.1.0 alpha release or UI polish first.
+**Next task:** PM decision — UI polish sprint or next feature.

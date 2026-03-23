@@ -125,19 +125,19 @@ _shql_conn_push_inner() {
     # Look up existing id (preserve on update — never INSERT OR REPLACE)
     local _id=""
     if [ "$_driver" = "sqlite" ] && [ -n "$_path" ]; then
-        _id=$(sqlite3 "$_db" "SELECT id FROM connections WHERE path='$_ep'")
+        _id=$("${_SHQL_SQLITE3:-sqlite3}" "$_db" "SELECT id FROM connections WHERE path='$_ep'")
     elif [ -n "$_host" ]; then
-        _id=$(sqlite3 "$_db" \
+        _id=$("${_SHQL_SQLITE3:-sqlite3}" "$_db" \
             "SELECT id FROM connections WHERE host='$_eh' AND port='$_eport' AND db_name='$_ed'")
     fi
 
     if [ -z "$_id" ]; then
         _id=$(_shql_conn_uuid)
-        sqlite3 "$_db" \
+        "${_SHQL_SQLITE3:-sqlite3}" "$_db" \
             "INSERT INTO connections (id,driver,name,path,host,port,user,db_name,sigil_name)
              VALUES ('$_id','$_edrv','$_en','$_ep','$_eh','$_eport','$_eu','$_ed','$_es')"
     else
-        sqlite3 "$_db" \
+        "${_SHQL_SQLITE3:-sqlite3}" "$_db" \
             "UPDATE connections
              SET driver='$_edrv',name='$_en',path='$_ep',host='$_eh',
                  port='$_eport',user='$_eu',db_name='$_ed',sigil_name='$_es'
@@ -146,7 +146,7 @@ _shql_conn_push_inner() {
 
     local _now
     _now=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-    sqlite3 "$_db" \
+    "${_SHQL_SQLITE3:-sqlite3}" "$_db" \
         "INSERT OR REPLACE INTO last_accessed (source,ref_id,last_used)
          VALUES ('local','$_id','$_now')"
 }
@@ -187,7 +187,7 @@ shql_conn_migrate() {
 
     [ "$_count" -eq 0 ] && return 0
 
-    if printf '%s\n' "$_sql" | sqlite3 "$_db" 2>/dev/null; then
+    if printf '%s\n' "$_sql" | "${_SHQL_SQLITE3:-sqlite3}" "$_db" 2>/dev/null; then
         mv "$_legacy" "${_legacy}.bak"
     else
         printf 'error: migration failed; %s left intact\n' "$_legacy" >&2
@@ -236,7 +236,7 @@ shql_conn_list() {
         if [ -n "$_sigil_out" ]; then
             local _sname _senv _sdriver _shost _sport _suser _sdb _spath
             local _sref _sdetail _slast _dup
-            while IFS=$'\t' read -r _sname _senv _sdriver _shost _sport _suser _sdb _spath; do
+            printf '%s\n' "$_sigil_out" | while IFS=$'\t' read -r _sname _senv _sdriver _shost _sport _suser _sdb _spath; do
                 [ -z "$_sname" ] && continue
                 _sref="$_sname"
                 [ -n "$_senv" ] && _sref="${_sname}@${_senv}"
@@ -262,7 +262,7 @@ shql_conn_list() {
                 printf 'sigil\t%s\t%s\t%s\t%s\t%s\n' \
                     "$_sdriver" "$_sname" "$_sdetail" "${_slast:-}" "$_sref" \
                     >> "$_tmpfile"
-            done <<< "$_sigil_out"
+            done
         fi
     fi
 

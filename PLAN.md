@@ -98,10 +98,11 @@ Wire real sqlite3 behind the adapter seam defined in db.sh.
 - **Effort:** L (1 day)
 - **Status:** Done — `src/json.sh`, `src/config.sh`, `src/db.sh`, unit + integration tests
 
-### 6.4 Discovery mode
-- List recent/known databases
-- Resolve database path from name
-- **Effort:** S (1–2h)
+### 6.4 Discovery mode ✓ done
+- Connection registry backed by `$SHQL_DATA_DIR/shellql.db`
+- `src/connections.sh`: `shql_conn_init`, `shql_conn_push`, `shql_conn_migrate`, `shql_conn_list`, `shql_conn_load_recent`
+- sigil aggregation (graceful no-op until `sigil list --type database --porcelain` is available)
+- **Effort:** L (1 day actual)
 
 ### 6.5 Integration tests — [shellql#9](https://github.com/fissible/shellql/issues/9)
 - Real sqlite3 round-trips
@@ -141,7 +142,7 @@ shellframe primitives (P1–P4)
 
 _Last updated: 2026-03-22_
 
-**Phases 6.1, 6.2, 6.3 complete. Next: Phase 6.4 Discovery mode or UI fixes.**
+**Phases 6.1–6.4 complete. Branch `feature/phase-6.4-discovery` ready to merge. Next: Phase 6.5 integration tests or UI fixes.**
 
 Completed 2026-03-22 (Phase 6.1):
 - `src/db_mock.sh` — fixture data for all adapter functions (`shql_mock_load_recent`, `shql_db_list_tables`, `shql_db_describe`, `shql_db_fetch`, `shql_db_query`)
@@ -150,7 +151,6 @@ Completed 2026-03-22 (Phase 6.2):
 - `src/cli.sh` — `shql_cli_parse` (7-mode arg resolution: welcome/open/table/query-tui/query-out/pipe/databases); `shql_cli_format_table` (MySQL-style box output); idempotency guard; pipe detection via `[ -p /dev/stdin ]`
 - `bin/shql` — Sources `cli.sh`; replaces stub parser + dispatch with full 7-mode `case` statement; TTY probe (`exec 9>/dev/tty`) with `/dev/stderr` fallback for non-TUI error routing
 - `tests/unit/test-cli.sh` — 42 assertions (35 parser + 7 formatter)
-- **Total: 143/143 assertions passing**
 
 Completed 2026-03-22 (Phase 6.3):
 - `src/json.sh` — JSON get/set backed by `sqlite3 :memory:`; idempotency guard
@@ -163,18 +163,24 @@ Also 2026-03-22:
 - `tests/fixtures/demo.sqlite` — test database matching mock schema (users, orders, products, categories)
 - shellframe#24 (windowed panel mode) — implemented and merged to shellframe main; issue closed
 
-**Run (mock):** `SHQL_MOCK=1 SHELLFRAME_DIR=../shellframe bash bin/shql`
-**Run (real):** `SHELLFRAME_DIR=../shellframe bash bin/shql tests/fixtures/demo.sqlite`
-**Run (query):** `SHELLFRAME_DIR=../shellframe bash bin/shql tests/fixtures/demo.sqlite -q "SELECT * FROM users"`
-**Run tests:** `SHELLFRAME_DIR=/path/to/shellframe bash tests/ptyunit/run.sh --unit`
+Completed 2026-03-22 (Phase 6.4 — branch `feature/phase-6.4-discovery`):
+- `src/connections.sh` — full connection registry: `shql_conn_init` (schema bootstrap, shellql.db), `shql_conn_push` (id-preserving upsert + last_accessed update), `shql_conn_migrate` (one-time flat-file migration), `shql_conn_list` (local + sigil aggregate, sorted by last_used), `shql_conn_load_recent` (populates SHQL_RECENT_* arrays)
+- `src/db_mock.sh` — extended `shql_mock_load_recent` to populate SHQL_RECENT_NAMES/DETAILS/SOURCES/REFS
+- `src/state.sh` — removed old `shql_state_load_recent`, `shql_state_push_recent`, `SHQL_HISTORY_FILE`, `SHQL_RECENT_MAX`; added 4 new SHQL_RECENT_* array globals
+- `bin/shql` — sources connections.sh; calls shql_conn_init + shql_conn_migrate at startup; replaces shql_state_push_recent with shql_conn_push; databases dispatch now shows 5-column table with header
+- `src/screens/welcome.sh` — uses SHQL_RECENT_NAMES for display; resolves path via connections.id (local) or sigil (sigil source) on Enter
+- `tests/unit/test-connections.sh` — 30 unit tests covering all 5 public functions
+- `tests/integration/test-connections.sh` — 5 integration tests (push/list/sort/dedup round-trips)
+- **Total: 174/174 assertions passing (169 unit + 5 integration)**
+- **Cross-repo dependency:** `sigil list --type database --porcelain` not yet implemented; graceful no-op until added
 
-Also 2026-03-22 (workflow session):
-- Reviewed fissible release procedure (`fissible/.github`: `release.sh`, `RELEASE.md`, `.cliff.toml`)
-- Updated `~/.claude/CLAUDE.md` — all fissible project sessions now read `.github/README.md` at start
-- Saved reference memory for release procedure
-- No code changes; `release.sh` + `VERSION` + `CHANGELOG.md` still need to be added before first release
+**Run (from worktree — real mode):** `SHELLFRAME_DIR=../../../../shellframe bash bin/shql tests/fixtures/demo.sqlite`
+**Run (query):** `SHELLFRAME_DIR=../../../../shellframe bash bin/shql tests/fixtures/demo.sqlite -q "SELECT * FROM users"`
+**Run (databases):** `SHELLFRAME_DIR=../../../../shellframe bash bin/shql databases`
+**Run tests:** `SHELLFRAME_DIR=../../../../shellframe bash tests/ptyunit/run.sh`
 
 **Next task (choose one):**
-- Phase 6.4 — Discovery mode ([shellql#9](https://github.com/fissible/shellql/issues/9)) — list recent/known databases, resolve path from name
-- Phase 6.5 — Integration tests — real sqlite3 round-trips, all CLI modes
+- Merge `feature/phase-6.4-discovery` → main (PR or direct)
+- Phase 6.5 — Integration tests — all CLI modes, full round-trips
 - UI fixes — data tab perf, row highlight, focus indicators, query tab layout
+- Create `sigil list --type database --porcelain` ticket in fissible/sigil-workspace

@@ -11,7 +11,10 @@
 [[ -n "${_SHQL_CONN_LOADED:-}" ]] && return 0
 _SHQL_CONN_LOADED=1
 
-_SHQL_CONN_DB=""   # set by shql_conn_init; used as default by other functions
+_SHQL_CONN_DB=""      # set by shql_conn_init; used as default by other functions
+_SHQL_SQLITE3=""      # absolute path to sqlite3 binary; set by shql_conn_init
+_SHQL_SORT=""         # absolute path to sort; set by shql_conn_init
+_SHQL_RM=""           # absolute path to rm; set by shql_conn_init
 
 # ── shql_conn_init ─────────────────────────────────────────────────────────
 # Ensure shellql.db exists with current schema. Creates SHQL_DATA_DIR if needed.
@@ -22,6 +25,9 @@ shql_conn_init() {
         printf 'error: sqlite3 not found on PATH\n' >&2
         return 1
     fi
+    _SHQL_SQLITE3=$(command -v sqlite3)
+    _SHQL_SORT=$(command -v sort 2>/dev/null) || _SHQL_SORT="sort"
+    _SHQL_RM=$(command -v rm 2>/dev/null) || _SHQL_RM="rm"
     if ! mkdir -p "$SHQL_DATA_DIR"; then
         printf 'error: cannot create data directory: %s\n' "$SHQL_DATA_DIR" >&2
         return 1
@@ -187,4 +193,80 @@ shql_conn_migrate() {
         printf 'error: migration failed; %s left intact\n' "$_legacy" >&2
         return 1
     fi
+}
+
+# ── shql_conn_list ─────────────────────────────────────────────────────────
+# Print aggregate connection list to stdout. Format: 6 tab-delimited columns:
+#   <source>\t<driver>\t<name>\t<detail>\t<last_used>\t<ref_id>
+# source   = 'local' | 'sigil'
+# detail   = path (sqlite) | host:port/db_name (network)
+# last_used = ISO8601 string, or empty for never-accessed
+# ref_id   = connections.id (local) | sigil entry name[@env] (sigil)
+# Sorted by last_used DESC; empty last_used (never-accessed) sorts last.
+# Silently skips sigil aggregation if sigil is absent or --porcelain unsupported.
+
+shql_conn_list() {
+    local _db="${_SHQL_CONN_DB:-$SHQL_DATA_DIR/shellql.db}"
+    local _sq="${_SHQL_SQLITE3:-sqlite3}"
+    local _sort="${_SHQL_SORT:-sort}"
+    local _rm="${_SHQL_RM:-rm}"
+    local _tmpfile
+    _tmpfile=$(mktemp 2>/dev/null) || _tmpfile="/tmp/_shql_conn_list_$$"
+    : > "$_tmpfile" || return 0
+
+    # Local connections from shellql.db
+    if [ -r "$_db" ]; then
+        "$_sq" -separator $'\t' "$_db" "
+            SELECT 'local', c.driver, c.name,
+                CASE WHEN c.driver = 'sqlite' THEN c.path
+                     ELSE c.host || ':' || c.port || '/' || c.db_name
+                END,
+                COALESCE(la.last_used, ''),
+                c.id
+            FROM connections c
+            LEFT JOIN last_accessed la
+                ON la.source = 'local' AND la.ref_id = c.id
+        " 2>/dev/null >> "$_tmpfile"
+    fi
+
+    # Sigil-sourced connections (requires sigil --porcelain support)
+    if command -v sigil >/dev/null 2>&1; then
+        local _sigil_out
+        _sigil_out=$(sigil list --type database --porcelain 2>/dev/null) || true
+        if [ -n "$_sigil_out" ]; then
+            local _sname _senv _sdriver _shost _sport _suser _sdb _spath
+            local _sref _sdetail _slast _dup
+            while IFS=$'\t' read -r _sname _senv _sdriver _shost _sport _suser _sdb _spath; do
+                [ -z "$_sname" ] && continue
+                _sref="$_sname"
+                [ -n "$_senv" ] && _sref="${_sname}@${_senv}"
+                # Skip if a local record already links to this sigil entry
+                if [ -r "$_db" ]; then
+                    _dup=$("$_sq" "$_db" \
+                        "SELECT id FROM connections WHERE sigil_name='${_sref//\'/\'\'}'" \
+                        2>/dev/null)
+                    [ -n "$_dup" ] && continue
+                fi
+                if [ "$_sdriver" = "sqlite" ]; then
+                    _sdetail="$_spath"
+                else
+                    _sdetail="${_shost}:${_sport}/${_sdb}"
+                fi
+                _slast=""
+                if [ -r "$_db" ]; then
+                    _slast=$("$_sq" "$_db" \
+                        "SELECT last_used FROM last_accessed
+                         WHERE source='sigil' AND ref_id='${_sref//\'/\'\'}'"\
+                        2>/dev/null)
+                fi
+                printf 'sigil\t%s\t%s\t%s\t%s\t%s\n' \
+                    "$_sdriver" "$_sname" "$_sdetail" "${_slast:-}" "$_sref" \
+                    >> "$_tmpfile"
+            done <<< "$_sigil_out"
+        fi
+    fi
+
+    # Sort by column 5 (last_used) descending; empty strings sort last under reverse
+    "$_sort" -t$'\t' -k5,5r "$_tmpfile"
+    "$_rm" -f "$_tmpfile"
 }

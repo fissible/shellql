@@ -109,6 +109,37 @@ rm -rf "$_mig_dir" "$_fail_dir"
 export XDG_DATA_HOME="$_data_dir"   # restore so subsequent test sections start clean
 source "$SHQL_ROOT/src/state.sh"
 
+# ── shql_conn_list tests ───────────────────────────────────────────────────
+_list_dir=$(mktemp -d)
+export XDG_DATA_HOME="$_list_dir"
+source "$SHQL_ROOT/src/state.sh"
+shql_conn_init
+
+ptyunit_test_begin "shql_conn_list: returns local connections"
+shql_conn_push "sqlite" "/tmp/foo.sqlite"
+_list=$(shql_conn_list)
+assert_contains "$_list" "local"
+assert_contains "$_list" "/tmp/foo.sqlite"
+
+ptyunit_test_begin "shql_conn_list: never-accessed connections sort last"
+# Insert a connection directly (no last_accessed row) to simulate never-accessed
+sqlite3 "$SHQL_DATA_DIR/shellql.db" \
+    "INSERT INTO connections (id,driver,name,path) VALUES ('t1','sqlite','tmp/bar.sqlite','/tmp/bar.sqlite')"
+_list=$(shql_conn_list)
+_first_line=$(printf '%s\n' "$_list" | head -1)
+assert_contains "$_first_line" "foo.sqlite"   # foo has last_used; bar does not → foo first
+
+ptyunit_test_begin "shql_conn_list: skips sigil aggregation when sigil not on PATH"
+_saved_path="$PATH"
+PATH="/no-such-dir"
+_list=$(shql_conn_list 2>&1)
+_rc=$?
+PATH="$_saved_path"
+assert_eq "0" "$_rc"
+assert_contains "$_list" "local"   # local results still returned
+
+rm -rf "$_list_dir"
+
 # ── cleanup ────────────────────────────────────────────────────────────────
 rm -rf "$_data_dir"
 ptyunit_test_summary

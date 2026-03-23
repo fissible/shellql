@@ -149,7 +149,7 @@ shellframe primitives (P1–P4)
 
 _Last updated: 2026-03-23_
 
-**v0.3.0 released. Phases 6.1–6.6 complete. M3 milestone (ShellQL v0.1 alpha) reached — 226/226 assertions passing.**
+**v0.3.0 released. Phases 6.1–6.6 complete. M3 milestone (ShellQL v0.1 alpha) reached — 226/226 assertions passing. ptyunit migrated to Homebrew consumer pattern.**
 
 Completed 2026-03-22 (Phase 6.1):
 - `src/db_mock.sh` — fixture data for all adapter functions (`shql_mock_load_recent`, `shql_db_list_tables`, `shql_db_describe`, `shql_db_fetch`, `shql_db_query`)
@@ -184,7 +184,7 @@ Completed 2026-03-22 (Phase 6.4 — branch `feature/phase-6.4-discovery`):
 **Run (real mode):** `SHELLFRAME_DIR=../shellframe bash bin/shql tests/fixtures/demo.sqlite`
 **Run (query):** `SHELLFRAME_DIR=../shellframe bash bin/shql tests/fixtures/demo.sqlite -q "SELECT * FROM users"`
 **Run (databases):** `SHELLFRAME_DIR=../shellframe bash bin/shql databases`
-**Run tests:** `SHELLFRAME_DIR=../shellframe bash tests/ptyunit/run.sh`
+**Run tests:** `SHELLFRAME_DIR=../shellframe bash tests/run.sh`
 
 Completed 2026-03-22 (Phase 6.5):
 - `tests/integration/test-integration.sh` — 19 assertions: query-out (exit 0, formatted table + Alice, porcelain), pipe (exit 0 + data, porcelain), databases round-trip (path appears, porcelain variant), error paths (missing DB file, bad SQL)
@@ -202,5 +202,14 @@ Completed 2026-03-23 (Phase 6.6):
 
 **Follow-up tickets (self-nominated):**
 - UI fixes — data tab perf, row highlight, focus indicators, query tab layout
+
+Completed 2026-03-23 (ptyunit consumer migration):
+- `tests/ptyunit/` submodule removed
+- `bootstrap.sh` — `brew install fissible/tap/ptyunit 2>/dev/null || brew upgrade`
+- `tests/run.sh` — resolves `PTYUNIT_HOME` from Homebrew, delegates to `$PTYUNIT_HOME/run.sh`
+- All 14 test files updated: `source "$PTYUNIT_HOME/assert.sh"` (was `$TESTS_DIR/ptyunit/assert.sh`)
+- `check-deps.sh` + `.claude/settings.json` — SessionStart hook for drift detection
+- `.github/workflows/ci.yml` — `bootstrap-command: bash bootstrap.sh`, `test-command: bash tests/run.sh`
+- 207/207 assertions pass (unit only; integration requires `SHELLFRAME_DIR` in env)
 
 **Next task:** PM decision — UI polish sprint or next feature.

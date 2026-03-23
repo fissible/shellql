@@ -153,3 +153,33 @@ shql_conn_push() {
     _shql_conn_push_inner "$@" 2>/dev/null
     return 0
 }
+
+# ── shql_conn_migrate ──────────────────────────────────────────────────────
+# One-time migration: import $SHQL_DATA_DIR/recent (one path per line) into shellql.db.
+# Inserts directly — no last_accessed rows (migrated entries appear as never-accessed).
+# All-or-nothing: uses a transaction; leaves recent intact on failure.
+# Renames recent → recent.bak only after full successful import.
+
+shql_conn_migrate() {
+    local _legacy="$SHQL_DATA_DIR/recent"
+    [ -f "$_legacy" ] || return 0
+
+    local _db="${_SHQL_CONN_DB:-$SHQL_DATA_DIR/shellql.db}"
+    local _line _id _name _ep _en _sql
+
+    # Build SQL in a variable first, then pipe to sqlite3
+    _sql="BEGIN;"$'\n'
+    while IFS= read -r _line; do
+        [ -z "$_line" ] && continue
+        _id=$(_shql_conn_uuid)
+        _name=$(_shql_conn_derive_name "sqlite" "$_line" "")
+        _ep="${_line//\'/\'\'}"
+        _en="${_name//\'/\'\'}"
+        _sql="${_sql}"$'\n'"INSERT OR IGNORE INTO connections (id,driver,name,path) VALUES ('${_id}','sqlite','${_en}','${_ep}');"
+    done < "$_legacy"
+    _sql="${_sql}"$'\n'"COMMIT;"
+
+    if printf '%s\n' "$_sql" | sqlite3 "$_db" 2>/dev/null; then
+        mv "$_legacy" "${_legacy}.bak"
+    fi
+}

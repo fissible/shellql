@@ -69,6 +69,46 @@ chmod 644 "$SHQL_DATA_DIR/shellql.db"
 assert_eq "0" "$_rc"
 assert_eq "" "$_out"
 
+# ── shql_conn_migrate tests ────────────────────────────────────────────────
+# Use a fresh data dir for isolation from push tests above.
+_mig_dir=$(mktemp -d)
+export XDG_DATA_HOME="$_mig_dir"
+source "$SHQL_ROOT/src/state.sh"    # re-sources; SHQL_DATA_DIR now points at _mig_dir
+shql_conn_init
+
+ptyunit_test_begin "shql_conn_migrate: no-op when recent file absent"
+shql_conn_migrate
+assert_eq "0" "$?"
+assert_eq "0" "$(sqlite3 "$SHQL_DATA_DIR/shellql.db" "SELECT COUNT(*) FROM connections")"
+
+ptyunit_test_begin "shql_conn_migrate: imports each path as a connection"
+printf '/tmp/a.sqlite\n/tmp/b.sqlite\n' > "$SHQL_DATA_DIR/recent"
+shql_conn_migrate
+assert_eq "2" "$(sqlite3 "$SHQL_DATA_DIR/shellql.db" "SELECT COUNT(*) FROM connections")"
+
+ptyunit_test_begin "shql_conn_migrate: does not create last_accessed entries"
+assert_eq "0" \
+    "$(sqlite3 "$SHQL_DATA_DIR/shellql.db" "SELECT COUNT(*) FROM last_accessed")"
+
+ptyunit_test_begin "shql_conn_migrate: renames recent to recent.bak on success"
+assert_eq "1" "$( [ -f "$SHQL_DATA_DIR/recent.bak" ] && printf 1 || printf 0 )"
+assert_eq "0" "$( [ -f "$SHQL_DATA_DIR/recent" ]     && printf 1 || printf 0 )"
+
+ptyunit_test_begin "shql_conn_migrate: leaves recent intact on failure"
+_fail_dir=$(mktemp -d)
+export XDG_DATA_HOME="$_fail_dir"
+source "$SHQL_ROOT/src/state.sh"
+shql_conn_init
+printf '/tmp/c.sqlite\n' > "$SHQL_DATA_DIR/recent"
+chmod 444 "$SHQL_DATA_DIR/shellql.db"   # make DB unwritable → force failure
+shql_conn_migrate
+_intact=$( [ -f "$SHQL_DATA_DIR/recent" ] && printf 1 || printf 0 )
+chmod 644 "$SHQL_DATA_DIR/shellql.db"   # restore for cleanup
+assert_eq "1" "$_intact"
+rm -rf "$_mig_dir" "$_fail_dir"
+export XDG_DATA_HOME="$_data_dir"   # restore so subsequent test sections start clean
+source "$SHQL_ROOT/src/state.sh"
+
 # ── cleanup ────────────────────────────────────────────────────────────────
 rm -rf "$_data_dir"
 ptyunit_test_summary

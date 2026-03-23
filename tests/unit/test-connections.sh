@@ -161,6 +161,14 @@ assert_eq "local" "${SHQL_RECENT_SOURCES[0]}"
 ptyunit_test_begin "shql_conn_load_recent: populates SHQL_RECENT_REFS with UUID"
 assert_eq "1" "$( [ -n "${SHQL_RECENT_REFS[0]:-}" ] && printf 1 || printf 0 )"
 
+ptyunit_test_begin "shql_conn_load_recent: parallel arrays stay in sync for multiple entries"
+shql_conn_push "sqlite" "/tmp/second.sqlite"
+shql_conn_load_recent
+assert_eq "2" "${#SHQL_RECENT_NAMES[@]}"
+assert_eq "${#SHQL_RECENT_NAMES[@]}" "${#SHQL_RECENT_DETAILS[@]}"
+assert_eq "${#SHQL_RECENT_NAMES[@]}" "${#SHQL_RECENT_SOURCES[@]}"
+assert_eq "${#SHQL_RECENT_NAMES[@]}" "${#SHQL_RECENT_REFS[@]}"
+
 rm -rf "$_lr_dir"
 
 # ── cleanup ────────────────────────────────────────────────────────────────

@@ -59,15 +59,16 @@ ShellQL is a thin application layer on top of shellframe's TUI primitives:
 ```
 shql (CLI entry point)
 └── src/
-    ├── cli.sh        # argument parsing, mode dispatch
-    ├── db.sh         # sqlite3 adapter (list tables, run query, describe, fetch rows)
-    ├── screens/      # shellframe_app screen definitions
+    ├── cli.sh          # argument parsing, mode dispatch
+    ├── connections.sh  # connection registry (shellql.db) + sigil aggregation
+    ├── db.sh           # sqlite3 adapter (list tables, run query, describe, fetch rows)
+    ├── screens/        # shellframe_app screen definitions
     │   ├── welcome.sh
     │   ├── schema.sh
     │   ├── table.sh
     │   ├── query.sh
     │   └── record.sh
-    └── state.sh      # application globals
+    └── state.sh        # application globals
 ```
 
 The UI depends entirely on shellframe interfaces — no raw tput/stty calls in ShellQL itself.

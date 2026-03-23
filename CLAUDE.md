@@ -154,7 +154,7 @@ bash tests/run.sh --unit   # unit only (no Python needed)
 ```
 
 Tests live in `tests/unit/test-*.sh` and `tests/integration/test-*.sh`.
-Each file sources `tests/ptyunit/assert.sh` and ends with `ptyunit_test_summary`.
+Each file sources `"$PTYUNIT_HOME/assert.sh"` and ends with `ptyunit_test_summary`.
 
 ## Related
 

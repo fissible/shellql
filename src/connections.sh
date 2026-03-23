@@ -52,8 +52,102 @@ CREATE TABLE IF NOT EXISTS last_accessed (
 );
 CREATE INDEX IF NOT EXISTS idx_last_accessed_ref ON last_accessed (ref_id);
 SQL
-    if (( _rc != 0 )); then
+    if [ "$_rc" -ne 0 ]; then
         printf 'error: failed to initialise schema: %s\n' "$_SHQL_CONN_DB" >&2
         return "$_rc"
     fi
+}
+
+# ── _shql_conn_uuid ────────────────────────────────────────────────────────
+# Generate a UUID. Tries uuidgen first, then /proc, then seconds+PID fallback.
+
+_shql_conn_uuid() {
+    if command -v uuidgen >/dev/null 2>&1; then
+        uuidgen | tr '[:upper:]' '[:lower:]'
+    elif [ -r /proc/sys/kernel/random/uuid ]; then
+        cat /proc/sys/kernel/random/uuid
+    else
+        printf '%s-%s' "$(date +%s)" "$$"
+    fi
+}
+
+# ── _shql_conn_derive_name ─────────────────────────────────────────────────
+# Derive display name from driver + path/db_name.
+# SQLite: last two path segments. Network: db_name only.
+
+_shql_conn_derive_name() {
+    local _driver="$1" _path="$2" _db_name="${3:-}"
+    if [ "$_driver" = "sqlite" ]; then
+        local _base _parent
+        _base="${_path##*/}"
+        _parent="${_path%/*}"
+        _parent="${_parent##*/}"
+        printf '%s/%s' "$_parent" "$_base"
+    else
+        printf '%s' "$_db_name"
+    fi
+}
+
+# ── _shql_conn_push_inner ──────────────────────────────────────────────────
+# Internal implementation of push. May exit non-zero; shql_conn_push silences it.
+
+_shql_conn_push_inner() {
+    local _driver="$1"
+    local _path="${2:-}"
+    local _host="${3:-}"
+    local _port="${4:-}"
+    local _user="${5:-}"
+    local _db_name="${6:-}"
+    local _sigil_name="${7:-}"
+
+    local _db="${_SHQL_CONN_DB:-$SHQL_DATA_DIR/shellql.db}"
+    [ -w "$_db" ] || return 1
+
+    local _name
+    _name=$(_shql_conn_derive_name "$_driver" "$_path" "$_db_name")
+
+    # Escape single quotes for inline SQL
+    local _ep="${_path//\'/\'\'}"
+    local _eh="${_host//\'/\'\'}"
+    local _eu="${_user//\'/\'\'}"
+    local _ed="${_db_name//\'/\'\'}"
+    local _es="${_sigil_name//\'/\'\'}"
+    local _en="${_name//\'/\'\'}"
+
+    # Look up existing id (preserve on update — never INSERT OR REPLACE)
+    local _id=""
+    if [ "$_driver" = "sqlite" ] && [ -n "$_path" ]; then
+        _id=$(sqlite3 "$_db" "SELECT id FROM connections WHERE path='$_ep'")
+    elif [ -n "$_host" ]; then
+        _id=$(sqlite3 "$_db" \
+            "SELECT id FROM connections WHERE host='$_eh' AND port='$_port' AND db_name='$_ed'")
+    fi
+
+    if [ -z "$_id" ]; then
+        _id=$(_shql_conn_uuid)
+        sqlite3 "$_db" \
+            "INSERT INTO connections (id,driver,name,path,host,port,user,db_name,sigil_name)
+             VALUES ('$_id','$_driver','$_en','$_ep','$_eh','$_port','$_eu','$_ed','$_es')"
+    else
+        sqlite3 "$_db" \
+            "UPDATE connections
+             SET driver='$_driver',name='$_en',path='$_ep',host='$_eh',
+                 port='$_port',user='$_eu',db_name='$_ed',sigil_name='$_es'
+             WHERE id='$_id'"
+    fi
+
+    local _now
+    _now=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+    sqlite3 "$_db" \
+        "INSERT OR REPLACE INTO last_accessed (source,ref_id,last_used)
+         VALUES ('local','$_id','$_now')"
+}
+
+# ── shql_conn_push ─────────────────────────────────────────────────────────
+# Upsert connection and update last_accessed. Always exits 0 — fully silent on failure.
+# Usage: shql_conn_push <driver> <path> [host] [port] [user] [db_name] [sigil_name]
+
+shql_conn_push() {
+    _shql_conn_push_inner "$@" 2>/dev/null
+    return 0
 }

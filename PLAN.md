@@ -104,10 +104,11 @@ Wire real sqlite3 behind the adapter seam defined in db.sh.
 - sigil aggregation (graceful no-op until `sigil list --type database --porcelain` is available)
 - **Effort:** L (1 day actual)
 
-### 6.5 Integration tests — [shellql#9](https://github.com/fissible/shellql/issues/9)
+### 6.5 Integration tests — [shellql#9](https://github.com/fissible/shellql/issues/9) ✓ done
 - Real sqlite3 round-trips
 - All CLI modes
 - **Effort:** M (half day)
+- **Status:** Done — `tests/integration/test-integration.sh`; 19 assertions (query-out, pipe, databases round-trip, error paths)
 
 ---
 
@@ -142,7 +143,7 @@ shellframe primitives (P1–P4)
 
 _Last updated: 2026-03-22_
 
-**Phases 6.1–6.4 complete and merged to main. sigil cross-repo ticket filed. Next: Phase 6.5 integration tests.**
+**Phases 6.1–6.5 complete and merged to main. M3 milestone (ShellQL v0.1 alpha) reached — all integration tests passing.**
 
 Completed 2026-03-22 (Phase 6.1):
 - `src/db_mock.sh` — fixture data for all adapter functions (`shql_mock_load_recent`, `shql_db_list_tables`, `shql_db_describe`, `shql_db_fetch`, `shql_db_query`)
@@ -179,8 +180,15 @@ Completed 2026-03-22 (Phase 6.4 — branch `feature/phase-6.4-discovery`):
 **Run (databases):** `SHELLFRAME_DIR=../shellframe bash bin/shql databases`
 **Run tests:** `SHELLFRAME_DIR=../shellframe bash tests/ptyunit/run.sh`
 
+Completed 2026-03-22 (Phase 6.5):
+- `tests/integration/test-integration.sh` — 19 assertions: query-out (exit 0, formatted table + Alice, porcelain), pipe (exit 0 + data, porcelain), databases round-trip (path appears, porcelain variant), error paths (missing DB file, bad SQL)
+- ptyunit submodule updated to v1.0.0
+- **Total: 217/217 assertions passing (198 unit + 19 integration)**
+
 **Cross-repo:** `sigil list --type database --porcelain` — filed as [fissible/sigil-workspace#16](https://github.com/fissible/sigil-workspace/issues/16). ShellQL gracefully no-ops until this lands.
 
-**Next task (choose one):**
-- Phase 6.5 — Integration tests — all CLI modes, full round-trips ([shellql#9](https://github.com/fissible/shellql/issues/9))
+**Follow-up tickets (self-nominated):**
+- Short-name resolution — `shql demo -q "..."` resolves short name to full path from registry. Effort: XS/S. (surfaced during 6.5 brainstorming)
 - UI fixes — data tab perf, row highlight, focus indicators, query tab layout
+
+**Next task:** PM decision — v0.1.0 alpha release or UI polish first.

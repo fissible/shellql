@@ -41,7 +41,7 @@ _shql_WELCOME_render() {
     local _body_h=$(( _rows - 2 ))
     (( _body_h < 1 )) && _body_h=1
 
-    if (( ${#SHQL_RECENT_FILES[@]} > 0 )); then
+    if (( ${#SHQL_RECENT_NAMES[@]} > 0 )); then
         shellframe_shell_region list "$_body_top" 1 "$_cols" "$_body_h" focus
     else
         shellframe_shell_region empty "$_body_top" 1 "$_cols" "$_body_h" nofocus
@@ -61,7 +61,7 @@ _shql_WELCOME_header_render() {
 
 _shql_WELCOME_list_render() {
     SHELLFRAME_LIST_CTX="$_SHQL_LIST_CTX"
-    SHELLFRAME_LIST_ITEMS=("${SHQL_RECENT_FILES[@]+"${SHQL_RECENT_FILES[@]}"}")
+    SHELLFRAME_LIST_ITEMS=("${SHQL_RECENT_NAMES[@]+"${SHQL_RECENT_NAMES[@]}"}")
     shellframe_list_render "$@"
 }
 
@@ -86,7 +86,15 @@ _shql_WELCOME_list_action() {
     local _cursor
     shellframe_sel_cursor "$_SHQL_LIST_CTX" _cursor 2>/dev/null \
         || _cursor=$(shellframe_sel_cursor "$_SHQL_LIST_CTX")
-    SHQL_DB_PATH="${SHQL_RECENT_FILES[$_cursor]:-}"
+    local _src="${SHQL_RECENT_SOURCES[$_cursor]:-local}"
+    local _ref="${SHQL_RECENT_REFS[$_cursor]:-}"
+    if [ "$_src" = "local" ]; then
+        local _db="${_SHQL_CONN_DB:-$SHQL_DATA_DIR/shellql.db}"
+        SHQL_DB_PATH=$("${_SHQL_SQLITE3:-sqlite3}" "$_db" \
+            "SELECT path FROM connections WHERE id='${_ref//\'/\'\'}'")
+    else
+        SHQL_DB_PATH=$(sigil get "$_ref" path 2>/dev/null)
+    fi
     shql_schema_init
     _SHELLFRAME_SHELL_NEXT="SCHEMA"
 }
@@ -132,12 +140,12 @@ shql_welcome_run() {
     if (( SHQL_MOCK )); then
         shql_mock_load_recent
     else
-        shql_state_load_recent
+        shql_conn_load_recent
     fi
 
     # Initialise list widget
     SHELLFRAME_LIST_CTX="$_SHQL_LIST_CTX"
-    SHELLFRAME_LIST_ITEMS=("${SHQL_RECENT_FILES[@]+"${SHQL_RECENT_FILES[@]}"}")
+    SHELLFRAME_LIST_ITEMS=("${SHQL_RECENT_NAMES[@]+"${SHQL_RECENT_NAMES[@]}"}")
     shellframe_list_init "$_SHQL_LIST_CTX"
 
     shellframe_shell "_shql" "WELCOME"

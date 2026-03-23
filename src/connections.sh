@@ -29,7 +29,7 @@ shql_conn_init() {
     _SHQL_CONN_DB="$SHQL_DATA_DIR/shellql.db"
     sqlite3 "$_SHQL_CONN_DB" <<'SQL'
 CREATE TABLE IF NOT EXISTS connections (
-    id         TEXT PRIMARY KEY,
+    id         TEXT NOT NULL PRIMARY KEY,
     driver     TEXT NOT NULL,
     name       TEXT NOT NULL,
     path       TEXT NOT NULL DEFAULT '',

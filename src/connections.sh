@@ -113,6 +113,8 @@ _shql_conn_push_inner() {
     local _ed="${_db_name//\'/\'\'}"
     local _es="${_sigil_name//\'/\'\'}"
     local _en="${_name//\'/\'\'}"
+    local _edrv="${_driver//\'/\'\'}"
+    local _eport="${_port//\'/\'\'}"
 
     # Look up existing id (preserve on update — never INSERT OR REPLACE)
     local _id=""
@@ -120,19 +122,19 @@ _shql_conn_push_inner() {
         _id=$(sqlite3 "$_db" "SELECT id FROM connections WHERE path='$_ep'")
     elif [ -n "$_host" ]; then
         _id=$(sqlite3 "$_db" \
-            "SELECT id FROM connections WHERE host='$_eh' AND port='$_port' AND db_name='$_ed'")
+            "SELECT id FROM connections WHERE host='$_eh' AND port='$_eport' AND db_name='$_ed'")
     fi
 
     if [ -z "$_id" ]; then
         _id=$(_shql_conn_uuid)
         sqlite3 "$_db" \
             "INSERT INTO connections (id,driver,name,path,host,port,user,db_name,sigil_name)
-             VALUES ('$_id','$_driver','$_en','$_ep','$_eh','$_port','$_eu','$_ed','$_es')"
+             VALUES ('$_id','$_edrv','$_en','$_ep','$_eh','$_eport','$_eu','$_ed','$_es')"
     else
         sqlite3 "$_db" \
             "UPDATE connections
-             SET driver='$_driver',name='$_en',path='$_ep',host='$_eh',
-                 port='$_port',user='$_eu',db_name='$_ed',sigil_name='$_es'
+             SET driver='$_edrv',name='$_en',path='$_ep',host='$_eh',
+                 port='$_eport',user='$_eu',db_name='$_ed',sigil_name='$_es'
              WHERE id='$_id'"
     fi
 

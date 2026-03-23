@@ -149,7 +149,7 @@ shellframe primitives (P1–P4)
 
 _Last updated: 2026-03-23_
 
-**Phases 6.1–6.6 complete and merged to main. M3 milestone (ShellQL v0.1 alpha) reached — all 226 assertions passing.**
+**v0.3.0 released. Phases 6.1–6.6 complete. M3 milestone (ShellQL v0.1 alpha) reached — 226/226 assertions passing.**
 
 Completed 2026-03-22 (Phase 6.1):
 - `src/db_mock.sh` — fixture data for all adapter functions (`shql_mock_load_recent`, `shql_db_list_tables`, `shql_db_describe`, `shql_db_fetch`, `shql_db_query`)

@@ -165,10 +165,9 @@ shql_conn_migrate() {
     [ -f "$_legacy" ] || return 0
 
     local _db="${_SHQL_CONN_DB:-$SHQL_DATA_DIR/shellql.db}"
-    local _line _id _name _ep _en _sql
-
-    # Build SQL in a variable first, then pipe to sqlite3
-    _sql="BEGIN;"$'\n'
+    local _line _id _name _ep _en _sql _count
+    _sql="BEGIN;"
+    _count=0
     while IFS= read -r _line; do
         [ -z "$_line" ] && continue
         _id=$(_shql_conn_uuid)
@@ -176,10 +175,16 @@ shql_conn_migrate() {
         _ep="${_line//\'/\'\'}"
         _en="${_name//\'/\'\'}"
         _sql="${_sql}"$'\n'"INSERT OR IGNORE INTO connections (id,driver,name,path) VALUES ('${_id}','sqlite','${_en}','${_ep}');"
+        _count=$(( _count + 1 ))
     done < "$_legacy"
     _sql="${_sql}"$'\n'"COMMIT;"
 
+    [ "$_count" -eq 0 ] && return 0
+
     if printf '%s\n' "$_sql" | sqlite3 "$_db" 2>/dev/null; then
         mv "$_legacy" "${_legacy}.bak"
+    else
+        printf 'error: migration failed; %s left intact\n' "$_legacy" >&2
+        return 1
     fi
 }

@@ -17,57 +17,14 @@ SHQL_DRIVER=""           # "sqlite" | "mysql" | "postgresql" | "" (default/unkno
 SHQL_DB_HOST=""          # hostname for network drivers (mysql, postgresql)
 SHQL_DB_NAME=""          # database name for network drivers
 
-# ── Recent files ──────────────────────────────────────────────────────────────
-
-SHQL_RECENT_FILES=()     # ordered list of recently-opened database paths
-SHQL_RECENT_MAX=10       # maximum number of entries kept
-
-# ── History file location ─────────────────────────────────────────────────────
+# ── Data directory ────────────────────────────────────────────────────────────
 
 SHQL_DATA_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/shellql"
-SHQL_HISTORY_FILE="$SHQL_DATA_DIR/recent"
 
-# ── shql_state_load_recent ────────────────────────────────────────────────────
+# ── Recent connections ────────────────────────────────────────────────────────
 
-# Populate SHQL_RECENT_FILES from SHQL_HISTORY_FILE (one path per line).
-# Silent no-op if the file does not exist.
-shql_state_load_recent() {
-    SHQL_RECENT_FILES=()
-    [[ -f "$SHQL_HISTORY_FILE" ]] || return 0
-    local _line
-    while IFS= read -r _line; do
-        [[ -z "$_line" ]] && continue
-        SHQL_RECENT_FILES+=("$_line")
-    done < "$SHQL_HISTORY_FILE"
-}
-
-# ── shql_state_push_recent ────────────────────────────────────────────────────
-
-# Record $1 as the most-recently-opened database.
-# Deduplicates (removes existing entry) and trims to SHQL_RECENT_MAX.
-# Persists to SHQL_HISTORY_FILE.
-shql_state_push_recent() {
-    local _path="$1"
-    [[ -z "$_path" ]] && return 0
-
-    # Remove any existing entry for this path
-    local _new=()
-    local _e
-    for _e in "${SHQL_RECENT_FILES[@]+"${SHQL_RECENT_FILES[@]}"}"; do
-        [[ "$_e" == "$_path" ]] && continue
-        _new+=("$_e")
-    done
-
-    # Prepend and trim
-    SHQL_RECENT_FILES=("$_path" "${_new[@]+"${_new[@]}"}")
-    if (( ${#SHQL_RECENT_FILES[@]} > SHQL_RECENT_MAX )); then
-        SHQL_RECENT_FILES=("${SHQL_RECENT_FILES[@]:0:$SHQL_RECENT_MAX}")
-    fi
-
-    # Persist
-    mkdir -p "$SHQL_DATA_DIR"
-    local _f
-    for _f in "${SHQL_RECENT_FILES[@]+"${SHQL_RECENT_FILES[@]}"}"; do
-        printf '%s\n' "$_f"
-    done > "$SHQL_HISTORY_FILE"
-}
+SHQL_RECENT_FILES=()     # ordered list of recently-opened database paths (mock mode only)
+SHQL_RECENT_NAMES=()     # display names (e.g. "myapp/db.sqlite")
+SHQL_RECENT_DETAILS=()   # path (sqlite) or host:port/db_name (network)
+SHQL_RECENT_SOURCES=()   # 'local' | 'sigil'
+SHQL_RECENT_REFS=()      # connections.id (local) | sigil entry name (sigil)

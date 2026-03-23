@@ -16,6 +16,20 @@ shql_mock_load_recent() {
         "$HOME/work/analytics.db"
         "$HOME/scratch/test.sqlite"
     )
+    SHQL_RECENT_NAMES=()
+    SHQL_RECENT_DETAILS=()
+    SHQL_RECENT_SOURCES=()
+    SHQL_RECENT_REFS=()
+    local _f _base _parent
+    for _f in "${SHQL_RECENT_FILES[@]+"${SHQL_RECENT_FILES[@]}"}"; do
+        _base="${_f##*/}"
+        _parent="${_f%/*}"
+        _parent="${_parent##*/}"
+        SHQL_RECENT_NAMES+=("$_parent/$_base")
+        SHQL_RECENT_DETAILS+=("$_f")
+        SHQL_RECENT_SOURCES+=("local")
+        SHQL_RECENT_REFS+=("$_f")   # mock has no UUIDs; path serves as ref
+    done
 }
 
 # ── Mock adapter functions ────────────────────────────────────────────────────

@@ -270,7 +270,9 @@ _shql_query_render() {
     [[ "$_SHQL_QUERY_FOCUSED_PANE" == "results" ]] && SHELLFRAME_GRID_FOCUSED=1 || SHELLFRAME_GRID_FOCUSED=0
 
     if (( _SHQL_QUERY_HAS_RESULTS )); then
+        _shql_grid_fill_width "$_width"
         shellframe_grid_render "$_results_top" "$_left" "$_width" "$_results_rows"
+        _shql_grid_restore_last
     else
         local _r
         for (( _r=0; _r<_results_rows; _r++ )); do

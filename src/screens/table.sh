@@ -216,12 +216,43 @@ _shql_table_structure_on_key() {
     return 1
 }
 
+# ── _shql_grid_fill_width ─────────────────────────────────────────────────────
+# Temporarily expand the last column so the grid fills the given width.
+# Saves the original width in _SHQL_GRID_SAVED_LAST_W for restoration.
+# No-op when SHELLFRAME_GRID_COLS == 0 or columns already fill the width.
+
+_shql_grid_fill_width() {
+    local _width="$1"
+    local _ncols="${SHELLFRAME_GRID_COLS:-0}"
+    _SHQL_GRID_SAVED_LAST_W=""
+    (( _ncols == 0 )) && return 0
+    local _last=$(( _ncols - 1 ))
+    local _total=0 _i
+    for (( _i=0; _i<_ncols; _i++ )); do
+        _total=$(( _total + ${SHELLFRAME_GRID_COL_WIDTHS[$_i]:-10} ))
+        (( _i < _ncols - 1 )) && (( _total++ ))   # 1-px column separator
+    done
+    local _extra=$(( _width - _total ))
+    if (( _extra > 0 )); then
+        _SHQL_GRID_SAVED_LAST_W="${SHELLFRAME_GRID_COL_WIDTHS[$_last]:-10}"
+        SHELLFRAME_GRID_COL_WIDTHS[$_last]=$(( _SHQL_GRID_SAVED_LAST_W + _extra ))
+    fi
+}
+
+_shql_grid_restore_last() {
+    [[ -n "${_SHQL_GRID_SAVED_LAST_W:-}" ]] || return 0
+    local _ncols="${SHELLFRAME_GRID_COLS:-0}"
+    (( _ncols > 0 )) && SHELLFRAME_GRID_COL_WIDTHS[$(( _ncols - 1 ))]="$_SHQL_GRID_SAVED_LAST_W"
+}
+
 # ── _shql_table_data_render ───────────────────────────────────────────────────
 
 _shql_table_data_render() {
     SHELLFRAME_GRID_CTX="$_SHQL_TABLE_GRID_CTX"
     SHELLFRAME_GRID_FOCUSED=$_SHQL_TABLE_BODY_FOCUSED
+    _shql_grid_fill_width "$3"   # $3 = width
     shellframe_grid_render "$@"
+    _shql_grid_restore_last
 }
 
 # ── _shql_TABLE_body_render / on_key / on_focus ───────────────────────────────

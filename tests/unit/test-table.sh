@@ -229,4 +229,22 @@ _shql_tab_close
 assert_eq 0 "${#_SHQL_TABS_TYPE[@]}"
 assert_eq -1 "$_SHQL_TAB_ACTIVE"
 
+ptyunit_test_begin "tab_capacity: fits within available width"
+shql_table_init_browser
+_shql_tab_open "users" "data"     # label "users·Data" = 10 chars + 2 padding = 12
+_shql_tab_open "orders" "schema"  # label "orders·Schema" = 13 + 2 = 15
+# +SQL = 5; separators = 2
+# total used: 12+1+15+1+5 = 34 → fits in width 80
+_result=-1
+_shql_tab_fits 80 _result
+assert_eq 1 "$_result"
+
+ptyunit_test_begin "tab_capacity: detects overflow"
+shql_table_init_browser
+local _i; for (( _i=0; _i<10; _i++ )); do
+    _shql_tab_open "" "query"
+done
+_shql_tab_fits 40 _result
+assert_eq 0 "$_result"
+
 ptyunit_test_summary

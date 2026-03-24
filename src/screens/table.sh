@@ -239,6 +239,27 @@ _shql_tab_close() {
     fi
 }
 
+# ── _shql_tab_fits ────────────────────────────────────────────────────────────
+# _shql_tab_fits <available_cols> <out_var>
+# Sets out_var to 1 if all current tabs fit in available_cols, else 0.
+# Accounts for: label + 2 padding chars per tab, 1 separator between tabs,
+# plus 5 chars for the "+SQL" affordance at the right end.
+_shql_tab_fits() {
+    local _avail="$1" _out_var="$2"
+    local _n=${#_SHQL_TABS_LABEL[@]}
+    local _used=5   # "+SQL " = 5 chars minimum
+    local _i
+    for (( _i=0; _i<_n; _i++ )); do
+        local _llen=${#_SHQL_TABS_LABEL[$_i]}
+        _used=$(( _used + _llen + 2 + 1 ))  # label + 2 padding + 1 separator
+    done
+    if (( _used <= _avail )); then
+        printf -v "$_out_var" '%d' 1
+    else
+        printf -v "$_out_var" '%d' 0
+    fi
+}
+
 # ── _shql_TABLE_render ────────────────────────────────────────────────────────
 
 _shql_TABLE_render() {

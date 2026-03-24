@@ -157,4 +157,34 @@ assert_eq "$_SHQL_TABLE_FOOTER_HINTS_INSPECTOR" \
     "[↑↓] Scroll  [PgUp/PgDn] Page  [Enter/Esc/q] Close" \
     "footer: inspector hint string"
 
+# ── Tab state model ───────────────────────────────────────────────────────────
+
+ptyunit_test_begin "tab_arrays: globals exist and are empty after shql_table_init_browser"
+shql_table_init_browser
+assert_eq 0 "${#_SHQL_TABS_TYPE[@]}"
+assert_eq 0 "${#_SHQL_TABS_LABEL[@]}"
+assert_eq -1 "$_SHQL_TAB_ACTIVE"
+assert_eq 0 "$_SHQL_TAB_CTX_SEQ"
+
+ptyunit_test_begin "tab_find: returns -1 when no tabs open"
+_result=-99
+_shql_tab_find "users" "data" _result
+assert_eq -1 "$_result"
+
+ptyunit_test_begin "tab_find: returns -1 for wrong type"
+_SHQL_TABS_TYPE=("data")
+_SHQL_TABS_TABLE=("users")
+_SHQL_TABS_LABEL=("users·Data")
+_SHQL_TABS_CTX=("t0")
+_shql_tab_find "users" "schema" _result
+assert_eq -1 "$_result"
+
+ptyunit_test_begin "tab_find: finds correct index"
+_SHQL_TABS_TYPE=("data" "schema")
+_SHQL_TABS_TABLE=("users" "users")
+_SHQL_TABS_LABEL=("users·Data" "users·Schema")
+_SHQL_TABS_CTX=("t0" "t1")
+_shql_tab_find "users" "schema" _result
+assert_eq 1 "$_result"
+
 ptyunit_test_summary

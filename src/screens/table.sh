@@ -32,8 +32,18 @@ _SHQL_TABLE_DDL_LINES=()
 _SHQL_TABLE_TABBAR_FOCUSED=0
 _SHQL_TABLE_BODY_FOCUSED=0
 
-# ── Tab index constants ────────────────────────────────────────────────────────
+# ── Tab state arrays ──────────────────────────────────────────────────────────
+# Dynamic tab model. Each tab occupies the same index across all arrays.
 
+_SHQL_TABS_TYPE=()    # "data" | "schema" | "query"
+_SHQL_TABS_TABLE=()   # table name; empty string for query tabs
+_SHQL_TABS_LABEL=()   # display label: "users·Data", "Query 1"
+_SHQL_TABS_CTX=()     # unique context id: "t0", "t1", …
+_SHQL_TAB_ACTIVE=-1   # index of active tab (-1 = no tabs open)
+_SHQL_TAB_CTX_SEQ=0   # ever-incrementing; never reused
+_SHQL_TAB_QUERY_N=0   # ever-incrementing query label counter
+
+# Keep legacy constants for backward compatibility with test-table.sh
 _SHQL_TABLE_TAB_STRUCTURE=0
 _SHQL_TABLE_TAB_DATA=1
 _SHQL_TABLE_TAB_QUERY=2
@@ -115,6 +125,35 @@ _shql_table_load_data() {
 
     _shql_detect_grid_align
     shellframe_grid_init "$_SHQL_TABLE_GRID_CTX"
+}
+
+# ── shql_table_init_browser ───────────────────────────────────────────────────
+# Reset all tab state to empty (called on browser entry).
+shql_table_init_browser() {
+    _SHQL_TABS_TYPE=()
+    _SHQL_TABS_TABLE=()
+    _SHQL_TABS_LABEL=()
+    _SHQL_TABS_CTX=()
+    _SHQL_TAB_ACTIVE=-1
+    _SHQL_TAB_CTX_SEQ=0
+    _SHQL_TAB_QUERY_N=0
+}
+
+# ── _shql_tab_find ────────────────────────────────────────────────────────────
+# _shql_tab_find <table> <type> <out_var>
+# Sets out_var to the index of the matching tab, or -1 if not found.
+# Query tabs are never found by this function (use _shql_tab_open for them).
+_shql_tab_find() {
+    local _table="$1" _type="$2" _out_var="$3"
+    local _i
+    for (( _i=0; _i<${#_SHQL_TABS_TYPE[@]}; _i++ )); do
+        if [[ "${_SHQL_TABS_TYPE[$_i]}" == "$_type" && \
+              "${_SHQL_TABS_TABLE[$_i]}" == "$_table" ]]; then
+            printf -v "$_out_var" '%d' "$_i"
+            return 0
+        fi
+    done
+    printf -v "$_out_var" '%d' -1
 }
 
 # ── _shql_TABLE_render ────────────────────────────────────────────────────────

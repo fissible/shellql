@@ -148,4 +148,14 @@ shellframe_editor_on_key() { return 1; }   # restore stub
 assert_eq "results" "$_SHQL_QUERY_FOCUSED_PANE"
 assert_eq 0 "$_SHQL_QUERY_EDITOR_ACTIVE"
 
+ptyunit_test_begin "query_init_ctx: initializes state for given ctx"
+_shql_query_init_ctx "t2"
+assert_eq 0 "$_SHQL_QUERY_CTX_INITIALIZED_t2"
+assert_eq "editor" "$_SHQL_QUERY_CTX_FOCUSED_PANE_t2"
+assert_eq "" "$_SHQL_QUERY_CTX_STATUS_t2"
+
+ptyunit_test_begin "query: placeholder text is 'No results yet'"
+# The placeholder is in _shql_query_render_ctx — check the constant
+assert_contains "${_SHQL_QUERY_PLACEHOLDER:-No results yet}" "No results yet"
+
 ptyunit_test_summary

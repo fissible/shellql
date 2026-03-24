@@ -13,6 +13,7 @@ _SHQL_QUERY_FOCUSED_PANE="editor"       # "editor" | "results"
 _SHQL_QUERY_HAS_RESULTS=0               # 0 = no results yet; 1 = grid populated
 _SHQL_QUERY_INITIALIZED=0               # 0 = widget inits not yet called
 _SHQL_QUERY_EDITOR_ACTIVE=0             # 0 = button state; 1 = typing state
+_SHQL_QUERY_PLACEHOLDER="No results yet"
 
 # ── _shql_query_init ──────────────────────────────────────────────────────────
 # Called from shql_table_init. Sets state to initial values only.
@@ -24,6 +25,51 @@ _shql_query_init() {
     _SHQL_QUERY_HAS_RESULTS=0
     _SHQL_QUERY_INITIALIZED=0
     _SHQL_QUERY_EDITOR_ACTIVE=0
+}
+
+# ── _shql_query_init_ctx ──────────────────────────────────────────────────────
+# Initialise per-ctx state variables for a query tab.
+_shql_query_init_ctx() {
+    local _ctx="$1"
+    printf -v "_SHQL_QUERY_CTX_INITIALIZED_${_ctx}"   '%d' 0
+    printf -v "_SHQL_QUERY_CTX_FOCUSED_PANE_${_ctx}"  '%s' "editor"
+    printf -v "_SHQL_QUERY_CTX_STATUS_${_ctx}"         '%s' ""
+    printf -v "_SHQL_QUERY_CTX_EDITOR_ACTIVE_${_ctx}" '%d' 0
+    printf -v "_SHQL_QUERY_CTX_HAS_RESULTS_${_ctx}"   '%d' 0
+}
+
+# ── _shql_query_render_ctx ────────────────────────────────────────────────────
+# Render query tab for the given ctx. Loads per-ctx state into the shared
+# globals used by _shql_query_render, then delegates.
+_shql_query_render_ctx() {
+    local _ctx="$1"; shift
+
+    # Initialize if not yet done
+    local _init_var="_SHQL_QUERY_CTX_INITIALIZED_${_ctx}"
+    [[ "${!_init_var:-}" == "" ]] && _shql_query_init_ctx "$_ctx"
+
+    _SHQL_QUERY_EDITOR_CTX="${_ctx}_editor"
+    _SHQL_QUERY_GRID_CTX="${_ctx}_results"
+
+    local _fp_var="_SHQL_QUERY_CTX_FOCUSED_PANE_${_ctx}"
+    local _ea_var="_SHQL_QUERY_CTX_EDITOR_ACTIVE_${_ctx}"
+    local _hr_var="_SHQL_QUERY_CTX_HAS_RESULTS_${_ctx}"
+    local _st_var="_SHQL_QUERY_CTX_STATUS_${_ctx}"
+    local _ini_var="_SHQL_QUERY_CTX_INITIALIZED_${_ctx}"
+    _SHQL_QUERY_FOCUSED_PANE="${!_fp_var:-editor}"
+    _SHQL_QUERY_EDITOR_ACTIVE="${!_ea_var:-0}"
+    _SHQL_QUERY_HAS_RESULTS="${!_hr_var:-0}"
+    _SHQL_QUERY_STATUS="${!_st_var:-}"
+    _SHQL_QUERY_INITIALIZED="${!_ini_var:-0}"
+
+    _shql_query_render "$@"
+
+    # Save state back
+    printf -v "_SHQL_QUERY_CTX_FOCUSED_PANE_${_ctx}"  '%s' "$_SHQL_QUERY_FOCUSED_PANE"
+    printf -v "_SHQL_QUERY_CTX_EDITOR_ACTIVE_${_ctx}" '%d' "$_SHQL_QUERY_EDITOR_ACTIVE"
+    printf -v "_SHQL_QUERY_CTX_HAS_RESULTS_${_ctx}"   '%d' "$_SHQL_QUERY_HAS_RESULTS"
+    printf -v "_SHQL_QUERY_CTX_STATUS_${_ctx}"         '%s' "$_SHQL_QUERY_STATUS"
+    printf -v "_SHQL_QUERY_CTX_INITIALIZED_${_ctx}"   '%d' "$_SHQL_QUERY_INITIALIZED"
 }
 
 # ── _shql_query_run ───────────────────────────────────────────────────────────
@@ -305,8 +351,8 @@ _shql_query_render() {
         local _tbl="${_SHQL_TABLE_NAME:-users}"
         local _mid=$(( _rit + _rih / 2 - 2 ))
         (( _mid < _rit )) && _mid="$_rit"
-        printf '\033[%d;%dH%sNo results yet.  Press [Enter] to type SQL, then [Ctrl-D] to run.%s' \
-            "$_mid" "$_ril" "$_gray" "$_rst" >/dev/tty
+        printf '\033[%d;%dH%s%s%s' \
+            "$_mid" "$_ril" "$_gray" "$_SHQL_QUERY_PLACEHOLDER" "$_rst" >/dev/tty
         if (( _rih >= 5 )); then
             printf '\033[%d;%dH%sExamples:%s' \
                 "$(( _mid + 2 ))" "$_ril" "$_gray" "$_rst" >/dev/tty

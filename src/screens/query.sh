@@ -333,7 +333,7 @@ _shql_query_render() {
     [[ "$_SHQL_QUERY_FOCUSED_PANE" == "results" ]] && _results_pane_focused=1
 
     local _results_panel_style
-    if (( _results_pane_focused && _SHQL_QUERY_HAS_RESULTS )); then
+    if (( _results_pane_focused )); then
         _results_panel_style="${SHQL_THEME_PANEL_STYLE_FOCUSED:-double}"
     else
         _results_panel_style="${SHQL_THEME_PANEL_STYLE:-single}"
@@ -343,7 +343,14 @@ _shql_query_render() {
     SHELLFRAME_PANEL_TITLE_ALIGN="left"
     SHELLFRAME_PANEL_FOCUSED=$_results_pane_focused
     SHELLFRAME_PANEL_MODE="framed"
+    # Apply accent color when focused
+    if (( _results_pane_focused )) && [[ -n "${SHQL_THEME_QUERY_PANEL_COLOR:-}" ]]; then
+        printf '%s' "$SHQL_THEME_QUERY_PANEL_COLOR" >/dev/tty
+    fi
     shellframe_panel_render "$_results_top" "$_left" "$_width" "$_results_rows"
+    if (( _results_pane_focused )) && [[ -n "${SHQL_THEME_QUERY_PANEL_COLOR:-}" ]]; then
+        printf '%s' "${SHQL_THEME_RESET:-$'\033[0m'}" >/dev/tty
+    fi
 
     local _rit _ril _riw _rih
     shellframe_panel_inner "$_results_top" "$_left" "$_width" "$_results_rows" \
@@ -357,24 +364,19 @@ _shql_query_render() {
         shellframe_grid_render "$_rit" "$_ril" "$_riw" "$_rih"
         _shql_grid_restore_last
     else
-        # Empty state with instructional placeholder and examples
+        # Empty state — centered placeholder
+        local _cbg="${SHQL_THEME_CONTENT_BG:-}"
         local _r
         for (( _r=0; _r<_rih; _r++ )); do
-            printf '\033[%d;%dH%*s' "$(( _rit + _r ))" "$_ril" "$_riw" '' >/dev/tty
+            printf '\033[%d;%dH%s%*s' "$(( _rit + _r ))" "$_ril" "$_cbg" "$_riw" '' >/dev/tty
         done
         local _gray="${SHELLFRAME_GRAY:-}" _rst="${SHELLFRAME_RESET:-}"
-        local _tbl="${_SHQL_TABLE_NAME:-users}"
-        local _mid=$(( _rit + _rih / 2 - 2 ))
+        local _mid=$(( _rit + _rih / 2 ))
         (( _mid < _rit )) && _mid="$_rit"
+        local _plen=${#_SHQL_QUERY_PLACEHOLDER}
+        local _pcol=$(( _ril + (_riw - _plen) / 2 ))
+        (( _pcol < _ril )) && _pcol=$_ril
         printf '\033[%d;%dH%s%s%s' \
-            "$_mid" "$_ril" "$_gray" "$_SHQL_QUERY_PLACEHOLDER" "$_rst" >/dev/tty
-        if (( _rih >= 5 )); then
-            printf '\033[%d;%dH%sExamples:%s' \
-                "$(( _mid + 2 ))" "$_ril" "$_gray" "$_rst" >/dev/tty
-            printf '\033[%d;%dH%s  SELECT * FROM %s LIMIT 10;%s' \
-                "$(( _mid + 3 ))" "$_ril" "$_gray" "$_tbl" "$_rst" >/dev/tty
-            printf '\033[%d;%dH%s  SELECT count(*) FROM %s;%s' \
-                "$(( _mid + 4 ))" "$_ril" "$_gray" "$_tbl" "$_rst" >/dev/tty
-        fi
+            "$_mid" "$_pcol" "$_gray" "$_SHQL_QUERY_PLACEHOLDER" "$_rst" >/dev/tty
     fi
 }

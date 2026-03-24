@@ -336,8 +336,10 @@ _shql_browser_sidebar_width() {
 _shql_TABLE_sidebar_render() {
     local _top="$1" _left="$2" _width="$3" _height="$4"
 
-    # Set dimmer cursor style if theme provides one
-    if [[ -n "${SHQL_THEME_CURSOR_BG:-}" ]]; then
+    # Set sidebar cursor style (blue in cascade, or fallback to grid cursor)
+    if [[ -n "${SHQL_THEME_SIDEBAR_CURSOR_BG:-}" ]]; then
+        SHELLFRAME_LIST_CURSOR_STYLE="${SHQL_THEME_SIDEBAR_CURSOR_BG}"
+    elif [[ -n "${SHQL_THEME_CURSOR_BG:-}" ]]; then
         SHELLFRAME_LIST_CURSOR_STYLE="${SHQL_THEME_CURSOR_BG}${SHQL_THEME_CURSOR_BOLD:-}"
     else
         SHELLFRAME_LIST_CURSOR_STYLE=""
@@ -465,10 +467,14 @@ _shql_TABLE_render() {
     local _content_h=$(( _rows - 4 ))
     (( _content_h < 1 )) && _content_h=1
 
+    # Content is only focusable when a tab is open
+    local _content_focus="nofocus"
+    (( _SHQL_TAB_ACTIVE >= 0 )) && _content_focus="focus"
+
     shellframe_shell_region header   1              1              "$_cols"      1             nofocus
     shellframe_shell_region sidebar  "$_body_top"   1              "$_sidebar_w" "$_body_h"    focus
     shellframe_shell_region tabbar   "$_body_top"   "$_right_left" "$_right_w"  2             focus
-    shellframe_shell_region content  "$_content_top" "$_right_left" "$_right_w" "$_content_h" focus
+    shellframe_shell_region content  "$_content_top" "$_right_left" "$_right_w" "$_content_h" "$_content_focus"
     shellframe_shell_region footer   "$_rows"       1              "$_cols"      1             nofocus
 }
 
@@ -638,6 +644,9 @@ _shql_TABLE_tabbar_on_focus() {
     _SHQL_BROWSER_TABBAR_FOCUSED="${1:-0}"
     if (( ! _SHQL_BROWSER_TABBAR_FOCUSED )); then
         _SHQL_BROWSER_TABBAR_ON_SQL=0
+    elif (( ${#_SHQL_TABS_TYPE[@]} == 0 )); then
+        # No tabs open — auto-select +SQL when tabbar receives focus
+        _SHQL_BROWSER_TABBAR_ON_SQL=1
     fi
 }
 

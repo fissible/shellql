@@ -36,6 +36,9 @@ SHQL_THEME_ROW_STRIPE_BG=$'\033[48;5;238m'
 SHQL_THEME_CURSOR_BG=$'\033[48;5;240m'
 SHQL_THEME_CURSOR_BOLD=$'\033[1m'
 
+# ── Sidebar cursor: blue ──────────────────────────────────────────────────────
+SHQL_THEME_SIDEBAR_CURSOR_BG=$'\033[48;5;25m\033[97m'   # dark blue bg + bright white text
+
 # ── Query panel: bright purple accent ──────────────────────────────────────────
 SHQL_THEME_QUERY_PANEL_COLOR=$'\033[38;5;135m'   # bright purple border/title
 SHQL_THEME_EDITOR_FOCUSED_BG=$'\033[48;5;237m'   # slightly lighter gray when editing

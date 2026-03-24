@@ -88,7 +88,10 @@ _shql_WELCOME_list_action() {
         || _cursor=$(shellframe_sel_cursor "$_SHQL_LIST_CTX")
     local _src="${SHQL_RECENT_SOURCES[$_cursor]:-local}"
     local _ref="${SHQL_RECENT_REFS[$_cursor]:-}"
-    if [ "$_src" = "local" ]; then
+    if (( ${SHQL_MOCK:-0} )); then
+        # Mock mode: use the display detail as the path
+        SHQL_DB_PATH="${SHQL_RECENT_DETAILS[$_cursor]:-mock.db}"
+    elif [ "$_src" = "local" ]; then
         local _db="${_SHQL_CONN_DB:-$SHQL_DATA_DIR/shellql.db}"
         SHQL_DB_PATH=$("${_SHQL_SQLITE3:-sqlite3}" "$_db" \
             "SELECT path FROM connections WHERE id='${_ref//\'/\'\'}'")

@@ -23,6 +23,10 @@ shellframe_grid_on_key()  { return 1; }
 shellframe_shell_focus_set() { true; }
 shellframe_editor_get_text() { printf -v "$2" '%s' "SELECT 1"; }
 shellframe_editor_on_key()   { return 1; }
+shellframe_sel_move()        { true; }
+shellframe_panel_render()    { true; }
+shellframe_panel_inner()     { true; }
+_shellframe_shell_terminal_size() { printf -v "$1" '%d' 24; printf -v "$2" '%d' 80; }
 SHELLFRAME_EDITOR_RESULT=""
 
 # Theme preamble — declare shellframe color globals so basic.sh :- expansions
@@ -258,5 +262,29 @@ ptyunit_test_begin "browser_sidebar_width: is approx 1/4 terminal width"
 _w=""
 _shql_browser_sidebar_width 80 _w
 assert_eq 1 $(( _w >= 15 && _w <= 25 ))
+
+ptyunit_test_begin "sidebar_on_key: Enter opens data tab for selected table"
+shql_browser_init
+shellframe_sel_cursor() { printf -v "$2" '%d' 0; }   # override: cursor at 0
+shql_table_init_browser
+_shql_TABLE_sidebar_on_key $'\r'
+assert_eq "data" "${_SHQL_TABS_TYPE[0]}"
+assert_eq "users" "${_SHQL_TABS_TABLE[0]}"
+assert_eq 0 "$_SHQL_TAB_ACTIVE"
+
+ptyunit_test_begin "sidebar_on_key: s opens schema tab for selected table"
+shql_table_init_browser
+_shql_TABLE_sidebar_on_key 's'
+assert_eq "schema" "${_SHQL_TABS_TYPE[0]}"
+assert_eq "users" "${_SHQL_TABS_TABLE[0]}"
+
+ptyunit_test_begin "sidebar_on_key: right arrow moves focus to content (rc=0)"
+_saved_focus=""
+shellframe_shell_focus_set() { _saved_focus="$1"; }
+shql_table_init_browser
+_shql_TABLE_sidebar_on_key $'\033[C'; _rc=$?
+assert_eq 0 "$_rc"
+assert_eq "content" "$_saved_focus"
+shellframe_shell_focus_set() { true; }   # restore
 
 ptyunit_test_summary

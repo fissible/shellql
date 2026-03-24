@@ -296,6 +296,95 @@ _shql_browser_sidebar_width() {
     printf -v "$_out_var" '%d' "$_sbw"
 }
 
+# ── _shql_TABLE_sidebar_render ────────────────────────────────────────────────
+
+_shql_TABLE_sidebar_render() {
+    local _top="$1" _left="$2" _width="$3" _height="$4"
+
+    SHELLFRAME_PANEL_STYLE="${SHQL_THEME_PANEL_STYLE:-single}"
+    SHELLFRAME_PANEL_TITLE="Tables"
+    SHELLFRAME_PANEL_TITLE_ALIGN="left"
+    SHELLFRAME_PANEL_FOCUSED=$_SHQL_BROWSER_SIDEBAR_FOCUSED
+    shellframe_panel_render "$_top" "$_left" "$_width" "$_height"
+
+    local _it _il _iw _ih
+    shellframe_panel_inner "$_top" "$_left" "$_width" "$_height" _it _il _iw _ih
+
+    local _n=${#_SHQL_BROWSER_TABLES[@]}
+    local _cursor=0
+    shellframe_sel_cursor "$_SHQL_BROWSER_SIDEBAR_CTX" _cursor 2>/dev/null || true
+
+    local _r
+    for (( _r=0; _r<_ih && _r<_n; _r++ )); do
+        local _row=$(( _it + _r ))
+        printf '\033[%d;%dH%*s' "$_row" "$_il" "$_iw" '' >/dev/tty
+        local _name="${_SHQL_BROWSER_TABLES[$_r]}"
+        local _clipped
+        _clipped=$(shellframe_str_clip_ellipsis "$_name" "$_name" "$(( _iw - 2 ))")
+        if (( _r == _cursor && _SHQL_BROWSER_SIDEBAR_FOCUSED )); then
+            printf '\033[%d;%dH▶ %s' "$_row" "$_il" "$_clipped" >/dev/tty
+        else
+            printf '\033[%d;%dH  %s' "$_row" "$_il" "$_clipped" >/dev/tty
+        fi
+    done
+}
+
+# ── _shql_TABLE_sidebar_on_key ────────────────────────────────────────────────
+
+_shql_TABLE_sidebar_on_key() {
+    local _key="$1"
+    local _k_up="${SHELLFRAME_KEY_UP:-$'\033[A'}"
+    local _k_down="${SHELLFRAME_KEY_DOWN:-$'\033[B'}"
+    local _k_right="${SHELLFRAME_KEY_RIGHT:-$'\033[C'}"
+    local _k_enter=$'\r'
+
+    case "$_key" in
+        "$_k_up")    shellframe_sel_move "$_SHQL_BROWSER_SIDEBAR_CTX" up;   return 0 ;;
+        "$_k_down")  shellframe_sel_move "$_SHQL_BROWSER_SIDEBAR_CTX" down; return 0 ;;
+        "$_k_right") shellframe_shell_focus_set "content";  return 0 ;;
+        "$_k_enter") _shql_TABLE_sidebar_action; return 0 ;;
+        s)           _shql_TABLE_sidebar_action_schema; return 0 ;;
+    esac
+    return 1
+}
+
+_shql_TABLE_sidebar_on_focus() {
+    _SHQL_BROWSER_SIDEBAR_FOCUSED="${1:-0}"
+}
+
+# ── _shql_TABLE_sidebar_action / sidebar_action_schema ────────────────────────
+
+_shql_TABLE_sidebar_action() {
+    local _cursor=0
+    shellframe_sel_cursor "$_SHQL_BROWSER_SIDEBAR_CTX" _cursor 2>/dev/null || true
+    local _table="${_SHQL_BROWSER_TABLES[$_cursor]:-}"
+    [[ -z "$_table" ]] && return 0
+
+    local _rows _cols
+    _shellframe_shell_terminal_size _rows _cols
+    local _sidebar_w
+    _shql_browser_sidebar_width "$_cols" _sidebar_w
+    local _bar_w=$(( _cols - _sidebar_w ))
+    local _fits=1
+    _shql_tab_fits "$_bar_w" _fits
+    if (( ! _fits )); then
+        # Flash footer — capacity exceeded
+        _SHQL_BROWSER_FLASH_MSG="Tab bar full — close a tab first (w)"
+        return 0
+    fi
+    _shql_tab_open "$_table" "data"
+    shellframe_shell_focus_set "content"
+}
+
+_shql_TABLE_sidebar_action_schema() {
+    local _cursor=0
+    shellframe_sel_cursor "$_SHQL_BROWSER_SIDEBAR_CTX" _cursor 2>/dev/null || true
+    local _table="${_SHQL_BROWSER_TABLES[$_cursor]:-}"
+    [[ -z "$_table" ]] && return 0
+    _shql_tab_open "$_table" "schema"
+    shellframe_shell_focus_set "content"
+}
+
 # ── _shql_TABLE_render ────────────────────────────────────────────────────────
 
 _shql_TABLE_render() {

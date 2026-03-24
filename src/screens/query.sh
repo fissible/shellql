@@ -180,13 +180,14 @@ _shql_query_on_key() {
     local _k_shift_tab=$'\033[Z'
     local _k_escape=$'\033'
     local _k_enter=$'\r'
+    local _k_newline=$'\n'
     local _k_ctrl_d=$'\004'
 
     if [[ "$_SHQL_QUERY_FOCUSED_PANE" == "editor" ]]; then
         if (( ! _SHQL_QUERY_EDITOR_ACTIVE )); then
             # Button state: Enter activates typing; Tab switches pane; Esc exits
             case "$_key" in
-                "$_k_enter")
+                "$_k_enter"|"$_k_newline")
                     _SHQL_QUERY_EDITOR_ACTIVE=1
                     return 0
                     ;;
@@ -276,17 +277,23 @@ _shql_query_render() {
     local _editor_pane_focused=0
     [[ "$_SHQL_QUERY_FOCUSED_PANE" == "editor" ]] && _editor_pane_focused=1
 
-    SHELLFRAME_PANEL_STYLE="${SHQL_THEME_PANEL_STYLE_FOCUSED:-double}"
+    local _panel_style
+    if (( _editor_pane_focused )); then
+        _panel_style="${SHQL_THEME_PANEL_STYLE_FOCUSED:-double}"
+    else
+        _panel_style="${SHQL_THEME_PANEL_STYLE:-single}"
+    fi
+    SHELLFRAME_PANEL_STYLE="$_panel_style"
     SHELLFRAME_PANEL_TITLE="SQL Query"
     SHELLFRAME_PANEL_TITLE_ALIGN="left"
     SHELLFRAME_PANEL_FOCUSED=$_editor_pane_focused
     SHELLFRAME_PANEL_MODE="framed"
-    # Apply query accent color if theme provides one
-    if [[ -n "${SHQL_THEME_QUERY_PANEL_COLOR:-}" ]]; then
+    # Apply accent color only when focused
+    if (( _editor_pane_focused )) && [[ -n "${SHQL_THEME_QUERY_PANEL_COLOR:-}" ]]; then
         printf '%s' "$SHQL_THEME_QUERY_PANEL_COLOR" >/dev/tty
     fi
     shellframe_panel_render "$_top" "$_left" "$_width" "$_editor_rows"
-    if [[ -n "${SHQL_THEME_QUERY_PANEL_COLOR:-}" ]]; then
+    if (( _editor_pane_focused )) && [[ -n "${SHQL_THEME_QUERY_PANEL_COLOR:-}" ]]; then
         printf '%s' "${SHQL_THEME_RESET:-$'\033[0m'}" >/dev/tty
     fi
 

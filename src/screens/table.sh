@@ -371,11 +371,10 @@ _shql_TABLE_sidebar_render() {
 _shql_TABLE_sidebar_on_key() {
     local _key="$1"
     local _k_right="${SHELLFRAME_KEY_RIGHT:-$'\033[C'}"
-    local _k_enter=$'\r'
 
     case "$_key" in
         "$_k_right") shellframe_shell_focus_set "tabbar";  return 0 ;;
-        "$_k_enter") _shql_TABLE_sidebar_action; return 0 ;;
+        $'\r'|$'\n') _shql_TABLE_sidebar_action; return 0 ;;
         s)           _shql_TABLE_sidebar_action_schema; return 0 ;;
         n)
             local _fits=1
@@ -569,7 +568,6 @@ _shql_TABLE_tabbar_on_key() {
     local _k_left="${SHELLFRAME_KEY_LEFT:-$'\033[D'}"
     local _k_right="${SHELLFRAME_KEY_RIGHT:-$'\033[C'}"
     local _k_down="${SHELLFRAME_KEY_DOWN:-$'\033[B'}"
-    local _k_enter=$'\r'
 
     case "$_key" in
         "$_k_left")
@@ -602,7 +600,7 @@ _shql_TABLE_tabbar_on_key() {
             _SHQL_BROWSER_TABBAR_ON_SQL=0
             shellframe_shell_focus_set "content"
             return 0 ;;
-        "$_k_enter")
+        $'\r'|$'\n')
             if (( _SHQL_BROWSER_TABBAR_ON_SQL )); then
                 # Enter on +SQL → new query
                 _SHQL_BROWSER_TABBAR_ON_SQL=0

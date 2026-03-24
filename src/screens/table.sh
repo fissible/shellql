@@ -156,6 +156,89 @@ _shql_tab_find() {
     printf -v "$_out_var" '%d' -1
 }
 
+# ── _shql_tab_open ────────────────────────────────────────────────────────────
+# _shql_tab_open <table> <type>
+# Opens a tab for (table, type). Deduplicates data/schema; query tabs always new.
+# Sets _SHQL_TAB_ACTIVE to the index of the opened/found tab.
+# Does NOT check capacity (capacity check happens in the key handler).
+_shql_tab_open() {
+    local _table="$1" _type="$2"
+
+    # Query tabs always create new
+    if [[ "$_type" != "query" ]]; then
+        local _found=-1
+        _shql_tab_find "$_table" "$_type" _found
+        if (( _found >= 0 )); then
+            _shql_tab_activate "$_found"
+            return 0
+        fi
+    fi
+
+    # Assign context id
+    local _ctx="t${_SHQL_TAB_CTX_SEQ}"
+    (( _SHQL_TAB_CTX_SEQ++ ))
+
+    # Build label
+    local _label
+    if [[ "$_type" == "query" ]]; then
+        (( _SHQL_TAB_QUERY_N++ ))
+        _label="Query ${_SHQL_TAB_QUERY_N}"
+    elif [[ "$_type" == "data" ]]; then
+        _label="${_table}·Data"
+    else
+        _label="${_table}·Schema"
+    fi
+
+    _SHQL_TABS_TYPE+=("$_type")
+    _SHQL_TABS_TABLE+=("$_table")
+    _SHQL_TABS_LABEL+=("$_label")
+    _SHQL_TABS_CTX+=("$_ctx")
+    _shql_tab_activate $(( ${#_SHQL_TABS_TYPE[@]} - 1 ))
+}
+
+# ── _shql_tab_activate ────────────────────────────────────────────────────────
+# Set the active tab index and reset inspector state (Decision D1).
+_shql_tab_activate() {
+    _SHQL_TAB_ACTIVE="$1"
+    _SHQL_INSPECTOR_ACTIVE=0
+}
+
+# ── _shql_tab_close ───────────────────────────────────────────────────────────
+# _shql_tab_close [index]
+# Removes the tab at index (default: _SHQL_TAB_ACTIVE) from all arrays.
+# After removal, activates the tab to the left, or -1 if none remain.
+_shql_tab_close() {
+    local _idx="${1:-$_SHQL_TAB_ACTIVE}"
+    local _n=${#_SHQL_TABS_TYPE[@]}
+    (( _n == 0 || _idx < 0 || _idx >= _n )) && return 0
+
+    # Rebuild arrays without the removed index
+    local -a _new_type _new_table _new_label _new_ctx
+    local _i
+    for (( _i=0; _i<_n; _i++ )); do
+        (( _i == _idx )) && continue
+        _new_type+=("${_SHQL_TABS_TYPE[$_i]}")
+        _new_table+=("${_SHQL_TABS_TABLE[$_i]}")
+        _new_label+=("${_SHQL_TABS_LABEL[$_i]}")
+        _new_ctx+=("${_SHQL_TABS_CTX[$_i]}")
+    done
+    _SHQL_TABS_TYPE=("${_new_type[@]+"${_new_type[@]}"}")
+    _SHQL_TABS_TABLE=("${_new_table[@]+"${_new_table[@]}"}")
+    _SHQL_TABS_LABEL=("${_new_label[@]+"${_new_label[@]}"}")
+    _SHQL_TABS_CTX=("${_new_ctx[@]+"${_new_ctx[@]}"}")
+
+    local _new_n=${#_SHQL_TABS_TYPE[@]}
+    if (( _new_n == 0 )); then
+        _shql_tab_activate -1
+    else
+        # Activate tab to the left, or stay at 0
+        local _new_active=$(( _idx - 1 ))
+        (( _new_active < 0 )) && _new_active=0
+        (( _new_active >= _new_n )) && _new_active=$(( _new_n - 1 ))
+        _shql_tab_activate "$_new_active"
+    fi
+}
+
 # ── _shql_TABLE_render ────────────────────────────────────────────────────────
 
 _shql_TABLE_render() {

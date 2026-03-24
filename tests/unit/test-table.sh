@@ -187,4 +187,46 @@ _SHQL_TABS_CTX=("t0" "t1")
 _shql_tab_find "users" "schema" _result
 assert_eq 1 "$_result"
 
+ptyunit_test_begin "tab_open: creates new data tab"
+shql_table_init_browser
+_shql_tab_open "users" "data"
+assert_eq 1 "${#_SHQL_TABS_TYPE[@]}"
+assert_eq "data" "${_SHQL_TABS_TYPE[0]}"
+assert_eq "users" "${_SHQL_TABS_TABLE[0]}"
+assert_eq "users·Data" "${_SHQL_TABS_LABEL[0]}"
+assert_eq 0 "$_SHQL_TAB_ACTIVE"
+
+ptyunit_test_begin "tab_open: deduplicates — switches to existing tab"
+_shql_tab_open "users" "schema"   # second tab
+_shql_tab_open "users" "data"    # should switch back, not create
+assert_eq 2 "${#_SHQL_TABS_TYPE[@]}"
+assert_eq 0 "$_SHQL_TAB_ACTIVE"
+
+ptyunit_test_begin "tab_open: query tabs never deduplicate"
+shql_table_init_browser
+_shql_tab_open "" "query"
+_shql_tab_open "" "query"
+assert_eq 2 "${#_SHQL_TABS_TYPE[@]}"
+assert_eq "query" "${_SHQL_TABS_TYPE[0]}"
+assert_contains "${_SHQL_TABS_LABEL[0]}" "Query"
+
+ptyunit_test_begin "tab_open: query tab labels increment"
+assert_eq "Query 2" "${_SHQL_TABS_LABEL[1]}"
+
+ptyunit_test_begin "tab_close: removes active tab and moves left"
+shql_table_init_browser
+_shql_tab_open "users" "data"
+_shql_tab_open "orders" "data"
+_SHQL_TAB_ACTIVE=1
+_shql_tab_close
+assert_eq 1 "${#_SHQL_TABS_TYPE[@]}"
+assert_eq 0 "$_SHQL_TAB_ACTIVE"
+
+ptyunit_test_begin "tab_close: sets ACTIVE=-1 when last tab closed"
+shql_table_init_browser
+_shql_tab_open "users" "data"
+_shql_tab_close
+assert_eq 0 "${#_SHQL_TABS_TYPE[@]}"
+assert_eq -1 "$_SHQL_TAB_ACTIVE"
+
 ptyunit_test_summary

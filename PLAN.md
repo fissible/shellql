@@ -220,4 +220,7 @@ Completed 2026-03-23 (ptyunit consumer migration):
 - `tests/unit/test-connections.sh` — added regression test for the IFS collapsing bug
 - **Total: 181/181 assertions passing**
 
-**Next task:** [shellql#12](https://github.com/fissible/shellql/issues/12) — `[o]` key does nothing on welcome screen (S effort)
+**Next task:** [shellql#12](https://github.com/fissible/shellql/issues/12) — `[o]` key: Open Database form (S effort)
+- **BLOCKED** on [shellframe#27](https://github.com/fissible/shellframe/issues/27) — Sheet navigation primitive (M effort in shellframe)
+- Design decision: `[o]` should use the sheet pattern rather than a modal, so shellframe#27 ships first
+- Flag for PM: shellframe#27 is M+ cross-repo work; needs scheduling before shellql#12 can proceed

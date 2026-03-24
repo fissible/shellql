@@ -301,4 +301,21 @@ _shql_tabbar_build_line 80 _line
 assert_contains "$_line" "users·Data"
 assert_contains "$_line" "orders·Schema"
 
+ptyunit_test_begin "content_dispatch: empty state hint shown when ACTIVE=-1"
+_SHQL_TAB_ACTIVE=-1
+_shql_content_type _type
+assert_eq "empty" "$_type"
+
+ptyunit_test_begin "content_dispatch: data type when active tab is data"
+shql_table_init_browser
+_shql_tab_open "users" "data"
+_shql_content_type _type
+assert_eq "data" "$_type"
+
+ptyunit_test_begin "content_dispatch: schema type when active tab is schema"
+shql_table_init_browser
+_shql_tab_open "users" "schema"
+_shql_content_type _type
+assert_eq "schema" "$_type"
+
 ptyunit_test_summary

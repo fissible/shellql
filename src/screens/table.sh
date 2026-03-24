@@ -644,10 +644,117 @@ _shql_table_data_render() {
     _shql_grid_restore_last
 }
 
-# ── Content region stubs (replaced in Task 7) ─────────────────────────────────
-_shql_TABLE_content_render()   { :; }
+# ── _shql_content_type ────────────────────────────────────────────────────────
+# Sets out_var to the type string of the active tab: "data"|"schema"|"query"|"empty"
+_shql_content_type() {
+    local _out_var="$1"
+    if (( _SHQL_TAB_ACTIVE < 0 )); then
+        printf -v "$_out_var" '%s' "empty"
+        return 0
+    fi
+    printf -v "$_out_var" '%s' "${_SHQL_TABS_TYPE[$_SHQL_TAB_ACTIVE]:-empty}"
+}
+
+# ── _shql_content_data_ensure ─────────────────────────────────────────────────
+# Loads data grid for the active tab's table if it hasn't been loaded yet.
+# Uses a "loaded" sentinel stored as a variable named _SHQL_TAB_DATA_LOADED_<ctx>.
+_shql_content_data_ensure() {
+    (( _SHQL_TAB_ACTIVE < 0 )) && return 0
+    local _ctx="${_SHQL_TABS_CTX[$_SHQL_TAB_ACTIVE]}"
+    local _table="${_SHQL_TABS_TABLE[$_SHQL_TAB_ACTIVE]}"
+    local _sentinel="_SHQL_TAB_DATA_LOADED_${_ctx}"
+    [[ "${!_sentinel:-0}" == "1" ]] && return 0
+
+    SHELLFRAME_GRID_HEADERS=()
+    SHELLFRAME_GRID_DATA=()
+    SHELLFRAME_GRID_ROWS=0
+    SHELLFRAME_GRID_COLS=0
+    SHELLFRAME_GRID_COL_WIDTHS=()
+    SHELLFRAME_GRID_CTX="${_ctx}_grid"
+    SHELLFRAME_GRID_PK_COLS=1
+
+    local _maxcw="${SHQL_MAX_COL_WIDTH:-30}"
+    local _idx=0 _c _cell _cw _hw _cv
+    local _row=()
+    while IFS=$'\t' read -r -a _row; do
+        [[ ${#_row[@]} -eq 0 ]] && continue
+        if (( _idx == 0 )); then
+            SHELLFRAME_GRID_HEADERS=("${_row[@]}")
+            SHELLFRAME_GRID_COLS=${#_row[@]}
+            for (( _c=0; _c<SHELLFRAME_GRID_COLS; _c++ )); do
+                _hw=${#_row[$_c]}
+                _cw=$(( _hw + 2 ))
+                (( _cw < 8      )) && _cw=8
+                (( _cw > _maxcw )) && _cw=$_maxcw
+                SHELLFRAME_GRID_COL_WIDTHS+=("$_cw")
+            done
+        else
+            for (( _c=0; _c<SHELLFRAME_GRID_COLS; _c++ )); do
+                _cell="${_row[$_c]:-}"
+                SHELLFRAME_GRID_DATA+=("$_cell")
+                _cv=$(( ${#_cell} + 2 ))
+                (( _cv > _maxcw )) && _cv=$_maxcw
+                (( _cv > SHELLFRAME_GRID_COL_WIDTHS[$_c] )) && \
+                    SHELLFRAME_GRID_COL_WIDTHS[$_c]=$_cv
+            done
+            (( SHELLFRAME_GRID_ROWS++ ))
+        fi
+        (( _idx++ ))
+    done < <(shql_db_fetch "$SHQL_DB_PATH" "$_table" 2>"$_SHQL_STDERR_TTY")
+
+    _shql_detect_grid_align
+    shellframe_grid_init "${_ctx}_grid"
+    printf -v "$_sentinel" '%s' "1"
+}
+
+# ── _shql_TABLE_content_render ────────────────────────────────────────────────
+
+_shql_TABLE_content_render() {
+    local _top="$1" _left="$2" _width="$3" _height="$4"
+
+    local _type
+    _shql_content_type _type
+
+    case "$_type" in
+        data)
+            # Load data for this tab's table if not already loaded
+            _shql_content_data_ensure
+            SHELLFRAME_GRID_CTX="${_SHQL_TABS_CTX[$_SHQL_TAB_ACTIVE]}_grid"
+            SHELLFRAME_GRID_FOCUSED=$_SHQL_BROWSER_CONTENT_FOCUSED
+            _shql_grid_fill_width "$_width"
+            shellframe_grid_render "$_top" "$_left" "$_width" "$_height"
+            _shql_grid_restore_last
+            # Overlay inspector if active
+            (( _SHQL_INSPECTOR_ACTIVE )) && _shql_inspector_render "$_top" "$_left" "$_width" "$_height"
+            ;;
+        schema)
+            _shql_schema_tab_render "$_top" "$_left" "$_width" "$_height"
+            ;;
+        query)
+            local _ctx="${_SHQL_TABS_CTX[$_SHQL_TAB_ACTIVE]}"
+            _shql_query_render_ctx "$_ctx" "$_top" "$_left" "$_width" "$_height"
+            ;;
+        *)
+            # Empty state
+            local _gray="${SHELLFRAME_GRAY:-}" _rst="${SHELLFRAME_RESET:-}"
+            local _r
+            for (( _r=0; _r<_height; _r++ )); do
+                printf '\033[%d;%dH%*s' "$(( _top + _r ))" "$_left" "$_width" '' >/dev/tty
+            done
+            local _mid=$(( _top + _height / 2 ))
+            local _hint="↑↓ select a table · Enter = Data · s = Schema · n = New query"
+            printf '\033[%d;%dH%s%s%s' "$_mid" "$_left" "$_gray" "$_hint" "$_rst" >/dev/tty
+            ;;
+    esac
+}
+
 _shql_TABLE_content_on_key()   { return 1; }
-_shql_TABLE_content_on_focus() { _SHQL_BROWSER_CONTENT_FOCUSED="${1:-0}"; }
+
+_shql_TABLE_content_on_focus() {
+    _SHQL_BROWSER_CONTENT_FOCUSED="${1:-0}"
+    SHELLFRAME_GRID_FOCUSED=$_SHQL_BROWSER_CONTENT_FOCUSED
+}
+
 _shql_TABLE_content_action()   { :; }
 
 # ── _shql_table_data_footer_hint ─────────────────────────────────────────────

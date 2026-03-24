@@ -147,7 +147,7 @@ shellframe primitives (P1–P4)
 ## Session handoff notes
 > Update this section at the end of each session.
 
-_Last updated: 2026-03-24_
+_Last updated: 2026-03-24 (UI polish sprint complete — #16 #17 #18 #19 closed)_
 
 **v0.3.0 released. Phases 6.1–6.6 complete. M3 milestone (ShellQL v0.1 alpha) reached. Post-release bug fixes in progress.**
 
@@ -219,6 +219,17 @@ Completed 2026-03-23 (ptyunit consumer migration):
 - `tests/unit/test-welcome.sh` — updated stale SHQL_RECENT_FILES refs; added 2 tests for `_shql_welcome_init`
 - `tests/unit/test-connections.sh` — added regression test for the IFS collapsing bug
 - **Total: 181/181 assertions passing**
+
+**Completed 2026-03-24 (UI polish sprint — #16 #17 #18 #19):**
+- shellframe `src/widgets/grid.sh` — `SHELLFRAME_GRID_COL_ALIGN=()`: per-column alignment ("left"/"right"/"center"); inline cell render path eliminates subshell forks for the common case (text fits column width), reducing frame lag from ~450ms → near-zero for normal data sets
+- shellframe `tests/unit/test-grid.sh` — 2 new alignment render tests; 1009/1009 pass
+- `src/screens/schema.sh` — 3-pane layout (sidebar | columns | DDL); `_shql_schema_load_columns` populates `_SHQL_SCHEMA_COLUMNS` from `shql_db_columns`; `_shql_SCHEMA_columns_render` draws name/type/flags panel; `_shql_schema_load_ddl` triggers column reload (closes #19)
+- `src/db.sh` — `shql_db_columns <db> <table>`: PRAGMA table_info → TSV rows of name/type/flags
+- `src/db_mock.sh` — mock `shql_db_columns` for all 4 fixture tables
+- `src/screens/table.sh` — `_shql_detect_grid_align`: scans `SHELLFRAME_GRID_DATA` to infer right (int/float) / center (bool) / left (text) per column; sets `SHELLFRAME_GRID_COL_ALIGN`; `_shql_table_data_footer_hint`: "Rows X–Y of Z" from scroll_top + terminal size; `SHQL_MAX_COL_WIDTH` env var replaces hardcoded 30 (closes #16 #17 #18)
+- `src/screens/query.sh` — same `SHQL_MAX_COL_WIDTH` + `_shql_detect_grid_align` call in `_shql_query_run`
+- `tests/unit/test-schema.sh` — 6 new tests (db_columns mock, load_columns, load_ddl trigger); 199/199 pass
+- **Total: 199/199 shellql unit assertions passing**
 
 **Next task:** [shellql#12](https://github.com/fissible/shellql/issues/12) — `[o]` key: Open Database form (S effort)
 - **BLOCKED** on [shellframe#27](https://github.com/fissible/shellframe/issues/27) — Sheet navigation primitive (M effort in shellframe)

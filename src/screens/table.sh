@@ -336,6 +336,13 @@ _shql_browser_sidebar_width() {
 _shql_TABLE_sidebar_render() {
     local _top="$1" _left="$2" _width="$3" _height="$4"
 
+    # Set dimmer cursor style if theme provides one
+    if [[ -n "${SHQL_THEME_CURSOR_BG:-}" ]]; then
+        SHELLFRAME_LIST_CURSOR_STYLE="${SHQL_THEME_CURSOR_BG}${SHQL_THEME_CURSOR_BOLD:-}"
+    else
+        SHELLFRAME_LIST_CURSOR_STYLE=""
+    fi
+
     if [[ "${SHQL_THEME_SIDEBAR_BORDER:-}" == "none" ]]; then
         # No panel border — render list directly in the full region
         SHELLFRAME_LIST_CTX="$_SHQL_BROWSER_SIDEBAR_CTX"
@@ -507,8 +514,8 @@ _shql_TABLE_tabbar_render() {
         if (( _i == _SHQL_TAB_ACTIVE )); then
             _SHQL_TABBAR_ACTIVE_X0=$_col
             _SHQL_TABBAR_ACTIVE_X1=$(( _col + ${#_label} ))
-            # Active tab: theme-controlled or plain text (blends with content)
-            local _tab_style="${SHQL_THEME_TAB_ACTIVE:-}"
+            # Active tab: content bg (blends with content area below)
+            local _tab_style="${SHQL_THEME_CONTENT_BG:-}"
             if [[ -n "$_tab_style" ]]; then
                 printf '\033[%d;%dH%s%s%s' "$_top" "$_col" "$_tab_style" "$_label" "$_rst" >/dev/tty
             else
@@ -521,14 +528,20 @@ _shql_TABLE_tabbar_render() {
         fi
         _col=$(( _col + ${#_label} ))
     done
-    # +SQL button — rendered as a button (bordered), not a tab
+    # +SQL button — styled like inactive tabs
     (( _col += 1 ))  # 1-char gap after last tab
+    local _sql_label=" +SQL "
+    local _itab_style="${SHQL_THEME_TAB_INACTIVE_BG:-${SHQL_THEME_TABBAR_BG:-$_inv}}"
     if (( _SHQL_BROWSER_TABBAR_ON_SQL )); then
-        # Focused button: bold bordered
-        printf '\033[%d;%dH%s[+SQL]%s' "$_top" "$_col" "$_bold" "$_rst" >/dev/tty
+        # Focused: content bg (like active tab)
+        local _sql_style="${SHQL_THEME_CONTENT_BG:-}"
+        if [[ -n "$_sql_style" ]]; then
+            printf '\033[%d;%dH%s%s%s' "$_top" "$_col" "$_sql_style" "$_sql_label" "$_rst" >/dev/tty
+        else
+            printf '\033[%d;%dH%s%s%s' "$_top" "$_col" "$_bold" "$_sql_label" "$_rst" >/dev/tty
+        fi
     else
-        # Unfocused button: dim bordered
-        printf '\033[%d;%dH%s[+SQL]%s' "$_top" "$_col" "$_gray" "$_rst" >/dev/tty
+        printf '\033[%d;%dH%s%s%s' "$_top" "$_col" "$_itab_style" "$_sql_label" "$_rst" >/dev/tty
     fi
 
     # Content border: ─ line below tabbar with gap at active tab

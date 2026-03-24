@@ -37,5 +37,5 @@ SHQL_THEME_CURSOR_BG=$'\033[48;5;240m'
 SHQL_THEME_CURSOR_BOLD=$'\033[1m'
 
 # ── Tab bar ───────────────────────────────────────────────────────────────────
-SHQL_THEME_TAB_ACTIVE=""          # normal text (blends with content bg)
-SHQL_THEME_TAB_INACTIVE_BG=$'\033[7m'  # inverted
+SHQL_THEME_TAB_ACTIVE=""                          # uses CONTENT_BG (set at render time)
+SHQL_THEME_TAB_INACTIVE_BG=$'\033[48;5;238m\033[37m'  # medium gray bg + light gray text

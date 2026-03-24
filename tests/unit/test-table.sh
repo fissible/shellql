@@ -318,4 +318,17 @@ _shql_tab_open "users" "schema"
 _shql_content_type _type
 assert_eq "schema" "$_type"
 
+ptyunit_test_begin "schema_tab_load: loads DDL and columns for active tab"
+shql_table_init_browser
+_shql_tab_open "users" "schema"
+_shql_schema_tab_load "users"
+local _sentinel="_SHQL_SCHEMA_TAB_LOADED_${_SHQL_TABS_CTX[0]}"
+assert_eq "1" "${!_sentinel:-0}"
+
+ptyunit_test_begin "schema_tab: focus defaults to cols pane"
+shql_table_init_browser
+_shql_tab_open "users" "schema"
+_SHQL_BROWSER_CONTENT_FOCUS="schema_cols"
+assert_eq "schema_cols" "$_SHQL_BROWSER_CONTENT_FOCUS"
+
 ptyunit_test_summary

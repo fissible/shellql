@@ -707,6 +707,110 @@ _shql_content_data_ensure() {
     printf -v "$_sentinel" '%s' "1"
 }
 
+# ── _shql_schema_tab_load ─────────────────────────────────────────────────────
+# Load DDL and columns for the given table under the active tab's ctx.
+_shql_schema_tab_load() {
+    local _table="$1"
+    (( _SHQL_TAB_ACTIVE < 0 )) && return 0
+    local _ctx="${_SHQL_TABS_CTX[$_SHQL_TAB_ACTIVE]}"
+    local _sentinel="_SHQL_SCHEMA_TAB_LOADED_${_ctx}"
+    [[ "${!_sentinel:-0}" == "1" ]] && return 0
+
+    # Load DDL into ctx-namespaced array
+    local _arr_ddl="_SHQL_SCHEMA_TAB_DDL_${_ctx}"
+    eval "${_arr_ddl}=()"
+    local _line
+    while IFS= read -r _line; do
+        eval "${_arr_ddl}+=(\"${_line//\"/\\\"}\")"
+    done < <(shql_db_describe "$SHQL_DB_PATH" "$_table" 2>/dev/null)
+    local _n_ddl
+    eval "_n_ddl=\${#${_arr_ddl}[@]}"
+    shellframe_scroll_init "${_ctx}_ddl" "$_n_ddl" 1 10 1
+
+    # Load columns into ctx-namespaced array
+    local _arr_cols="_SHQL_SCHEMA_TAB_COLS_${_ctx}"
+    eval "${_arr_cols}=()"
+    while IFS= read -r _line; do
+        [[ -z "$_line" ]] && continue
+        eval "${_arr_cols}+=(\"${_line//\"/\\\"}\")"
+    done < <(shql_db_columns "$SHQL_DB_PATH" "$_table" 2>/dev/null)
+    local _n_cols
+    eval "_n_cols=\${#${_arr_cols}[@]}"
+    shellframe_scroll_init "${_ctx}_cols" "$_n_cols" 1 10 1
+
+    printf -v "$_sentinel" '%s' "1"
+}
+
+# ── _shql_schema_tab_render ───────────────────────────────────────────────────
+
+_shql_schema_tab_render() {
+    local _top="$1" _left="$2" _width="$3" _height="$4"
+    (( _SHQL_TAB_ACTIVE < 0 )) && return 0
+
+    local _ctx="${_SHQL_TABS_CTX[$_SHQL_TAB_ACTIVE]}"
+    local _table="${_SHQL_TABS_TABLE[$_SHQL_TAB_ACTIVE]}"
+    _shql_schema_tab_load "$_table"
+
+    local _cols_w=$(( _width * 4 / 10 ))
+    (( _cols_w < 15 )) && _cols_w=15
+    local _ddl_w=$(( _width - _cols_w ))
+    local _ddl_left=$(( _left + _cols_w ))
+
+    local _cols_focused=0 _ddl_focused=0
+    [[ "$_SHQL_BROWSER_CONTENT_FOCUS" == "schema_cols" ]] && _cols_focused=1
+    [[ "$_SHQL_BROWSER_CONTENT_FOCUS" == "schema_ddl"  ]] && _ddl_focused=1
+
+    # Columns pane
+    SHELLFRAME_PANEL_STYLE="${SHQL_THEME_PANEL_STYLE:-single}"
+    SHELLFRAME_PANEL_TITLE="Columns"
+    SHELLFRAME_PANEL_TITLE_ALIGN="left"
+    SHELLFRAME_PANEL_FOCUSED=$_cols_focused
+    shellframe_panel_render "$_top" "$_left" "$_cols_w" "$_height"
+    local _it _il _iw _ih
+    shellframe_panel_inner "$_top" "$_left" "$_cols_w" "$_height" _it _il _iw _ih
+    local _arr_cols="_SHQL_SCHEMA_TAB_COLS_${_ctx}"
+    local _n_cols; eval "_n_cols=\${#${_arr_cols}[@]}"
+    shellframe_scroll_resize "${_ctx}_cols" "$_ih" 1
+    local _scroll_top=0; shellframe_scroll_top "${_ctx}_cols" _scroll_top
+    local _r
+    for (( _r=0; _r<_ih; _r++ )); do
+        local _idx=$(( _scroll_top + _r ))
+        printf '\033[%d;%dH%*s' "$(( _it + _r ))" "$_il" "$_iw" '' >/dev/tty
+        (( _idx >= _n_cols )) && continue
+        local _entry; eval "_entry=\"\${${_arr_cols}[$_idx]}\""
+        local _cname _ctype _cflags
+        IFS=$'\t' read -r _cname _ctype _cflags <<< "$_entry"
+        local _plain
+        if [[ -n "$_cflags" ]]; then
+            _plain=$(printf '%-12s %-7s %s' "$_cname" "$_ctype" "$_cflags")
+        else
+            _plain=$(printf '%-12s %s' "$_cname" "$_ctype")
+        fi
+        local _clipped; _clipped=$(shellframe_str_clip_ellipsis "$_plain" "$_plain" "$_iw")
+        printf '\033[%d;%dH%s' "$(( _it + _r ))" "$_il" "$_clipped" >/dev/tty
+    done
+
+    # DDL pane
+    SHELLFRAME_PANEL_STYLE="${SHQL_THEME_PANEL_STYLE:-single}"
+    SHELLFRAME_PANEL_TITLE="DDL"
+    SHELLFRAME_PANEL_TITLE_ALIGN="left"
+    SHELLFRAME_PANEL_FOCUSED=$_ddl_focused
+    shellframe_panel_render "$_top" "$_ddl_left" "$_ddl_w" "$_height"
+    shellframe_panel_inner "$_top" "$_ddl_left" "$_ddl_w" "$_height" _it _il _iw _ih
+    local _arr_ddl="_SHQL_SCHEMA_TAB_DDL_${_ctx}"
+    local _n_ddl; eval "_n_ddl=\${#${_arr_ddl}[@]}"
+    shellframe_scroll_resize "${_ctx}_ddl" "$_ih" 1
+    _scroll_top=0; shellframe_scroll_top "${_ctx}_ddl" _scroll_top
+    for (( _r=0; _r<_ih; _r++ )); do
+        local _idx=$(( _scroll_top + _r ))
+        printf '\033[%d;%dH%*s' "$(( _it + _r ))" "$_il" "$_iw" '' >/dev/tty
+        (( _idx >= _n_ddl )) && continue
+        local _line; eval "_line=\"\${${_arr_ddl}[$_idx]}\""
+        local _clipped; _clipped=$(shellframe_str_clip_ellipsis "$_line" "$_line" "$_iw")
+        printf '\033[%d;%dH%s' "$(( _it + _r ))" "$_il" "$_clipped" >/dev/tty
+    done
+}
+
 # ── _shql_TABLE_content_render ────────────────────────────────────────────────
 
 _shql_TABLE_content_render() {

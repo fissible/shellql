@@ -82,6 +82,7 @@ _shql_table_load_data() {
     SHELLFRAME_GRID_CTX="$_SHQL_TABLE_GRID_CTX"
     SHELLFRAME_GRID_PK_COLS=1
 
+    local _maxcw="${SHQL_MAX_COL_WIDTH:-30}"
     local _idx=0 _c _cell _cw _hw _cv
     local _row=()
     while IFS=$'\t' read -r -a _row; do
@@ -93,8 +94,8 @@ _shql_table_load_data() {
             for (( _c=0; _c<SHELLFRAME_GRID_COLS; _c++ )); do
                 _hw=${#_row[$_c]}
                 _cw=$(( _hw + 2 ))
-                (( _cw < 8  )) && _cw=8
-                (( _cw > 30 )) && _cw=30
+                (( _cw < 8       )) && _cw=8
+                (( _cw > _maxcw  )) && _cw=$_maxcw
                 SHELLFRAME_GRID_COL_WIDTHS+=("$_cw")
             done
         else
@@ -103,7 +104,7 @@ _shql_table_load_data() {
                 _cell="${_row[$_c]:-}"
                 SHELLFRAME_GRID_DATA+=("$_cell")
                 _cv=$(( ${#_cell} + 2 ))
-                (( _cv > 30 )) && _cv=30
+                (( _cv > _maxcw )) && _cv=$_maxcw
                 (( _cv > SHELLFRAME_GRID_COL_WIDTHS[$_c] )) && \
                     SHELLFRAME_GRID_COL_WIDTHS[$_c]=$_cv
             done
@@ -112,6 +113,7 @@ _shql_table_load_data() {
         (( _idx++ ))
     done < <(shql_db_fetch "$SHQL_DB_PATH" "$_SHQL_TABLE_NAME" 2>"$_SHQL_STDERR_TTY")
 
+    _shql_detect_grid_align
     shellframe_grid_init "$_SHQL_TABLE_GRID_CTX"
 }
 
@@ -245,6 +247,55 @@ _shql_grid_restore_last() {
     (( _ncols > 0 )) && SHELLFRAME_GRID_COL_WIDTHS[$(( _ncols - 1 ))]="$_SHQL_GRID_SAVED_LAST_W"
 }
 
+# ── _shql_detect_grid_align ───────────────────────────────────────────────────
+# Scan SHELLFRAME_GRID_DATA and populate SHELLFRAME_GRID_COL_ALIGN.
+# Integer/float columns → right; boolean (0/1/true/false/t/f) → center; text → left.
+# Columns with no non-empty values default to left.
+
+_shql_detect_grid_align() {
+    local _ncols="${SHELLFRAME_GRID_COLS:-0}"
+    local _nrows="${SHELLFRAME_GRID_ROWS:-0}"
+    SHELLFRAME_GRID_COL_ALIGN=()
+    (( _ncols == 0 )) && return 0
+
+    local -a _all_num _all_bool _any_val
+    local _c
+    for (( _c=0; _c<_ncols; _c++ )); do
+        _all_num[$_c]=1
+        _all_bool[$_c]=1
+        _any_val[$_c]=0
+    done
+
+    local _r _cell
+    for (( _r=0; _r<_nrows; _r++ )); do
+        for (( _c=0; _c<_ncols; _c++ )); do
+            _cell="${SHELLFRAME_GRID_DATA[$(( _r * _ncols + _c ))]:-}"
+            [[ -z "$_cell" ]] && continue
+            _any_val[$_c]=1
+            if (( _all_num[_c] )); then
+                [[ "$_cell" =~ ^-?[0-9]+$ ]] || [[ "$_cell" =~ ^-?[0-9]*\.[0-9]+$ ]] \
+                    || _all_num[$_c]=0
+            fi
+            if (( _all_bool[_c] )); then
+                case "$_cell" in
+                    0|1|true|false|TRUE|FALSE|t|f|T|F) ;;
+                    *) _all_bool[$_c]=0 ;;
+                esac
+            fi
+        done
+    done
+
+    for (( _c=0; _c<_ncols; _c++ )); do
+        if (( _any_val[_c] && _all_bool[_c] )); then
+            SHELLFRAME_GRID_COL_ALIGN[$_c]="center"
+        elif (( _any_val[_c] && _all_num[_c] )); then
+            SHELLFRAME_GRID_COL_ALIGN[$_c]="right"
+        else
+            SHELLFRAME_GRID_COL_ALIGN[$_c]="left"
+        fi
+    done
+}
+
 # ── _shql_table_data_render ───────────────────────────────────────────────────
 
 _shql_table_data_render() {
@@ -345,6 +396,35 @@ _shql_TABLE_body_action() {
     fi
 }
 
+# ── _shql_table_data_footer_hint ─────────────────────────────────────────────
+# Build the data-tab footer hint with a live row-range prefix.
+# Stores the result in the named output variable.
+
+_shql_table_data_footer_hint() {
+    local _out_var="$1"
+    local _nrows="${SHELLFRAME_GRID_ROWS:-0}"
+
+    if (( _nrows == 0 )); then
+        printf -v "$_out_var" '%s' "$_SHQL_TABLE_FOOTER_HINTS_DATA"
+        return
+    fi
+
+    local _scroll_top=0
+    shellframe_scroll_top "$_SHQL_TABLE_GRID_CTX" _scroll_top
+
+    local _term_rows _term_cols
+    _shellframe_shell_terminal_size _term_rows _term_cols
+    local _vrows=$(( _term_rows - 4 - 2 ))   # body_h=rows-4, minus 2 grid header rows
+    (( _vrows < 1 )) && _vrows=1
+
+    local _first=$(( _scroll_top + 1 ))
+    local _last=$(( _scroll_top + _vrows ))
+    (( _last > _nrows )) && _last=$_nrows
+
+    printf -v "$_out_var" 'Rows %d–%d of %d  %s' \
+        "$_first" "$_last" "$_nrows" "$_SHQL_TABLE_FOOTER_HINTS_DATA"
+}
+
 # ── _shql_TABLE_footer_render ─────────────────────────────────────────────────
 
 _shql_TABLE_footer_render() {
@@ -359,10 +439,10 @@ _shql_TABLE_footer_render() {
     else
         local _tab="${SHELLFRAME_TABBAR_ACTIVE:-0}"
         case "$_tab" in
-            "$_SHQL_TABLE_TAB_DATA")      _hint="$_SHQL_TABLE_FOOTER_HINTS_DATA" ;;
+            "$_SHQL_TABLE_TAB_DATA")      _shql_table_data_footer_hint _hint ;;
             "$_SHQL_TABLE_TAB_STRUCTURE") _hint="$_SHQL_TABLE_FOOTER_HINTS_STRUCTURE" ;;
-            "$_SHQL_TABLE_TAB_QUERY") _shql_query_footer_hint _hint ;;
-            *)                        _hint="" ;;
+            "$_SHQL_TABLE_TAB_QUERY")     _shql_query_footer_hint _hint ;;
+            *)                            _hint="" ;;
         esac
     fi
     printf '\033[%d;%dH%s%s%s' "$_top" "$_left" "$_gray" "$_hint" "$_rst" >/dev/tty

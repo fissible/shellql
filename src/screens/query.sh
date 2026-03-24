@@ -49,13 +49,14 @@ _shql_query_run() {
     rm -f "$_tmpfile"
 
     # Parse TSV: first line = headers, subsequent lines = data.
-    # Column widths: header_width + 2, clamped 8..30, grown by data cell widths.
+    # Column widths: header_width + 2, clamped 8..SHQL_MAX_COL_WIDTH, grown by data cell widths.
     SHELLFRAME_GRID_HEADERS=()
     SHELLFRAME_GRID_DATA=()
     SHELLFRAME_GRID_ROWS=0
     SHELLFRAME_GRID_COLS=0
     SHELLFRAME_GRID_COL_WIDTHS=()
     SHELLFRAME_GRID_PK_COLS=0
+    local _maxcw="${SHQL_MAX_COL_WIDTH:-30}"
 
     local _idx=0 _c _cell _cw _hw _cv
     local _row=()
@@ -67,8 +68,8 @@ _shql_query_run() {
             for (( _c=0; _c<SHELLFRAME_GRID_COLS; _c++ )); do
                 _hw=${#_row[$_c]}
                 _cw=$(( _hw + 2 ))
-                (( _cw < 8  )) && _cw=8
-                (( _cw > 30 )) && _cw=30
+                (( _cw < 8      )) && _cw=8
+                (( _cw > _maxcw )) && _cw=$_maxcw
                 SHELLFRAME_GRID_COL_WIDTHS+=("$_cw")
             done
         else
@@ -76,7 +77,7 @@ _shql_query_run() {
                 _cell="${_row[$_c]:-}"
                 SHELLFRAME_GRID_DATA+=("$_cell")
                 _cv=$(( ${#_cell} + 2 ))
-                (( _cv > 30 )) && _cv=30
+                (( _cv > _maxcw )) && _cv=$_maxcw
                 (( _cv > SHELLFRAME_GRID_COL_WIDTHS[$_c] )) && \
                     SHELLFRAME_GRID_COL_WIDTHS[$_c]=$_cv
             done
@@ -85,6 +86,7 @@ _shql_query_run() {
         (( _idx++ ))
     done <<< "$_out"
 
+    _shql_detect_grid_align
     SHELLFRAME_GRID_CTX="$_SHQL_QUERY_GRID_CTX"
     shellframe_grid_init "$_SHQL_QUERY_GRID_CTX"
     _SHQL_QUERY_HAS_RESULTS=1

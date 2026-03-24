@@ -288,12 +288,17 @@ shql_conn_load_recent() {
     SHQL_RECENT_SOURCES=()
     SHQL_RECENT_REFS=()
 
-    local _list _source _driver _name _detail _last _ref
+    local _list _source _driver _name _detail _rest _ref
     _list=$(shql_conn_list)
     [ -z "$_list" ] && return 0
 
-    while IFS=$'\t' read -r _source _driver _name _detail _last _ref; do
+    # Read fields 1-4 normally; merge fields 5 (last_used) and 6 (ref_id) into
+    # _rest, then extract ref_id as the part after the LAST tab.  This avoids
+    # bash IFS-whitespace collapsing: when last_used is empty the two consecutive
+    # tabs (\t\t) would shift ref_id into field 5, leaving field 6 empty.
+    while IFS=$'\t' read -r _source _driver _name _detail _rest; do
         [ -z "$_source" ] && continue
+        _ref="${_rest##*$'\t'}"
         SHQL_RECENT_NAMES+=("$_name")
         SHQL_RECENT_DETAILS+=("$_detail")
         SHQL_RECENT_SOURCES+=("$_source")

@@ -169,6 +169,19 @@ assert_eq "${#SHQL_RECENT_NAMES[@]}" "${#SHQL_RECENT_DETAILS[@]}"
 assert_eq "${#SHQL_RECENT_NAMES[@]}" "${#SHQL_RECENT_SOURCES[@]}"
 assert_eq "${#SHQL_RECENT_NAMES[@]}" "${#SHQL_RECENT_REFS[@]}"
 
+ptyunit_test_begin "shql_conn_load_recent: ref_id preserved when last_used is empty"
+# Insert a connection with no last_accessed row (e.g. migrated entry).
+# Empty last_used produces consecutive tabs (\t\t) in conn_list output.
+# IFS=\t read collapses those, sliding ref_id into the wrong field without the fix.
+"${_SHQL_SQLITE3:-sqlite3}" "$_SHQL_CONN_DB" \
+    "INSERT INTO connections (id,driver,name,path) VALUES ('legacy-uuid','sqlite','tmp/legacy.sqlite','/tmp/legacy.sqlite')"
+shql_conn_load_recent
+_ref_ok=0
+for _r in "${SHQL_RECENT_REFS[@]+"${SHQL_RECENT_REFS[@]}"}"; do
+    [[ "$_r" == "legacy-uuid" ]] && _ref_ok=1 && break
+done
+assert_eq "1" "$_ref_ok"
+
 rm -rf "$_lr_dir"
 
 # ── shql_conn_resolve_name ────────────────────────────────────────────────

@@ -53,10 +53,9 @@ fi
 source "$_SHQL_ROOT/src/theme.sh"
 shql_theme_load "${SHQL_THEME:-basic}"
 
-# screens (header.sh must come before welcome/schema/table)
+# screens (header.sh must come before welcome/table)
 source "$_SHQL_ROOT/src/screens/header.sh"
 source "$_SHQL_ROOT/src/screens/welcome.sh"
-source "$_SHQL_ROOT/src/screens/schema.sh"
 source "$_SHQL_ROOT/src/screens/table.sh"
 source "$_SHQL_ROOT/src/screens/query.sh"
 source "$_SHQL_ROOT/src/screens/inspector.sh"
@@ -88,39 +87,29 @@ case "$_SHQL_CLI_MODE" in
         if ! (( SHQL_MOCK )); then _shql_db_check_path "$SHQL_DB_PATH" || exit 1; fi
         shql_conn_push "sqlite" "$SHQL_DB_PATH"
         _shql_welcome_init
-        shql_schema_init
-        shellframe_shell "_shql" "SCHEMA"
+        shql_browser_init
+        shellframe_shell "_shql" "TABLE"
         ;;
 
     table)
-        # _SHQL_TABLE_NAME is the screen-private name used by table.sh;
-        # SHQL_DB_TABLE is the public state global — set both.
-        # shql_schema_init is needed so pressing q in TABLE navigates back to SCHEMA.
-        # shql_table_init must be called after _SHQL_TABLE_NAME is set.
         SHQL_DB_PATH="$_SHQL_CLI_DB"
         SHQL_DB_TABLE="$_SHQL_CLI_TABLE"
-        _SHQL_TABLE_NAME="$_SHQL_CLI_TABLE"
         if ! (( SHQL_MOCK )); then _shql_db_check_path "$SHQL_DB_PATH" || exit 1; fi
         shql_conn_push "sqlite" "$SHQL_DB_PATH"
         _shql_welcome_init
-        shql_schema_init
-        shql_table_init
+        shql_browser_init
+        # Pre-open the table as a Data tab
+        _shql_tab_open "$_SHQL_CLI_TABLE" "data"
         shellframe_shell "_shql" "TABLE"
         ;;
 
     query-tui)
-        # Open TABLE screen with the QUERY tab (index 2) pre-selected.
-        # _SHQL_TABLE_NAME is left empty — no table pre-selected; user starts
-        # in the query editor. shql_table_init resets SHELLFRAME_TABBAR_ACTIVE=0,
-        # so the tab override must come AFTER shql_table_init.
         SHQL_DB_PATH="$_SHQL_CLI_DB"
-        _SHQL_TABLE_NAME=""
         if ! (( SHQL_MOCK )); then _shql_db_check_path "$SHQL_DB_PATH" || exit 1; fi
         shql_conn_push "sqlite" "$SHQL_DB_PATH"
         _shql_welcome_init
-        shql_schema_init
-        shql_table_init
-        SHELLFRAME_TABBAR_ACTIVE=$_SHQL_TABLE_TAB_QUERY
+        shql_browser_init
+        _shql_tab_open "" "query"
         shellframe_shell "_shql" "TABLE"
         ;;
 

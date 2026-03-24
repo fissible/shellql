@@ -51,6 +51,8 @@ _SHQL_TABLE_TAB_QUERY=2
 # ── Browser state ─────────────────────────────────────────────────────────────
 
 _SHQL_BROWSER_TABLES=()      # loaded from db on shql_browser_init
+_SHQL_BROWSER_OBJECT_TYPES=()
+_SHQL_BROWSER_SIDEBAR_ITEMS=()
 _SHQL_BROWSER_SIDEBAR_CTX="browser_sidebar"
 _SHQL_BROWSER_SIDEBAR_FOCUSED=0
 _SHQL_BROWSER_TABBAR_FOCUSED=0
@@ -298,13 +300,23 @@ shql_browser_init() {
     _SHQL_BROWSER_CONTENT_FOCUSED=0
     _SHQL_BROWSER_CONTENT_FOCUS="data"
     _SHQL_BROWSER_GRID_OWNER_CTX=""
-    local _line
-    while IFS= read -r _line; do
-        [[ -z "$_line" ]] && continue
-        _SHQL_BROWSER_TABLES+=("$_line")
-    done < <(shql_db_list_tables "$SHQL_DB_PATH" 2>/dev/null)
+    _SHQL_BROWSER_OBJECT_TYPES=()
+    _SHQL_BROWSER_SIDEBAR_ITEMS=()
+    local _obj_name _obj_type
+    while IFS=$'\t' read -r _obj_name _obj_type; do
+        [[ -z "$_obj_name" ]] && continue
+        _SHQL_BROWSER_TABLES+=("$_obj_name")
+        _SHQL_BROWSER_OBJECT_TYPES+=("${_obj_type:-table}")
+        local _icon=""
+        if [[ "$_obj_type" == "view" ]]; then
+            _icon="${SHQL_THEME_VIEW_ICON:-}"
+        else
+            _icon="${SHQL_THEME_TABLE_ICON:-}"
+        fi
+        _SHQL_BROWSER_SIDEBAR_ITEMS+=("${_icon}${_obj_name}")
+    done < <(shql_db_list_objects "$SHQL_DB_PATH" 2>/dev/null)
     SHELLFRAME_LIST_CTX="$_SHQL_BROWSER_SIDEBAR_CTX"
-    SHELLFRAME_LIST_ITEMS=("${_SHQL_BROWSER_TABLES[@]+"${_SHQL_BROWSER_TABLES[@]}"}")
+    SHELLFRAME_LIST_ITEMS=("${_SHQL_BROWSER_SIDEBAR_ITEMS[@]+"${_SHQL_BROWSER_SIDEBAR_ITEMS[@]}"}")
     shellframe_list_init "$_SHQL_BROWSER_SIDEBAR_CTX"
     # Sidebar starts focused
     shellframe_shell_focus_set "sidebar"
@@ -324,20 +336,27 @@ _shql_browser_sidebar_width() {
 _shql_TABLE_sidebar_render() {
     local _top="$1" _left="$2" _width="$3" _height="$4"
 
-    SHELLFRAME_PANEL_STYLE="${SHQL_THEME_PANEL_STYLE:-single}"
-    SHELLFRAME_PANEL_TITLE="Tables"
-    SHELLFRAME_PANEL_TITLE_ALIGN="left"
-    SHELLFRAME_PANEL_FOCUSED=$_SHQL_BROWSER_SIDEBAR_FOCUSED
-    shellframe_panel_render "$_top" "$_left" "$_width" "$_height"
+    if [[ "${SHQL_THEME_SIDEBAR_BORDER:-}" == "none" ]]; then
+        # No panel border — render list directly in the full region
+        SHELLFRAME_LIST_CTX="$_SHQL_BROWSER_SIDEBAR_CTX"
+        SHELLFRAME_LIST_ITEMS=("${_SHQL_BROWSER_SIDEBAR_ITEMS[@]+"${_SHQL_BROWSER_SIDEBAR_ITEMS[@]}"}")
+        SHELLFRAME_LIST_FOCUSED=$_SHQL_BROWSER_SIDEBAR_FOCUSED
+        shellframe_list_render "$_top" "$_left" "$_width" "$_height"
+    else
+        SHELLFRAME_PANEL_STYLE="${SHQL_THEME_PANEL_STYLE:-single}"
+        SHELLFRAME_PANEL_TITLE="Tables"
+        SHELLFRAME_PANEL_TITLE_ALIGN="left"
+        SHELLFRAME_PANEL_FOCUSED=$_SHQL_BROWSER_SIDEBAR_FOCUSED
+        shellframe_panel_render "$_top" "$_left" "$_width" "$_height"
 
-    local _it _il _iw _ih
-    shellframe_panel_inner "$_top" "$_left" "$_width" "$_height" _it _il _iw _ih
+        local _it _il _iw _ih
+        shellframe_panel_inner "$_top" "$_left" "$_width" "$_height" _it _il _iw _ih
 
-    # Render list inside panel (handles scroll offset + cursor)
-    SHELLFRAME_LIST_CTX="$_SHQL_BROWSER_SIDEBAR_CTX"
-    SHELLFRAME_LIST_ITEMS=("${_SHQL_BROWSER_TABLES[@]+"${_SHQL_BROWSER_TABLES[@]}"}")
-    SHELLFRAME_LIST_FOCUSED=$_SHQL_BROWSER_SIDEBAR_FOCUSED
-    shellframe_list_render "$_it" "$_il" "$_iw" "$_ih"
+        SHELLFRAME_LIST_CTX="$_SHQL_BROWSER_SIDEBAR_CTX"
+        SHELLFRAME_LIST_ITEMS=("${_SHQL_BROWSER_SIDEBAR_ITEMS[@]+"${_SHQL_BROWSER_SIDEBAR_ITEMS[@]}"}")
+        SHELLFRAME_LIST_FOCUSED=$_SHQL_BROWSER_SIDEBAR_FOCUSED
+        shellframe_list_render "$_it" "$_il" "$_iw" "$_ih"
+    fi
 }
 
 # ── _shql_TABLE_sidebar_on_key ────────────────────────────────────────────────

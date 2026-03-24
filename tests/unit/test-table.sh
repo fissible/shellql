@@ -235,7 +235,7 @@ _SHQL_TABLE_NAME=""
 SHQL_DB_PATH="/mock/test.db"
 shql_browser_init
 assert_eq 1 $(( ${#_SHQL_BROWSER_TABLES[@]} > 0 ))
-assert_eq "users" "${_SHQL_BROWSER_TABLES[0]}"
+assert_eq "categories" "${_SHQL_BROWSER_TABLES[0]}"
 
 ptyunit_test_begin "browser_sidebar_width: is approx 1/4 terminal width"
 _w=""
@@ -248,14 +248,14 @@ shellframe_sel_cursor() { printf -v "$2" '%d' 0; }   # override: cursor at 0
 shql_table_init_browser
 _shql_TABLE_sidebar_on_key $'\r'
 assert_eq "data" "${_SHQL_TABS_TYPE[0]}"
-assert_eq "users" "${_SHQL_TABS_TABLE[0]}"
+assert_eq "categories" "${_SHQL_TABS_TABLE[0]}"
 assert_eq 0 "$_SHQL_TAB_ACTIVE"
 
 ptyunit_test_begin "sidebar_on_key: s opens schema tab for selected table"
 shql_table_init_browser
 _shql_TABLE_sidebar_on_key 's'
 assert_eq "schema" "${_SHQL_TABS_TYPE[0]}"
-assert_eq "users" "${_SHQL_TABS_TABLE[0]}"
+assert_eq "categories" "${_SHQL_TABS_TABLE[0]}"
 
 ptyunit_test_begin "sidebar_on_key: right arrow moves focus to tabbar (rc=0)"
 _saved_focus=""
@@ -349,5 +349,22 @@ _SHQL_TAB_ACTIVE=-1
 _SHQL_INSPECTOR_ACTIVE=0
 _shql_browser_footer_hint _hint
 assert_contains "$_hint" "select"
+
+# ── Test: sidebar icons ──────────────────────────────────────────────────────
+
+ptyunit_test_begin "browser_init: sidebar items have table icon when theme sets it"
+SHQL_THEME_TABLE_ICON="▤ "
+SHQL_THEME_VIEW_ICON="◉ "
+SHQL_DB_PATH="/mock/test.db"
+shql_browser_init
+assert_contains "${_SHQL_BROWSER_SIDEBAR_ITEMS[0]}" "▤"
+
+ptyunit_test_begin "browser_init: sidebar items have no icon when theme unset"
+SHQL_THEME_TABLE_ICON=""
+SHQL_THEME_VIEW_ICON=""
+SHQL_DB_PATH="/mock/test.db"
+shql_browser_init
+_first_char="${_SHQL_BROWSER_SIDEBAR_ITEMS[0]:0:1}"
+assert_eq "c" "$_first_char"
 
 ptyunit_test_summary

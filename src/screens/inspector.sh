@@ -25,6 +25,7 @@ _SHQL_INSPECTOR_PAIRS=()
 _SHQL_INSPECTOR_CTX="inspector_scroll"
 _SHQL_INSPECTOR_ROW_IDX=0       # which data-grid row is being inspected
 _SHQL_INSPECTOR_TOTAL_ROWS=0    # total rows in the grid (for nav bar)
+_SHQL_INSPECTOR_GRID_CTX=""     # grid context for row stepping
 
 # ── _shql_inspector_open ──────────────────────────────────────────────────────
 
@@ -36,6 +37,7 @@ _shql_inspector_open() {
 
     _SHQL_INSPECTOR_ROW_IDX=$_cursor
     _SHQL_INSPECTOR_TOTAL_ROWS="${SHELLFRAME_GRID_ROWS:-0}"
+    _SHQL_INSPECTOR_GRID_CTX="${SHELLFRAME_GRID_CTX:-}"
 
     local _ncols="${SHELLFRAME_GRID_COLS:-0}"
     _SHQL_INSPECTOR_PAIRS=()
@@ -52,6 +54,38 @@ _shql_inspector_open() {
     local _scroll_n=$(( (_n + 1) / 2 ))
     shellframe_scroll_init "$_SHQL_INSPECTOR_CTX" "$_scroll_n" 1 10 1
     _SHQL_INSPECTOR_ACTIVE=1
+}
+
+# ── _shql_inspector_step ──────────────────────────────────────────────────────
+# Move to the next (+1) or previous (-1) row in the grid.
+_shql_inspector_step() {
+    local _delta="$1"
+    local _total="${_SHQL_INSPECTOR_TOTAL_ROWS:-0}"
+    (( _total == 0 )) && return 0
+
+    local _new=$(( _SHQL_INSPECTOR_ROW_IDX + _delta ))
+    # Wrap
+    (( _new < 0 )) && _new=$(( _total - 1 ))
+    (( _new >= _total )) && _new=0
+
+    _SHQL_INSPECTOR_ROW_IDX=$_new
+
+    # Reload pairs from the grid data
+    local _ncols="${SHELLFRAME_GRID_COLS:-0}"
+    _SHQL_INSPECTOR_PAIRS=()
+    local _c _idx _key _val
+    for (( _c=0; _c<_ncols; _c++ )); do
+        _key="${SHELLFRAME_GRID_HEADERS[$_c]:-col$_c}"
+        _idx=$(( _new * _ncols + _c ))
+        _val="${SHELLFRAME_GRID_DATA[$_idx]:-}"
+        [[ -z "$_val" ]] && _val="(null)"
+        _SHQL_INSPECTOR_PAIRS+=("${_key}"$'\t'"${_val}")
+    done
+
+    # Reset scroll to top for the new record
+    local _n=${#_SHQL_INSPECTOR_PAIRS[@]}
+    local _scroll_n=$(( (_n + 1) / 2 ))
+    shellframe_scroll_init "$_SHQL_INSPECTOR_CTX" "$_scroll_n" 1 10 1
 }
 
 # ── _shql_inspector_key_width ─────────────────────────────────────────────────
@@ -92,8 +126,12 @@ _shql_inspector_on_key() {
     local _k_down="${SHELLFRAME_KEY_DOWN:-$'\033[B'}"
     local _k_pgup="${SHELLFRAME_KEY_PAGE_UP:-$'\033[5~'}"
     local _k_pgdn="${SHELLFRAME_KEY_PAGE_DOWN:-$'\033[6~'}"
+    local _k_left="${SHELLFRAME_KEY_LEFT:-$'\033[D'}"
+    local _k_right="${SHELLFRAME_KEY_RIGHT:-$'\033[C'}"
 
     case "$_key" in
+        "$_k_right") _shql_inspector_step 1;  return 0 ;;
+        "$_k_left")  _shql_inspector_step -1; return 0 ;;
         "$_k_up")   shellframe_scroll_move "$_SHQL_INSPECTOR_CTX" up;        return 0 ;;
         "$_k_down") shellframe_scroll_move "$_SHQL_INSPECTOR_CTX" down;      return 0 ;;
         "$_k_pgup") shellframe_scroll_move "$_SHQL_INSPECTOR_CTX" page_up;   return 0 ;;

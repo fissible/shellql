@@ -156,4 +156,21 @@ _shql_inspector_on_key $'\033'
 assert_eq "0" "$_SHQL_INSPECTOR_ACTIVE" "Esc: sets ACTIVE=0"
 assert_eq "3" "$_SHQL_INSPECTOR_ROW_IDX" "Esc: preserves ROW_IDX for cursor return"
 
+ptyunit_test_begin "inspector_step: → advances to next row"
+_setup_mock_grid   # 2 rows: Alice (0), Bob (1)
+shellframe_sel_move "test_grid" home
+_shql_inspector_open
+_SHQL_INSPECTOR_GRID_CTX="test_grid"
+_shql_inspector_on_key $'\033[C'   # right arrow
+assert_eq "1" "$_SHQL_INSPECTOR_ROW_IDX" "→: ROW_IDX advances to 1"
+assert_contains "${_SHQL_INSPECTOR_PAIRS[1]#*	}" "Bob" "→: pairs reloaded for row 1"
+
+ptyunit_test_begin "inspector_step: → wraps at last row"
+_shql_inspector_on_key $'\033[C'   # right again from row 1 (last)
+assert_eq "0" "$_SHQL_INSPECTOR_ROW_IDX" "→: wraps back to row 0"
+
+ptyunit_test_begin "inspector_step: ← at row 0 wraps to last"
+_shql_inspector_on_key $'\033[D'   # left from row 0
+assert_eq "1" "$_SHQL_INSPECTOR_ROW_IDX" "←: wraps to last row"
+
 ptyunit_test_summary

@@ -85,6 +85,73 @@ _rc=0; _err=$(_shql "$_db" -q "SELECT * FROM nonexistent_table" 2>&1 >/dev/null)
 assert_eq 1 "$_rc"
 assert_contains "$_err" "nonexistent_table"
 
+# ── Integration: browser open → data tab → inspector → navigate → close ──────
+#
+# These tests load internal screen modules with mock data so the browser open
+# → inspect → close flow can be verified without a live terminal.
+
+# Stubs needed by screen modules
+shellframe_sel_init()    { true; }
+shellframe_scroll_init() { true; }
+shellframe_scroll_resize() { true; }
+shellframe_scroll_top()  { printf -v "$2" '%d' 0; }
+shellframe_sel_cursor()  { printf -v "$2" '%d' 0; }
+shellframe_grid_init()   { true; }
+shellframe_str_clip_ellipsis() { printf '%s' "$2"; }
+shellframe_str_pad()     { printf '%s' "$2"; }
+shellframe_scroll_move() { true; }
+shellframe_editor_init()  { true; }
+shellframe_grid_on_key()  { return 1; }
+shellframe_shell_focus_set() { true; }
+shellframe_editor_get_text() { printf -v "$2" '%s' "SELECT 1"; }
+shellframe_editor_on_key()   { return 1; }
+shellframe_sel_move()        { true; }
+shellframe_panel_render()    { true; }
+shellframe_panel_inner()     { true; }
+_shellframe_shell_terminal_size() { printf -v "$1" '%d' 24; printf -v "$2" '%d' 80; }
+SHELLFRAME_EDITOR_RESULT=""
+
+SHELLFRAME_BOLD='' SHELLFRAME_RESET='' SHELLFRAME_REVERSE=''
+_SHQL_ROOT="$SHQL_ROOT"
+source "$SHQL_ROOT/src/theme.sh"
+shql_theme_load basic
+
+SHQL_MOCK=1
+source "$SHQL_ROOT/src/state.sh"
+source "$SHQL_ROOT/src/db_mock.sh"
+
+shellframe_list_init() { true; }
+source "$SHQL_ROOT/src/screens/schema.sh"
+source "$SHQL_ROOT/src/screens/header.sh"
+source "$SHQL_ROOT/src/screens/table.sh"
+source "$SHQL_ROOT/src/screens/inspector.sh"
+source "$SHQL_ROOT/src/screens/query.sh"
+
+ptyunit_test_begin "integration: browser open populates tables list"
+shql_browser_init
+assert_eq 1 $(( ${#_SHQL_BROWSER_TABLES[@]} > 0 ))
+
+ptyunit_test_begin "integration: Enter in sidebar opens data tab"
+shellframe_sel_cursor() { printf -v "$2" '%d' 0; }
+_shql_TABLE_sidebar_action
+assert_eq "data" "${_SHQL_TABS_TYPE[0]:-}"
+assert_eq "users" "${_SHQL_TABS_TABLE[0]:-}"
+
+ptyunit_test_begin "integration: data tab content_ensure loads grid"
+_shql_content_data_ensure
+assert_eq 1 $(( SHELLFRAME_GRID_ROWS > 0 ))
+
+ptyunit_test_begin "integration: inspector opens on Enter in data tab"
+SHELLFRAME_GRID_CTX="${_SHQL_TABS_CTX[0]}_grid"
+_shql_inspector_open
+assert_eq 1 "$_SHQL_INSPECTOR_ACTIVE"
+
+ptyunit_test_begin "integration: inspector Esc restores ACTIVE=0 with ROW_IDX preserved"
+_saved_idx="$_SHQL_INSPECTOR_ROW_IDX"
+_shql_inspector_on_key $'\033'
+assert_eq 0 "$_SHQL_INSPECTOR_ACTIVE"
+assert_eq "$_saved_idx" "$_SHQL_INSPECTOR_ROW_IDX"
+
 # ── Teardown ──────────────────────────────────────────────────────────────────
 
 rm -rf "$_data_dir"

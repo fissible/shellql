@@ -131,35 +131,14 @@ shql_table_init
 assert_eq 0 "$_SHQL_TABLE_TABBAR_FOCUSED"
 assert_eq 0 "$_SHQL_TABLE_BODY_FOCUSED"
 
-# ── Test: shql_table_init resets SHELLFRAME_TABBAR_ACTIVE to 0 ───────────────
+# ── Test: shql_browser_init resets tab arrays and loads tables ────────────────
 
-ptyunit_test_begin "shql_table_init: resets SHELLFRAME_TABBAR_ACTIVE to 0"
-assert_eq 0 "$SHELLFRAME_TABBAR_ACTIVE"
-
-# ── Test: tab index constants ─────────────────────────────────────────────────
-
-ptyunit_test_begin "tab constants: STRUCTURE=0, DATA=1, QUERY=2"
-assert_eq 0 "$_SHQL_TABLE_TAB_STRUCTURE"
-assert_eq 1 "$_SHQL_TABLE_TAB_DATA"
-assert_eq 2 "$_SHQL_TABLE_TAB_QUERY"
-
-# ── Test: schema sidebar_action sets TABLE_NAME and NEXT ─────────────────────
-
-ptyunit_test_begin "schema sidebar_action: sets _SHQL_TABLE_NAME and NEXT=TABLE"
-_SHQL_SCHEMA_TABLES=("users" "orders")
-shellframe_sel_cursor() { printf -v "$2" '%d' 0; }
-_SHELLFRAME_SHELL_NEXT=""
-_SHQL_TABLE_NAME=""
-_shql_SCHEMA_sidebar_action
-assert_eq "users" "$_SHQL_TABLE_NAME"
-assert_eq "TABLE" "$_SHELLFRAME_SHELL_NEXT"
-
-# ── Test: inspector footer hint constant ──────────────────────────────────────
-
-ptyunit_test_begin "inspector footer hint constant defined with correct text"
-assert_eq "$_SHQL_TABLE_FOOTER_HINTS_INSPECTOR" \
-    "[↑↓] Scroll  [PgUp/PgDn] Page  [Enter/Esc/q] Close" \
-    "footer: inspector hint string"
+ptyunit_test_begin "shql_browser_init: resets tab arrays and loads tables"
+SHQL_DB_PATH="/mock/test.db"
+shql_browser_init
+assert_eq 0 "${#_SHQL_TABS_TYPE[@]}"
+assert_eq -1 "$_SHQL_TAB_ACTIVE"
+assert_eq 1 $(( ${#_SHQL_BROWSER_TABLES[@]} > 0 ))
 
 # ── Tab state model ───────────────────────────────────────────────────────────
 
@@ -245,7 +224,7 @@ assert_eq 1 "$_result"
 
 ptyunit_test_begin "tab_capacity: detects overflow"
 shql_table_init_browser
-local _i; for (( _i=0; _i<10; _i++ )); do
+for (( _i=0; _i<10; _i++ )); do
     _shql_tab_open "" "query"
 done
 _shql_tab_fits 40 _result
@@ -322,7 +301,7 @@ ptyunit_test_begin "schema_tab_load: loads DDL and columns for active tab"
 shql_table_init_browser
 _shql_tab_open "users" "schema"
 _shql_schema_tab_load "users"
-local _sentinel="_SHQL_SCHEMA_TAB_LOADED_${_SHQL_TABS_CTX[0]}"
+_sentinel="_SHQL_SCHEMA_TAB_LOADED_${_SHQL_TABS_CTX[0]}"
 assert_eq "1" "${!_sentinel:-0}"
 
 ptyunit_test_begin "schema_tab: focus defaults to cols pane"

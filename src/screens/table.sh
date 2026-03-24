@@ -51,7 +51,7 @@ fi
 # ── Footer hint strings ────────────────────────────────────────────────────────
 
 _SHQL_TABLE_FOOTER_HINTS_TABBAR="[←→] Switch tab  [Tab] Body  [q] Back"
-_SHQL_TABLE_FOOTER_HINTS_DATA="[↑↓] Navigate  [Enter] Inspect  [Tab] Tabs  [q] Back"
+_SHQL_TABLE_FOOTER_HINTS_DATA="[↑↓] Navigate  [←→] Scroll  [Enter] Inspect  [Tab] Tabs  [q] Back"
 _SHQL_TABLE_FOOTER_HINTS_STRUCTURE="[↑↓] Scroll  [Tab] Tabs  [q] Back"
 _SHQL_TABLE_FOOTER_HINTS_INSPECTOR="[↑↓] Scroll  [PgUp/PgDn] Page  [Enter/Esc/q] Close"
 

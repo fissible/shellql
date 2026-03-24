@@ -34,7 +34,8 @@ _SHQL_SCHEMA_DETAIL_FOCUSED=0
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 
-_SHQL_SCHEMA_FOOTER_HINTS="[↑↓] Select  [Tab] Switch pane  [↑↓] Scroll DDL  [q] Back"
+_SHQL_SCHEMA_FOOTER_HINTS_SIDEBAR="[↑↓] Select table  [Enter] Open  [Tab] Switch pane  [q] Back"
+_SHQL_SCHEMA_FOOTER_HINTS_DETAIL="[↑↓] Scroll DDL  [Tab] Switch pane  [q] Back"
 _SHQL_SCHEMA_SIDEBAR_WIDTH_MIN=20
 _SHQL_SCHEMA_SIDEBAR_FRACTION=3  # sidebar gets 1/N of total width
 
@@ -249,9 +250,14 @@ _shql_SCHEMA_detail_on_focus() {
 _shql_SCHEMA_footer_render() {
     local _top="$1" _left="$2"
     local _gray="${SHELLFRAME_GRAY:-}" _rst="${SHELLFRAME_RESET:-}"
+    local _hint
+    if (( _SHQL_SCHEMA_DETAIL_FOCUSED )); then
+        _hint="$_SHQL_SCHEMA_FOOTER_HINTS_DETAIL"
+    else
+        _hint="$_SHQL_SCHEMA_FOOTER_HINTS_SIDEBAR"
+    fi
     printf '\033[%d;%dH\033[2K' "$_top" "$_left" >/dev/tty
-    printf '\033[%d;%dH%s%s%s' "$_top" "$_left" \
-        "$_gray" "$_SHQL_SCHEMA_FOOTER_HINTS" "$_rst" >/dev/tty
+    printf '\033[%d;%dH%s%s%s' "$_top" "$_left" "$_gray" "$_hint" "$_rst" >/dev/tty
 }
 
 # ── _shql_SCHEMA_quit ─────────────────────────────────────────────────────────

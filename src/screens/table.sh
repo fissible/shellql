@@ -961,6 +961,7 @@ _shql_TABLE_content_render() {
             else
                 SHELLFRAME_GRID_CTX="${_SHQL_TABS_CTX[$_SHQL_TAB_ACTIVE]}_grid"
                 SHELLFRAME_GRID_FOCUSED=$_SHQL_BROWSER_CONTENT_FOCUSED
+                SHELLFRAME_GRID_BG="${SHQL_THEME_CONTENT_BG:-}"
                 SHELLFRAME_GRID_STRIPE_BG="${SHQL_THEME_ROW_STRIPE_BG:-}"
                 if [[ -n "${SHQL_THEME_CURSOR_BG:-}" ]]; then
                     SHELLFRAME_GRID_CURSOR_STYLE="${SHQL_THEME_CURSOR_BG}${SHQL_THEME_CURSOR_BOLD:-}"

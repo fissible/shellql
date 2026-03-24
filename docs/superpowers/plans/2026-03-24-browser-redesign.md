@@ -39,6 +39,31 @@ Tasks 7–9 add the content dispatch and call `_shql_inspector_render`. At that 
 
 ---
 
+## Decision Record
+
+These decisions were made before execution began. Subagents must follow them exactly.
+
+**D1 — Inspector auto-close on tab switch (applies to Tasks 2, 6, 10)**
+
+`_SHQL_INSPECTOR_ACTIVE` is a global scalar; there is no per-tab inspector flag. Whenever `_SHQL_TAB_ACTIVE` changes, reset `_SHQL_INSPECTOR_ACTIVE=0`. Implement this via a helper `_shql_tab_activate <idx>` that sets `_SHQL_TAB_ACTIVE=$1` and `_SHQL_INSPECTOR_ACTIVE=0`. All code that changes the active tab (tab open/close, tabbar ←→, content `[`/`]`) must call `_shql_tab_activate` instead of writing to `_SHQL_TAB_ACTIVE` directly.
+
+**D2 — Sidebar widget: `shellframe_sel_*` (already in plan; confirmed)**
+
+`shql_browser_init` calls `shellframe_sel_init`; sidebar navigation calls `shellframe_sel_move`. No list widget.
+
+**D3 — Header: always db-only, never shows table name (applies to Task 4)**
+
+`_shql_TABLE_header_render` must call `_shql_breadcrumb ""` (empty string for table argument), so the header always shows `sqlite://chinook.sqlite` with no `→ table` suffix. The active table name already appears in the tab label.
+
+**D4 — Region rename body → content: happens in Task 4, not Task 7 (applies to Tasks 4, 7)**
+
+Task 4 registers the `content` region. At that point:
+- Remove `_shql_TABLE_body_render`, `_shql_TABLE_body_on_key`, `_shql_TABLE_body_on_focus`, `_shql_TABLE_body_action`, `_shql_TABLE_gap_render`
+- Add a minimal stub: `_shql_TABLE_content_render() { :; }` and `_shql_TABLE_content_on_key() { return 1; }` and `_shql_TABLE_content_on_focus() { _SHQL_BROWSER_CONTENT_FOCUSED="${1:-0}"; }` and `_shql_TABLE_content_action() { :; }`
+- Task 7 replaces the stubs with the real dispatch. This keeps the region chain valid at every commit.
+
+---
+
 ## Task 1: Tab state globals and `_shql_tab_find`
 
 **Files:**
@@ -258,7 +283,14 @@ _shql_tab_open() {
     _SHQL_TABS_TABLE+=("$_table")
     _SHQL_TABS_LABEL+=("$_label")
     _SHQL_TABS_CTX+=("$_ctx")
-    _SHQL_TAB_ACTIVE=$(( ${#_SHQL_TABS_TYPE[@]} - 1 ))
+    _shql_tab_activate $(( ${#_SHQL_TABS_TYPE[@]} - 1 ))
+}
+
+# ── _shql_tab_activate ────────────────────────────────────────────────────────
+# Set the active tab index and reset inspector state (Decision D1).
+_shql_tab_activate() {
+    _SHQL_TAB_ACTIVE="$1"
+    _SHQL_INSPECTOR_ACTIVE=0
 }
 
 # ── _shql_tab_close ───────────────────────────────────────────────────────────
@@ -287,13 +319,13 @@ _shql_tab_close() {
 
     local _new_n=${#_SHQL_TABS_TYPE[@]}
     if (( _new_n == 0 )); then
-        _SHQL_TAB_ACTIVE=-1
+        _shql_tab_activate -1
     else
         # Activate tab to the left, or stay at 0
         local _new_active=$(( _idx - 1 ))
         (( _new_active < 0 )) && _new_active=0
         (( _new_active >= _new_n )) && _new_active=$(( _new_n - 1 ))
-        _SHQL_TAB_ACTIVE=$_new_active
+        _shql_tab_activate "$_new_active"
     fi
 }
 ```
@@ -436,6 +468,14 @@ _SHQL_BROWSER_CONTENT_FOCUSED=0
 _SHQL_BROWSER_CONTENT_FOCUS="data"  # "data" | "schema_cols" | "schema_ddl" | "query_editor" | "query_results"
 ```
 
+Also update `_shql_TABLE_header_render` (D3 — db-only header):
+
+```bash
+_shql_TABLE_header_render() {
+    _shql_header_render "$1" "$2" "$3" "$(_shql_breadcrumb "")"
+}
+```
+
 Add helper functions:
 
 ```bash
@@ -494,18 +534,31 @@ _shql_TABLE_render() {
 }
 ```
 
+Also remove the old body/gap functions (D4) and add content region stubs:
+
+```bash
+# Remove: _shql_TABLE_gap_render, _shql_TABLE_body_render, _shql_TABLE_body_on_key,
+#         _shql_TABLE_body_on_focus, _shql_TABLE_body_action
+
+# Add stubs — Task 7 replaces these with the real dispatch:
+_shql_TABLE_content_render()   { :; }
+_shql_TABLE_content_on_key()   { return 1; }
+_shql_TABLE_content_on_focus() { _SHQL_BROWSER_CONTENT_FOCUSED="${1:-0}"; }
+_shql_TABLE_content_action()   { :; }
+```
+
 - [ ] **Step 4: Run tests**
 
 ```bash
 SHELLFRAME_DIR=../shellframe bash tests/run.sh --unit 2>&1 | grep -E "(browser_init|browser_sidebar|PASS|FAIL)"
 ```
-Expected: 2 new tests PASS; prior tests unaffected (old regions may warn but tests don't test rendering)
+Expected: 2 new tests PASS; prior tests unaffected (tests don't exercise the render path)
 
 - [ ] **Step 5: Commit**
 
 ```bash
 git add src/screens/table.sh tests/unit/test-table.sh
-git commit -m "feat(table): 5-region layout, browser init, sidebar width helper"
+git commit -m "feat(table): 5-region layout, browser init, sidebar width helper, content region stubs"
 ```
 
 ---
@@ -765,11 +818,11 @@ _shql_TABLE_tabbar_on_key() {
 
     case "$_key" in
         "$_k_left")
-            (( _SHQL_TAB_ACTIVE > 0 )) && (( _SHQL_TAB_ACTIVE-- ))
+            (( _SHQL_TAB_ACTIVE > 0 )) && _shql_tab_activate $(( _SHQL_TAB_ACTIVE - 1 ))
             return 0 ;;
         "$_k_right")
             local _max=$(( ${#_SHQL_TABS_TYPE[@]} - 1 ))
-            (( _SHQL_TAB_ACTIVE < _max )) && (( _SHQL_TAB_ACTIVE++ ))
+            (( _SHQL_TAB_ACTIVE < _max )) && _shql_tab_activate $(( _SHQL_TAB_ACTIVE + 1 ))
             return 0 ;;
         "$_k_down"|"$_k_enter")
             shellframe_shell_focus_set "content"
@@ -1305,14 +1358,14 @@ _shql_TABLE_content_on_key() {
     local _type
     _shql_content_type _type
 
-    # [ / ] switch tabs from content
+    # [ / ] switch tabs from content (D1: _shql_tab_activate resets inspector)
     case "$_key" in
         '[')
-            (( _SHQL_TAB_ACTIVE > 0 )) && (( _SHQL_TAB_ACTIVE-- ))
+            (( _SHQL_TAB_ACTIVE > 0 )) && _shql_tab_activate $(( _SHQL_TAB_ACTIVE - 1 ))
             return 0 ;;
         ']')
             local _max=$(( ${#_SHQL_TABS_TYPE[@]} - 1 ))
-            (( _SHQL_TAB_ACTIVE < _max )) && (( _SHQL_TAB_ACTIVE++ ))
+            (( _SHQL_TAB_ACTIVE < _max )) && _shql_tab_activate $(( _SHQL_TAB_ACTIVE + 1 ))
             return 0 ;;
     esac
 

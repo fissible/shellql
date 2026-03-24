@@ -351,4 +351,24 @@ shellframe_grid_on_key() { return 1; }   # doesn't handle ]
 _shql_TABLE_content_on_key ']'
 assert_eq 1 "$_SHQL_TAB_ACTIVE"
 
+# ── Test: footer hints ────────────────────────────────────────────────────────
+
+ptyunit_test_begin "footer_hint: sidebar focused shows sidebar hints"
+_SHQL_BROWSER_SIDEBAR_FOCUSED=1
+_SHQL_BROWSER_TABBAR_FOCUSED=0
+_SHQL_BROWSER_CONTENT_FOCUSED=0
+_SHQL_INSPECTOR_ACTIVE=0
+_shql_browser_footer_hint _hint
+assert_contains "$_hint" "Enter"
+assert_contains "$_hint" "s=Schema"
+
+ptyunit_test_begin "footer_hint: empty state shows select hint"
+_SHQL_BROWSER_SIDEBAR_FOCUSED=0
+_SHQL_BROWSER_TABBAR_FOCUSED=0
+_SHQL_BROWSER_CONTENT_FOCUSED=1
+_SHQL_TAB_ACTIVE=-1
+_SHQL_INSPECTOR_ACTIVE=0
+_shql_browser_footer_hint _hint
+assert_contains "$_hint" "select"
+
 ptyunit_test_summary

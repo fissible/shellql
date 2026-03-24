@@ -74,6 +74,17 @@ _SHQL_TABLE_FOOTER_HINTS_DATA="[↑↓] Navigate  [←→] Scroll  [Enter] Inspe
 _SHQL_TABLE_FOOTER_HINTS_STRUCTURE="[↑↓] Scroll  [Tab] Tabs  [q] Back"
 _SHQL_TABLE_FOOTER_HINTS_INSPECTOR="[↑↓] Scroll  [PgUp/PgDn] Page  [Enter/Esc/q] Close"
 
+# ── Browser footer hint strings ───────────────────────────────────────────────
+
+_SHQL_BROWSER_FOOTER_HINTS_SIDEBAR="[↑↓] Navigate  [Enter] Data  s=Schema  [→/Tab] Focus  [q] Back"
+_SHQL_BROWSER_FOOTER_HINTS_TABBAR="[←→] Switch tab  [↓/Enter] Content  [w] Close  [n] New query  [Tab] Sidebar"
+_SHQL_BROWSER_FOOTER_HINTS_DATA="[↑↓] Navigate  [←→] Scroll  [Enter] Inspect  [[/]] Tabs  [Tab] Sidebar  [q] Back"
+_SHQL_BROWSER_FOOTER_HINTS_SCHEMA="[↑↓] Scroll  [Tab] DDL/exit  [q] Back"
+# Documentation constant only — runtime hint is built dynamically by _shql_query_footer_hint
+_SHQL_BROWSER_FOOTER_HINTS_QUERY_BUTTON="[Enter] Edit  [Tab] Results  [Esc] Tab bar"
+_SHQL_BROWSER_FOOTER_HINTS_INSPECTOR="[←→] Prev/Next  [↑↓] Scroll  [Esc] Grid  [Tab] Sidebar"
+_SHQL_BROWSER_FOOTER_HINTS_EMPTY="[↑↓] select a table  [Enter] Data  [s] Schema  [n] New query  [q] Back"
+
 # ── _shql_table_load_ddl ──────────────────────────────────────────────────────
 
 _shql_table_load_ddl() {
@@ -1023,33 +1034,44 @@ _shql_table_data_footer_hint() {
         "$_first" "$_last" "$_nrows" "$_SHQL_TABLE_FOOTER_HINTS_DATA"
 }
 
+# ── _shql_browser_footer_hint ─────────────────────────────────────────────────
+#
+# Compute the correct footer hint string for the current browser focus state
+# and write it into the named out-var.
+
+_shql_browser_footer_hint() {
+    local _out_var="$1"
+    if (( _SHQL_INSPECTOR_ACTIVE )); then
+        printf -v "$_out_var" '%s' "$_SHQL_BROWSER_FOOTER_HINTS_INSPECTOR"
+    elif (( _SHQL_BROWSER_SIDEBAR_FOCUSED )); then
+        printf -v "$_out_var" '%s' "$_SHQL_BROWSER_FOOTER_HINTS_SIDEBAR"
+    elif (( _SHQL_BROWSER_TABBAR_FOCUSED )); then
+        printf -v "$_out_var" '%s' "$_SHQL_BROWSER_FOOTER_HINTS_TABBAR"
+    else
+        local _type; _shql_content_type _type
+        case "$_type" in
+            data)    printf -v "$_out_var" '%s' "$_SHQL_BROWSER_FOOTER_HINTS_DATA" ;;
+            schema)  printf -v "$_out_var" '%s' "$_SHQL_BROWSER_FOOTER_HINTS_SCHEMA" ;;
+            query)   _shql_query_footer_hint "$_out_var" ;;
+            *)       printf -v "$_out_var" '%s' "$_SHQL_BROWSER_FOOTER_HINTS_EMPTY" ;;
+        esac
+    fi
+}
+
 # ── _shql_TABLE_footer_render ─────────────────────────────────────────────────
 
 _shql_TABLE_footer_render() {
     local _top="$1" _left="$2"
     local _gray="${SHELLFRAME_GRAY:-}" _rst="${SHELLFRAME_RESET:-}"
     printf '\033[%d;%dH\033[2K' "$_top" "$_left" >/dev/tty
-    local _hint
-    if (( _SHQL_INSPECTOR_ACTIVE )); then
-        _hint="$_SHQL_TABLE_FOOTER_HINTS_INSPECTOR"
-    elif (( _SHQL_TABLE_TABBAR_FOCUSED )); then
-        _hint="$_SHQL_TABLE_FOOTER_HINTS_TABBAR"
-    else
-        local _tab="${SHELLFRAME_TABBAR_ACTIVE:-0}"
-        case "$_tab" in
-            "$_SHQL_TABLE_TAB_DATA")      _shql_table_data_footer_hint _hint ;;
-            "$_SHQL_TABLE_TAB_STRUCTURE") _hint="$_SHQL_TABLE_FOOTER_HINTS_STRUCTURE" ;;
-            "$_SHQL_TABLE_TAB_QUERY")     _shql_query_footer_hint _hint ;;
-            *)                            _hint="" ;;
-        esac
-    fi
+    local _hint; _shql_browser_footer_hint _hint
     printf '\033[%d;%dH%s%s%s' "$_top" "$_left" "$_gray" "$_hint" "$_rst" >/dev/tty
 }
 
 # ── _shql_TABLE_quit ──────────────────────────────────────────────────────────
 
 _shql_TABLE_quit() {
-    _SHELLFRAME_SHELL_NEXT="SCHEMA"
+    _SHELLFRAME_SHELL_NEXT="WELCOME"
 }
 
 # ── shql_table_init ───────────────────────────────────────────────────────────

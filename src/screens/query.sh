@@ -276,18 +276,19 @@ _shql_query_render() {
     local _editor_pane_focused=0
     [[ "$_SHQL_QUERY_FOCUSED_PANE" == "editor" ]] && _editor_pane_focused=1
 
-    local _panel_style
-    if (( _editor_pane_focused && _SHQL_QUERY_EDITOR_ACTIVE )); then
-        _panel_style="${SHQL_THEME_PANEL_STYLE_FOCUSED:-double}"
-    else
-        _panel_style="${SHQL_THEME_PANEL_STYLE:-single}"
-    fi
-    SHELLFRAME_PANEL_STYLE="$_panel_style"
+    SHELLFRAME_PANEL_STYLE="${SHQL_THEME_PANEL_STYLE_FOCUSED:-double}"
     SHELLFRAME_PANEL_TITLE="SQL Query"
     SHELLFRAME_PANEL_TITLE_ALIGN="left"
     SHELLFRAME_PANEL_FOCUSED=$_editor_pane_focused
     SHELLFRAME_PANEL_MODE="framed"
+    # Apply query accent color if theme provides one
+    if [[ -n "${SHQL_THEME_QUERY_PANEL_COLOR:-}" ]]; then
+        printf '%s' "$SHQL_THEME_QUERY_PANEL_COLOR" >/dev/tty
+    fi
     shellframe_panel_render "$_top" "$_left" "$_width" "$_editor_rows"
+    if [[ -n "${SHQL_THEME_QUERY_PANEL_COLOR:-}" ]]; then
+        printf '%s' "${SHQL_THEME_RESET:-$'\033[0m'}" >/dev/tty
+    fi
 
     local _it _il _iw _ih
     shellframe_panel_inner "$_top" "$_left" "$_width" "$_editor_rows" _it _il _iw _ih
@@ -296,6 +297,13 @@ _shql_query_render() {
     SHELLFRAME_EDITOR_CTX="$_SHQL_QUERY_EDITOR_CTX"
     if (( _editor_pane_focused && _SHQL_QUERY_EDITOR_ACTIVE )); then
         SHELLFRAME_EDITOR_FOCUSED=1
+        # Ghost effect: fill editor area with lighter bg when editing
+        if [[ -n "${SHQL_THEME_EDITOR_FOCUSED_BG:-}" ]]; then
+            local _er
+            for (( _er=0; _er<_ih; _er++ )); do
+                printf '\033[%d;%dH%s%*s' "$(( _it + _er ))" "$_il" "$SHQL_THEME_EDITOR_FOCUSED_BG" "$_iw" '' >/dev/tty
+            done
+        fi
     else
         SHELLFRAME_EDITOR_FOCUSED=0
     fi

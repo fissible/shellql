@@ -1022,7 +1022,8 @@ _shql_TABLE_content_on_key() {
     _shql_content_type _type
 
     # Esc from content → move focus to tabbar (prevent global quit)
-    if [[ "$_key" == $'\033' ]]; then
+    # Exception: query tabs handle Esc internally (typing → button, button → tabbar)
+    if [[ "$_key" == $'\033' && "$_type" != "query" ]]; then
         shellframe_shell_focus_set "tabbar"
         return 0
     fi

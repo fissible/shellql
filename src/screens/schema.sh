@@ -122,8 +122,12 @@ _shql_SCHEMA_header_render() {
 _shql_SCHEMA_sidebar_render() {
     local _top="$1" _left="$2" _width="$3" _height="$4"
 
-    # Draw panel border
-    SHELLFRAME_PANEL_STYLE="${SHQL_THEME_PANEL_STYLE:-single}"
+    # Draw panel border (double when focused, theme-default when not)
+    if (( _SHQL_SCHEMA_SIDEBAR_FOCUSED )); then
+        SHELLFRAME_PANEL_STYLE="${SHQL_THEME_PANEL_STYLE_FOCUSED:-double}"
+    else
+        SHELLFRAME_PANEL_STYLE="${SHQL_THEME_PANEL_STYLE:-single}"
+    fi
     SHELLFRAME_PANEL_TITLE="Tables"
     SHELLFRAME_PANEL_TITLE_ALIGN="left"
     SHELLFRAME_PANEL_FOCUSED=$_SHQL_SCHEMA_SIDEBAR_FOCUSED
@@ -171,8 +175,12 @@ _shql_SCHEMA_detail_render() {
         _shql_schema_load_ddl "$_cur_table"
     fi
 
-    # Draw panel border
-    SHELLFRAME_PANEL_STYLE="${SHQL_THEME_PANEL_STYLE:-single}"
+    # Draw panel border (double when focused, theme-default when not)
+    if (( _SHQL_SCHEMA_DETAIL_FOCUSED )); then
+        SHELLFRAME_PANEL_STYLE="${SHQL_THEME_PANEL_STYLE_FOCUSED:-double}"
+    else
+        SHELLFRAME_PANEL_STYLE="${SHQL_THEME_PANEL_STYLE:-single}"
+    fi
     SHELLFRAME_PANEL_TITLE="DDL"
     SHELLFRAME_PANEL_TITLE_ALIGN="left"
     SHELLFRAME_PANEL_FOCUSED=$_SHQL_SCHEMA_DETAIL_FOCUSED
@@ -185,11 +193,17 @@ _shql_SCHEMA_detail_render() {
     # Sync scroll viewport height
     shellframe_scroll_resize "$_SHQL_SCHEMA_DDL_CTX" "$_ih" 1
 
-    # Render DDL lines
+    # Render DDL lines (dim when pane is not focused)
     local _scroll_top
     shellframe_scroll_top "$_SHQL_SCHEMA_DDL_CTX" _scroll_top
     local _n=${#_SHQL_SCHEMA_DDL_LINES[@]}
     local _rst="${SHELLFRAME_RESET:-}"
+    local _dim_on="" _dim_off=""
+    if (( ! _SHQL_SCHEMA_DETAIL_FOCUSED )); then
+        _dim_on="${SHELLFRAME_DIM:-}"
+        _dim_off="$_rst"
+    fi
+    printf '%s' "$_dim_on" >/dev/tty
 
     local _r
     for (( _r=0; _r<_ih; _r++ )); do
@@ -203,6 +217,7 @@ _shql_SCHEMA_detail_render() {
         printf '\033[%d;%dH%s' "$_row" "$_il" "$_clipped" >/dev/tty
     done
 
+    printf '%s' "$_dim_off" >/dev/tty
     printf '\033[%d;%dH' "$(( _it + _ih - 1 ))" "$_il" >/dev/tty
 }
 

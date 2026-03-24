@@ -177,6 +177,13 @@ _shql_table_structure_render() {
     local _scroll_top
     shellframe_scroll_top "$_SHQL_TABLE_DDL_CTX" _scroll_top
     local _n=${#_SHQL_TABLE_DDL_LINES[@]}
+    local _rst="${SHELLFRAME_RESET:-}"
+    local _dim_on="" _dim_off=""
+    if (( ! _SHQL_TABLE_BODY_FOCUSED )); then
+        _dim_on="${SHELLFRAME_DIM:-}"
+        _dim_off="$_rst"
+    fi
+    printf '%s' "$_dim_on" >/dev/tty
     local _r
     for (( _r=0; _r<_height; _r++ )); do
         local _row=$(( _top + _r ))
@@ -188,6 +195,7 @@ _shql_table_structure_render() {
         _clipped=$(shellframe_str_clip_ellipsis "$_line" "$_line" "$_width")
         printf '\033[%d;%dH%s' "$_row" "$_left" "$_clipped" >/dev/tty
     done
+    printf '%s' "$_dim_off" >/dev/tty
 }
 
 _shql_table_structure_on_key() {

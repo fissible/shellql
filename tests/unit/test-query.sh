@@ -46,6 +46,13 @@ assert_eq 0 "$_SHQL_QUERY_INITIALIZED"
 assert_eq "editor" "$_SHQL_QUERY_FOCUSED_PANE"
 assert_eq "" "$_SHQL_QUERY_STATUS"
 
+# ── Test 1b: _shql_query_init resets EDITOR_ACTIVE to 0 ──────────────────────
+
+ptyunit_test_begin "query_init: EDITOR_ACTIVE=0 (button state)"
+_SHQL_QUERY_EDITOR_ACTIVE=1   # simulate leftover state
+_shql_query_init
+assert_eq 0 "$_SHQL_QUERY_EDITOR_ACTIVE"
+
 # ── Test 2: _shql_query_run populates grid globals ───────────────────────────
 
 ptyunit_test_begin "query_run: HAS_RESULTS=1, GRID_ROWS=3, GRID_COLS=3"
@@ -75,19 +82,31 @@ _shql_query_footer_hint _hint
 assert_contains "$_hint" "3 rows"
 assert_contains "$_hint" "[q] Back"
 
-# ── Test 6: footer hint with no status + editor pane ─────────────────────────
+# ── Test 6: footer hint — button state shows [Esc] Tab bar, no [q] Back ──────
 
-ptyunit_test_begin "footer_hint: no status + editor pane shows [Esc] Tab bar, no [q] Back"
+ptyunit_test_begin "footer_hint: button state shows [Esc] Tab bar, no [q] Back"
 _SHQL_QUERY_STATUS=""
 _SHQL_QUERY_FOCUSED_PANE="editor"
+_SHQL_QUERY_EDITOR_ACTIVE=0
 _shql_query_footer_hint _hint
 assert_contains "$_hint" "[Esc] Tab bar"
-assert_eq 0 $(echo "$_hint" | grep -c "\[q\] Back" || true)
+assert_eq 0 $(printf '%s' "$_hint" | grep -c "\[q\] Back" || true)
 
-# ── Test 7: Tab key cycles editor → results ───────────────────────────────────
+# ── Test 6b: footer hint — typing state shows [Ctrl-D] Run and [Esc] Done ────
 
-ptyunit_test_begin "on_key: Tab from editor switches to results"
+ptyunit_test_begin "footer_hint: typing state shows [Ctrl-D] Run and [Esc] Done editing"
 _SHQL_QUERY_FOCUSED_PANE="editor"
+_SHQL_QUERY_EDITOR_ACTIVE=1
+_shql_query_footer_hint _hint
+assert_contains "$_hint" "[Ctrl-D] Run"
+assert_contains "$_hint" "[Esc] Done editing"
+
+# ── Test 7: Tab key from button state → results ───────────────────────────────
+
+ptyunit_test_begin "on_key: Tab from editor button state switches to results"
+_shql_query_init
+_SHQL_QUERY_FOCUSED_PANE="editor"
+_SHQL_QUERY_EDITOR_ACTIVE=0
 _k_tab=$'\t'
 _shql_query_on_key "$_k_tab"
 assert_eq "results" "$_SHQL_QUERY_FOCUSED_PANE"
@@ -97,5 +116,36 @@ assert_eq "results" "$_SHQL_QUERY_FOCUSED_PANE"
 ptyunit_test_begin "on_key: Tab from results switches to editor"
 _shql_query_on_key "$_k_tab"
 assert_eq "editor" "$_SHQL_QUERY_FOCUSED_PANE"
+
+# ── Test 9: Enter from button state activates typing mode ─────────────────────
+
+ptyunit_test_begin "on_key: Enter from button state activates typing mode"
+_shql_query_init
+_SHQL_QUERY_FOCUSED_PANE="editor"
+_SHQL_QUERY_EDITOR_ACTIVE=0
+_shql_query_on_key $'\r'
+assert_eq 1 "$_SHQL_QUERY_EDITOR_ACTIVE"
+
+# ── Test 10: Esc from typing state returns to button state ────────────────────
+
+ptyunit_test_begin "on_key: Esc from typing state returns to button state (not tabbar)"
+_SHQL_QUERY_FOCUSED_PANE="editor"
+_SHQL_QUERY_EDITOR_ACTIVE=1
+_shql_query_on_key $'\033'
+assert_eq 0 "$_SHQL_QUERY_EDITOR_ACTIVE"
+assert_eq "editor" "$_SHQL_QUERY_FOCUSED_PANE"
+
+# ── Test 11: Ctrl-D submit focuses results and exits typing mode ──────────────
+
+ptyunit_test_begin "on_key: Ctrl-D submit (editor rc=2) → results focused, ACTIVE=0"
+_shql_query_init
+_SHQL_QUERY_FOCUSED_PANE="editor"
+_SHQL_QUERY_EDITOR_ACTIVE=1
+# Override editor stub to simulate Ctrl-D submit (rc=2)
+shellframe_editor_on_key() { SHELLFRAME_EDITOR_RESULT="SELECT 1"; return 2; }
+_shql_query_on_key $'\004'
+shellframe_editor_on_key() { return 1; }   # restore stub
+assert_eq "results" "$_SHQL_QUERY_FOCUSED_PANE"
+assert_eq 0 "$_SHQL_QUERY_EDITOR_ACTIVE"
 
 ptyunit_test_summary

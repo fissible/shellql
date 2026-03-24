@@ -11,7 +11,8 @@ _SHQL_QUERY_GRID_CTX="query_results"    # shellframe grid context name
 _SHQL_QUERY_STATUS=""                   # last status string; empty = no run yet
 _SHQL_QUERY_FOCUSED_PANE="editor"       # "editor" | "results"
 _SHQL_QUERY_HAS_RESULTS=0               # 0 = no results yet; 1 = grid populated
-_SHQL_QUERY_INITIALIZED=0              # 0 = widget inits not yet called
+_SHQL_QUERY_INITIALIZED=0               # 0 = widget inits not yet called
+_SHQL_QUERY_EDITOR_ACTIVE=0             # 0 = button state; 1 = typing state
 
 # ── _shql_query_init ──────────────────────────────────────────────────────────
 # Called from shql_table_init. Sets state to initial values only.
@@ -22,6 +23,7 @@ _shql_query_init() {
     _SHQL_QUERY_FOCUSED_PANE="editor"
     _SHQL_QUERY_HAS_RESULTS=0
     _SHQL_QUERY_INITIALIZED=0
+    _SHQL_QUERY_EDITOR_ACTIVE=0
 }
 
 # ── _shql_query_run ───────────────────────────────────────────────────────────
@@ -94,23 +96,28 @@ _shql_query_run() {
 }
 
 # ── _shql_query_footer_hint ───────────────────────────────────────────────────
-# Sets named variable _out_var to the footer hint string for the Query tab.
-# Varies by focused pane and whether a status string is set.
+# Sets named variable to the footer hint string for the current Query tab state.
 
 _shql_query_footer_hint() {
     local _out_var="$1"
-    local _run="[Ctrl-Enter/Ctrl-D] Run"
-    local _escape="[Esc] Tab bar"
-    local _quit="[q] Back"
-    local _switch="[Tab] Switch pane"
+    local _status="${_SHQL_QUERY_STATUS:-}"
 
-    local _back
-    [[ "$_SHQL_QUERY_FOCUSED_PANE" == "results" ]] && _back="$_quit" || _back="$_escape"
-
-    if [[ -n "$_SHQL_QUERY_STATUS" ]]; then
-        printf -v "$_out_var" '%s  %s  %s  %s' "$_SHQL_QUERY_STATUS" "$_run" "$_switch" "$_back"
+    if [[ "$_SHQL_QUERY_FOCUSED_PANE" == "results" ]]; then
+        if [[ -n "$_status" ]]; then
+            printf -v "$_out_var" '%s  [↑↓] Navigate  [Tab] Editor  [q] Back' "$_status"
+        else
+            printf -v "$_out_var" '%s' "[↑↓] Navigate  [Tab] Editor  [q] Back"
+        fi
+    elif (( _SHQL_QUERY_EDITOR_ACTIVE )); then
+        # Typing state
+        printf -v "$_out_var" '%s' "[Ctrl-D] Run  [Esc] Done editing"
     else
-        printf -v "$_out_var" '%s  %s  %s' "$_run" "$_switch" "$_back"
+        # Button state
+        if [[ -n "$_status" ]]; then
+            printf -v "$_out_var" '%s  [Enter] Edit  [Tab] Results  [Esc] Tab bar' "$_status"
+        else
+            printf -v "$_out_var" '%s' "[Enter] Edit  [Tab] Results  [Esc] Tab bar"
+        fi
     fi
 }
 
@@ -124,28 +131,51 @@ _shql_query_on_key() {
     local _k_tab=$'\t'
     local _k_shift_tab=$'\033[Z'
     local _k_escape=$'\033'
+    local _k_enter=$'\r'
     local _k_ctrl_d=$'\004'
-    local _k_ctrl_enter=$'\015'   # Ctrl-Enter is terminal-specific; treat same as Ctrl-D
 
     if [[ "$_SHQL_QUERY_FOCUSED_PANE" == "editor" ]]; then
+        if (( ! _SHQL_QUERY_EDITOR_ACTIVE )); then
+            # Button state: Enter activates typing; Tab switches pane; Esc exits
+            case "$_key" in
+                "$_k_enter")
+                    _SHQL_QUERY_EDITOR_ACTIVE=1
+                    return 0
+                    ;;
+                "$_k_tab"|"$_k_shift_tab")
+                    _SHQL_QUERY_FOCUSED_PANE="results"
+                    return 0
+                    ;;
+                "$_k_escape")
+                    shellframe_shell_focus_set "tabbar"
+                    return 0
+                    ;;
+            esac
+            return 1
+        fi
+
+        # Typing state: Esc returns to button state; Ctrl-D submits; else → editor
+        if [[ "$_key" == "$_k_escape" ]]; then
+            _SHQL_QUERY_EDITOR_ACTIVE=0
+            return 0
+        fi
         SHELLFRAME_EDITOR_CTX="$_SHQL_QUERY_EDITOR_CTX"
         shellframe_editor_on_key "$_key"
         local _rc=$?
         if (( _rc == 2 )); then
             # Ctrl-D submit: SHELLFRAME_EDITOR_RESULT contains the SQL
             _shql_query_run "$SHELLFRAME_EDITOR_RESULT"
+            _SHQL_QUERY_FOCUSED_PANE="results"
+            _SHQL_QUERY_EDITOR_ACTIVE=0
             return 0
         fi
         if (( _rc == 0 )); then
-            # Editor consumed the key (printable char, navigation, etc.)
             return 0
         fi
         # rc=1: editor did not handle it — check query-level bindings
-        if   [[ "$_key" == "$_k_tab" ]] || [[ "$_key" == "$_k_shift_tab" ]]; then
+        if [[ "$_key" == "$_k_tab" ]] || [[ "$_key" == "$_k_shift_tab" ]]; then
             _SHQL_QUERY_FOCUSED_PANE="results"
-            return 0
-        elif [[ "$_key" == "$_k_escape" ]]; then
-            shellframe_shell_focus_set "tabbar"
+            _SHQL_QUERY_EDITOR_ACTIVE=0
             return 0
         fi
         return 1
@@ -155,7 +185,7 @@ _shql_query_on_key() {
     if   [[ "$_key" == "$_k_tab" ]] || [[ "$_key" == "$_k_shift_tab" ]]; then
         _SHQL_QUERY_FOCUSED_PANE="editor"
         return 0
-    elif [[ "$_key" == "$_k_ctrl_d" ]] || [[ "$_key" == "$_k_ctrl_enter" ]]; then
+    elif [[ "$_key" == "$_k_ctrl_d" ]]; then
         local _sql
         shellframe_editor_get_text "$_SHQL_QUERY_EDITOR_CTX" _sql
         _shql_query_run "$_sql"
@@ -170,7 +200,9 @@ _shql_query_on_key() {
 }
 
 # ── _shql_query_render ────────────────────────────────────────────────────────
-# Renders the Query tab: editor pane / divider / results pane.
+# Renders the Query tab: editor panel / results pane.
+# The editor panel uses a box border (single in button state, double in typing
+# state) whose bottom edge acts as the visual divider between the two areas.
 # top left width height passed from _shql_TABLE_body_render.
 
 _shql_query_render() {
@@ -185,29 +217,58 @@ _shql_query_render() {
         _SHQL_QUERY_INITIALIZED=1
     fi
 
-    # Compute split
+    # Compute split (panel consumes 2 border rows from editor budget)
     local _editor_rows=$(( _height * 30 / 100 ))
-    (( _editor_rows < 3 )) && _editor_rows=3
-    local _divider_row=$(( _top + _editor_rows ))
-    local _results_top=$(( _divider_row + 1 ))
-    local _results_rows=$(( _height - _editor_rows - 1 ))
+    (( _editor_rows < 5 )) && _editor_rows=5   # min: 2 border rows + 3 inner rows
+    local _results_top=$(( _top + _editor_rows ))
+    local _results_rows=$(( _height - _editor_rows ))
     (( _results_rows < 3 )) && _results_rows=3
 
-    # Sync framework focus globals (bash 3.2-compatible)
+    # ── Editor panel ──
+    local _editor_pane_focused=0
+    [[ "$_SHQL_QUERY_FOCUSED_PANE" == "editor" ]] && _editor_pane_focused=1
+
+    local _panel_style
+    if (( _editor_pane_focused && _SHQL_QUERY_EDITOR_ACTIVE )); then
+        _panel_style="${SHQL_THEME_PANEL_STYLE_FOCUSED:-double}"
+    else
+        _panel_style="${SHQL_THEME_PANEL_STYLE:-single}"
+    fi
+    SHELLFRAME_PANEL_STYLE="$_panel_style"
+    SHELLFRAME_PANEL_TITLE="SQL Query"
+    SHELLFRAME_PANEL_TITLE_ALIGN="left"
+    SHELLFRAME_PANEL_FOCUSED=$_editor_pane_focused
+    SHELLFRAME_PANEL_MODE="framed"
+    shellframe_panel_render "$_top" "$_left" "$_width" "$_editor_rows"
+
+    local _it _il _iw _ih
+    shellframe_panel_inner "$_top" "$_left" "$_width" "$_editor_rows" _it _il _iw _ih
+
+    # Render editor content inside panel
     SHELLFRAME_EDITOR_CTX="$_SHQL_QUERY_EDITOR_CTX"
-    [[ "$_SHQL_QUERY_FOCUSED_PANE" == "editor" ]]  && SHELLFRAME_EDITOR_FOCUSED=1 || SHELLFRAME_EDITOR_FOCUSED=0
+    if (( _editor_pane_focused && _SHQL_QUERY_EDITOR_ACTIVE )); then
+        SHELLFRAME_EDITOR_FOCUSED=1
+    else
+        SHELLFRAME_EDITOR_FOCUSED=0
+    fi
+    shellframe_editor_render "$_it" "$_il" "$_iw" "$_ih"
+
+    # Button state: show placeholder hint when editor is empty
+    if (( _editor_pane_focused && ! _SHQL_QUERY_EDITOR_ACTIVE )); then
+        local _sql_text=""
+        shellframe_editor_get_text "$_SHQL_QUERY_EDITOR_CTX" _sql_text 2>/dev/null || true
+        if [[ -z "$_sql_text" ]]; then
+            local _gray="${SHELLFRAME_GRAY:-}" _rst="${SHELLFRAME_RESET:-}"
+            local _mid=$(( _it + _ih / 2 ))
+            printf '\033[%d;%dH%sPress [Enter] to type SQL%s' \
+                "$_mid" "$_il" "$_gray" "$_rst" >/dev/tty
+        fi
+    fi
+
+    # ── Results area ──
     SHELLFRAME_GRID_CTX="$_SHQL_QUERY_GRID_CTX"
-    [[ "$_SHQL_QUERY_FOCUSED_PANE" == "results" ]] && SHELLFRAME_GRID_FOCUSED=1   || SHELLFRAME_GRID_FOCUSED=0
+    [[ "$_SHQL_QUERY_FOCUSED_PANE" == "results" ]] && SHELLFRAME_GRID_FOCUSED=1 || SHELLFRAME_GRID_FOCUSED=0
 
-    # Render editor pane
-    shellframe_editor_render "$_top" "$_left" "$_width" "$_editor_rows"
-
-    # Render divider row
-    local _divider='' _i
-    for (( _i=0; _i<_width; _i++ )); do _divider+='─'; done
-    printf '\033[%d;%dH%s' "$_divider_row" "$_left" "$_divider" >/dev/tty
-
-    # Render results pane
     if (( _SHQL_QUERY_HAS_RESULTS )); then
         shellframe_grid_render "$_results_top" "$_left" "$_width" "$_results_rows"
     else
@@ -215,7 +276,7 @@ _shql_query_render() {
         for (( _r=0; _r<_results_rows; _r++ )); do
             printf '\033[%d;%dH\033[2K' "$(( _results_top + _r ))" "$_left" >/dev/tty
         done
-        local _placeholder="Run a query to see results  [Ctrl-Enter/Ctrl-D]"
+        local _placeholder="Run a query to see results  [Ctrl-D]"
         local _mid=$(( _results_top + _results_rows / 2 ))
         local _gray="${SHELLFRAME_GRAY:-}" _rst="${SHELLFRAME_RESET:-}"
         printf '\033[%d;%dH%s%s%s' "$_mid" "$_left" "$_gray" "$_placeholder" "$_rst" >/dev/tty

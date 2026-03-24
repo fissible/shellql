@@ -331,4 +331,24 @@ _shql_tab_open "users" "schema"
 _SHQL_BROWSER_CONTENT_FOCUS="schema_cols"
 assert_eq "schema_cols" "$_SHQL_BROWSER_CONTENT_FOCUS"
 
+ptyunit_test_begin "content_on_key: up at row 0 in data tab moves focus to tabbar"
+shql_table_init_browser
+_shql_tab_open "users" "data"
+_SHQL_BROWSER_CONTENT_FOCUSED=1
+shellframe_sel_cursor() { printf -v "$2" '%d' 0; }   # simulate row 0
+_saved_focus=""
+shellframe_shell_focus_set() { _saved_focus="$1"; }
+_shql_TABLE_content_on_key $'\033[A'   # up
+assert_eq "tabbar" "$_saved_focus"
+shellframe_shell_focus_set() { true; }
+
+ptyunit_test_begin "content_on_key: ] switches to next tab"
+shql_table_init_browser
+_shql_tab_open "users" "data"
+_shql_tab_open "orders" "data"
+_SHQL_TAB_ACTIVE=0
+shellframe_grid_on_key() { return 1; }   # doesn't handle ]
+_shql_TABLE_content_on_key ']'
+assert_eq 1 "$_SHQL_TAB_ACTIVE"
+
 ptyunit_test_summary

@@ -852,14 +852,147 @@ _shql_TABLE_content_render() {
     esac
 }
 
-_shql_TABLE_content_on_key()   { return 1; }
+_shql_TABLE_content_on_key() {
+    local _key="$1"
+    local _k_up="${SHELLFRAME_KEY_UP:-$'\033[A'}"
+    local _k_left="${SHELLFRAME_KEY_LEFT:-$'\033[D'}"
+
+    # Route to inspector when active
+    if (( _SHQL_INSPECTOR_ACTIVE )); then
+        _shql_inspector_on_key "$_key"
+        return $?
+    fi
+
+    local _type
+    _shql_content_type _type
+
+    # [ / ] switch tabs from content (D1: _shql_tab_activate resets inspector)
+    case "$_key" in
+        '[')
+            (( _SHQL_TAB_ACTIVE > 0 )) && _shql_tab_activate $(( _SHQL_TAB_ACTIVE - 1 ))
+            return 0 ;;
+        ']')
+            local _max=$(( ${#_SHQL_TABS_TYPE[@]} - 1 ))
+            (( _SHQL_TAB_ACTIVE < _max )) && _shql_tab_activate $(( _SHQL_TAB_ACTIVE + 1 ))
+            return 0 ;;
+    esac
+
+    case "$_type" in
+        data)
+            local _ctx="${_SHQL_TABS_CTX[$_SHQL_TAB_ACTIVE]}"
+            # ↑ at row 0 → tabbar
+            if [[ "$_key" == "$_k_up" ]]; then
+                local _cursor=0
+                shellframe_sel_cursor "${_ctx}_grid" _cursor 2>/dev/null || true
+                if (( _cursor == 0 )); then
+                    shellframe_shell_focus_set "tabbar"
+                    return 0
+                fi
+            fi
+            # ← at col 0 → sidebar
+            if [[ "$_key" == "$_k_left" ]]; then
+                local _scroll_left=0
+                shellframe_scroll_top "${_ctx}_grid" _scroll_left 2>/dev/null || true
+                if (( _scroll_left == 0 )); then
+                    shellframe_shell_focus_set "sidebar"
+                    return 0
+                fi
+            fi
+            SHELLFRAME_GRID_CTX="${_ctx}_grid"
+            shellframe_grid_on_key "$_key"
+            return $?
+            ;;
+        schema)
+            _shql_schema_tab_on_key "$_key"
+            return $?
+            ;;
+        query)
+            local _ctx="${_SHQL_TABS_CTX[$_SHQL_TAB_ACTIVE]}"
+            _shql_query_on_key_ctx "$_ctx" "$_key"
+            return $?
+            ;;
+    esac
+    return 1
+}
 
 _shql_TABLE_content_on_focus() {
     _SHQL_BROWSER_CONTENT_FOCUSED="${1:-0}"
     SHELLFRAME_GRID_FOCUSED=$_SHQL_BROWSER_CONTENT_FOCUSED
 }
 
-_shql_TABLE_content_action()   { :; }
+_shql_TABLE_content_action() {
+    local _type
+    _shql_content_type _type
+    if [[ "$_type" == "data" ]]; then
+        local _ctx="${_SHQL_TABS_CTX[$_SHQL_TAB_ACTIVE]}"
+        SHELLFRAME_GRID_CTX="${_ctx}_grid"
+        _shql_inspector_open
+    fi
+}
+
+_shql_schema_tab_on_key() {
+    local _key="$1"
+    local _k_up="${SHELLFRAME_KEY_UP:-$'\033[A'}"
+    local _k_down="${SHELLFRAME_KEY_DOWN:-$'\033[B'}"
+    local _k_tab=$'\t'
+    local _k_shift_tab=$'\033[Z'
+    (( _SHQL_TAB_ACTIVE < 0 )) && return 1
+    local _ctx="${_SHQL_TABS_CTX[$_SHQL_TAB_ACTIVE]}"
+
+    case "$_key" in
+        "$_k_up")
+            if [[ "$_SHQL_BROWSER_CONTENT_FOCUS" == "schema_cols" ]]; then
+                shellframe_scroll_move "${_ctx}_cols" up
+            else
+                shellframe_scroll_move "${_ctx}_ddl" up
+            fi
+            return 0 ;;
+        "$_k_down")
+            if [[ "$_SHQL_BROWSER_CONTENT_FOCUS" == "schema_cols" ]]; then
+                shellframe_scroll_move "${_ctx}_cols" down
+            else
+                shellframe_scroll_move "${_ctx}_ddl" down
+            fi
+            return 0 ;;
+        "$_k_tab")
+            if [[ "$_SHQL_BROWSER_CONTENT_FOCUS" == "schema_cols" ]]; then
+                _SHQL_BROWSER_CONTENT_FOCUS="schema_ddl"
+            else
+                _SHQL_BROWSER_CONTENT_FOCUS="schema_cols"
+                shellframe_shell_focus_set "sidebar"   # Tab from DDL exits
+            fi
+            return 0 ;;
+        "$_k_shift_tab")
+            if [[ "$_SHQL_BROWSER_CONTENT_FOCUS" == "schema_ddl" ]]; then
+                _SHQL_BROWSER_CONTENT_FOCUS="schema_cols"
+            else
+                shellframe_shell_focus_set "tabbar"
+            fi
+            return 0 ;;
+    esac
+    return 1
+}
+
+_shql_query_on_key_ctx() {
+    local _ctx="$1" _key="$2"
+    _SHQL_QUERY_EDITOR_CTX="${_ctx}_editor"
+    _SHQL_QUERY_GRID_CTX="${_ctx}_results"
+    local _fp="_SHQL_QUERY_CTX_FOCUSED_PANE_${_ctx}"
+    local _ea="_SHQL_QUERY_CTX_EDITOR_ACTIVE_${_ctx}"
+    local _hr="_SHQL_QUERY_CTX_HAS_RESULTS_${_ctx}"
+    local _st="_SHQL_QUERY_CTX_STATUS_${_ctx}"
+    _SHQL_QUERY_FOCUSED_PANE="${!_fp:-editor}"
+    _SHQL_QUERY_EDITOR_ACTIVE="${!_ea:-0}"
+    _SHQL_QUERY_HAS_RESULTS="${!_hr:-0}"
+    _SHQL_QUERY_STATUS="${!_st:-}"
+    _shql_query_on_key "$_key"
+    local _rc=$?
+    printf -v "_SHQL_QUERY_CTX_FOCUSED_PANE_${_ctx}"  '%s' "$_SHQL_QUERY_FOCUSED_PANE"
+    printf -v "_SHQL_QUERY_CTX_EDITOR_ACTIVE_${_ctx}" '%d' "$_SHQL_QUERY_EDITOR_ACTIVE"
+    printf -v "_SHQL_QUERY_CTX_HAS_RESULTS_${_ctx}"   '%d' "$_SHQL_QUERY_HAS_RESULTS"
+    printf -v "_SHQL_QUERY_CTX_STATUS_${_ctx}"         '%s' "$_SHQL_QUERY_STATUS"
+    return $_rc
+}
 
 # ── _shql_table_data_footer_hint ─────────────────────────────────────────────
 # Build the data-tab footer hint with a live row-range prefix.

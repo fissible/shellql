@@ -126,4 +126,34 @@ _SHQL_INSPECTOR_PAIRS=("averylongcolumnnameextra	val" "b	2")
 _shql_inspector_key_width _kw
 assert_eq "$_kw" "20" "key_width: max clamped to 20"
 
+# ── New: inline inspector state ───────────────────────────────────────────────
+
+ptyunit_test_begin "inspector_open: records row index in _SHQL_INSPECTOR_ROW_IDX"
+_setup_mock_grid
+shellframe_sel_move "test_grid" home  # cursor at row 0
+_shql_inspector_open
+assert_eq "$_SHQL_INSPECTOR_ROW_IDX" "0" "open: ROW_IDX=0 when cursor at row 0"
+
+_setup_mock_grid
+shellframe_sel_move "test_grid" down  # cursor at row 1
+_shql_inspector_open
+assert_eq "$_SHQL_INSPECTOR_ROW_IDX" "1" "open: ROW_IDX=1 when cursor at row 1"
+
+ptyunit_test_begin "inspector_navbar: format is '← VALUE  (N/Total) →'"
+_SHQL_INSPECTOR_PAIRS=("id	42" "name	Alice" "email	a@b.com")
+_SHQL_INSPECTOR_ROW_IDX=2
+_SHQL_INSPECTOR_TOTAL_ROWS=5
+_shql_inspector_nav_label _nav
+assert_contains "$_nav" "42"
+assert_contains "$_nav" "(3/5)"
+assert_contains "$_nav" "←"
+assert_contains "$_nav" "→"
+
+ptyunit_test_begin "inspector_on_key: Esc sets ACTIVE=0 and preserves ROW_IDX"
+_SHQL_INSPECTOR_ACTIVE=1
+_SHQL_INSPECTOR_ROW_IDX=3
+_shql_inspector_on_key $'\033'
+assert_eq "0" "$_SHQL_INSPECTOR_ACTIVE" "Esc: sets ACTIVE=0"
+assert_eq "3" "$_SHQL_INSPECTOR_ROW_IDX" "Esc: preserves ROW_IDX for cursor return"
+
 ptyunit_test_summary

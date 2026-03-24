@@ -367,4 +367,25 @@ shql_browser_init
 _first_char="${_SHQL_BROWSER_SIDEBAR_ITEMS[0]:0:1}"
 assert_eq "c" "$_first_char"
 
+# ── Test: theme token propagation to grid globals ────────────────────────────
+
+ptyunit_test_begin "theme_tokens: stripe and cursor propagate to grid globals"
+SHQL_THEME_ROW_STRIPE_BG=$'\033[48;5;238m'
+SHQL_THEME_CURSOR_BG=$'\033[48;5;240m'
+SHQL_THEME_CURSOR_BOLD=$'\033[1m'
+SHQL_DB_PATH="/mock/test.db"
+shql_browser_init
+_shql_tab_open "users" "data"
+_shql_content_data_ensure
+SHELLFRAME_GRID_CTX="${_SHQL_TABS_CTX[$_SHQL_TAB_ACTIVE]}_grid"
+SHELLFRAME_GRID_FOCUSED=1
+SHELLFRAME_GRID_STRIPE_BG="${SHQL_THEME_ROW_STRIPE_BG:-}"
+if [[ -n "${SHQL_THEME_CURSOR_BG:-}" ]]; then
+    SHELLFRAME_GRID_CURSOR_STYLE="${SHQL_THEME_CURSOR_BG}${SHQL_THEME_CURSOR_BOLD:-}"
+else
+    SHELLFRAME_GRID_CURSOR_STYLE=""
+fi
+assert_contains "$SHELLFRAME_GRID_STRIPE_BG" "238"
+assert_contains "$SHELLFRAME_GRID_CURSOR_STYLE" "240"
+
 ptyunit_test_summary

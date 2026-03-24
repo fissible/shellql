@@ -135,7 +135,7 @@ ptyunit_test_begin "integration: Enter in sidebar opens data tab"
 shellframe_sel_cursor() { printf -v "$2" '%d' 0; }
 _shql_TABLE_sidebar_action
 assert_eq "data" "${_SHQL_TABS_TYPE[0]:-}"
-assert_eq "users" "${_SHQL_TABS_TABLE[0]:-}"
+assert_eq "categories" "${_SHQL_TABS_TABLE[0]:-}"
 
 ptyunit_test_begin "integration: data tab content_ensure loads grid"
 _shql_content_data_ensure

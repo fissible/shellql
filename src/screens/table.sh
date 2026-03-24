@@ -485,7 +485,12 @@ _shql_TABLE_tabbar_render() {
     local _gray="${SHELLFRAME_GRAY:-}" _bold="${SHELLFRAME_BOLD:-}"
 
     # Clear only the tabbar's portion of the row (not the sidebar's border)
-    printf '\033[%d;%dH%*s' "$_top" "$_left" "$_width" '' >/dev/tty
+    if [[ -n "${SHQL_THEME_CONTENT_BG:-}" ]]; then
+        printf '\033[%d;%dH%s%*s' "$_top" "$_left" "$SHQL_THEME_CONTENT_BG" "$_width" '' >/dev/tty
+        printf '\033[%d;%dH' "$_top" "$_left" >/dev/tty
+    else
+        printf '\033[%d;%dH%*s' "$_top" "$_left" "$_width" '' >/dev/tty
+    fi
 
     local _n=${#_SHQL_TABS_LABEL[@]}
     local _col=$_left
@@ -502,11 +507,17 @@ _shql_TABLE_tabbar_render() {
         if (( _i == _SHQL_TAB_ACTIVE )); then
             _SHQL_TABBAR_ACTIVE_X0=$_col
             _SHQL_TABBAR_ACTIVE_X1=$(( _col + ${#_label} ))
-            # Active tab: normal text (blends with content below)
-            printf '\033[%d;%dH%s' "$_top" "$_col" "$_label" >/dev/tty
+            # Active tab: theme-controlled or plain text (blends with content)
+            local _tab_style="${SHQL_THEME_TAB_ACTIVE:-}"
+            if [[ -n "$_tab_style" ]]; then
+                printf '\033[%d;%dH%s%s%s' "$_top" "$_col" "$_tab_style" "$_label" "$_rst" >/dev/tty
+            else
+                printf '\033[%d;%dH%s' "$_top" "$_col" "$_label" >/dev/tty
+            fi
         else
-            # Inactive tabs: inverted (black text, white background)
-            printf '\033[%d;%dH%s%s%s' "$_top" "$_col" "$_inv" "$_label" "$_rst" >/dev/tty
+            # Inactive tabs: theme-controlled or inverted
+            local _itab_style="${SHQL_THEME_TAB_INACTIVE_BG:-${SHQL_THEME_TABBAR_BG:-$_inv}}"
+            printf '\033[%d;%dH%s%s%s' "$_top" "$_col" "$_itab_style" "$_label" "$_rst" >/dev/tty
         fi
         _col=$(( _col + ${#_label} ))
     done
@@ -522,7 +533,11 @@ _shql_TABLE_tabbar_render() {
 
     # Content border: ─ line below tabbar with gap at active tab
     local _border_row=$(( _top + 1 ))
-    printf '\033[%d;%dH%s' "$_border_row" "$_left" "$_gray" >/dev/tty
+    if [[ -n "${SHQL_THEME_CONTENT_BG:-}" ]]; then
+        printf '\033[%d;%dH%s%s' "$_border_row" "$_left" "$SHQL_THEME_CONTENT_BG" "$_gray" >/dev/tty
+    else
+        printf '\033[%d;%dH%s' "$_border_row" "$_left" "$_gray" >/dev/tty
+    fi
     local _x
     for (( _x=_left; _x < _left + _width; _x++ )); do
         if (( _SHQL_TABBAR_ACTIVE_X0 >= 0 && _x >= _SHQL_TABBAR_ACTIVE_X0 && _x < _SHQL_TABBAR_ACTIVE_X1 )); then
@@ -924,6 +939,15 @@ _shql_schema_tab_render() {
 _shql_TABLE_content_render() {
     local _top="$1" _left="$2" _width="$3" _height="$4"
 
+    # Fill content area with theme background
+    if [[ -n "${SHQL_THEME_CONTENT_BG:-}" ]]; then
+        local _r
+        for (( _r=0; _r<_height; _r++ )); do
+            printf '\033[%d;%dH%s%*s' "$(( _top + _r ))" "$_left" "$SHQL_THEME_CONTENT_BG" "$_width" '' >/dev/tty
+        done
+        printf '%s' "${SHQL_THEME_RESET:-$'\033[0m'}" >/dev/tty
+    fi
+
     local _type
     _shql_content_type _type
 
@@ -937,6 +961,12 @@ _shql_TABLE_content_render() {
             else
                 SHELLFRAME_GRID_CTX="${_SHQL_TABS_CTX[$_SHQL_TAB_ACTIVE]}_grid"
                 SHELLFRAME_GRID_FOCUSED=$_SHQL_BROWSER_CONTENT_FOCUSED
+                SHELLFRAME_GRID_STRIPE_BG="${SHQL_THEME_ROW_STRIPE_BG:-}"
+                if [[ -n "${SHQL_THEME_CURSOR_BG:-}" ]]; then
+                    SHELLFRAME_GRID_CURSOR_STYLE="${SHQL_THEME_CURSOR_BG}${SHQL_THEME_CURSOR_BOLD:-}"
+                else
+                    SHELLFRAME_GRID_CURSOR_STYLE=""
+                fi
                 _shql_grid_fill_width "$_width"
                 shellframe_grid_render "$_top" "$_left" "$_width" "$_height"
                 _shql_grid_restore_last

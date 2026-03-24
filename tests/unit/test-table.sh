@@ -257,13 +257,13 @@ _shql_TABLE_sidebar_on_key 's'
 assert_eq "schema" "${_SHQL_TABS_TYPE[0]}"
 assert_eq "users" "${_SHQL_TABS_TABLE[0]}"
 
-ptyunit_test_begin "sidebar_on_key: right arrow moves focus to content (rc=0)"
+ptyunit_test_begin "sidebar_on_key: right arrow moves focus to tabbar (rc=0)"
 _saved_focus=""
 shellframe_shell_focus_set() { _saved_focus="$1"; }
 shql_table_init_browser
 _shql_TABLE_sidebar_on_key $'\033[C'; _rc=$?
 assert_eq 0 "$_rc"
-assert_eq "content" "$_saved_focus"
+assert_eq "tabbar" "$_saved_focus"
 shellframe_shell_focus_set() { true; }   # restore
 
 ptyunit_test_begin "tabbar_labels: no tabs shows empty with +SQL hint"

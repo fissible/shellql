@@ -95,8 +95,8 @@ _shql_WELCOME_list_action() {
     else
         SHQL_DB_PATH=$(sigil get "$_ref" path 2>/dev/null)
     fi
-    shql_schema_init
-    _SHELLFRAME_SHELL_NEXT="SCHEMA"
+    shql_browser_init
+    _SHELLFRAME_SHELL_NEXT="TABLE"
 }
 
 # ── _shql_WELCOME_empty_render ────────────────────────────────────────────────

@@ -221,6 +221,14 @@ _shql_tab_open() {
 _shql_tab_activate() {
     _SHQL_TAB_ACTIVE="$1"
     _SHQL_INSPECTOR_ACTIVE=0
+    # Set content sub-focus based on tab type
+    if (( _SHQL_TAB_ACTIVE >= 0 )); then
+        case "${_SHQL_TABS_TYPE[$_SHQL_TAB_ACTIVE]}" in
+            schema) _SHQL_BROWSER_CONTENT_FOCUS="schema_cols" ;;
+            query)  _SHQL_BROWSER_CONTENT_FOCUS="query" ;;
+            *)      _SHQL_BROWSER_CONTENT_FOCUS="data" ;;
+        esac
+    fi
 }
 
 # ── _shql_tab_close ───────────────────────────────────────────────────────────
@@ -285,17 +293,21 @@ _shql_tab_fits() {
 shql_browser_init() {
     shql_table_init_browser
     _SHQL_BROWSER_TABLES=()
-    _SHQL_BROWSER_SIDEBAR_FOCUSED=0
+    _SHQL_BROWSER_SIDEBAR_FOCUSED=1
     _SHQL_BROWSER_TABBAR_FOCUSED=0
     _SHQL_BROWSER_CONTENT_FOCUSED=0
     _SHQL_BROWSER_CONTENT_FOCUS="data"
+    _SHQL_BROWSER_GRID_OWNER_CTX=""
     local _line
     while IFS= read -r _line; do
         [[ -z "$_line" ]] && continue
         _SHQL_BROWSER_TABLES+=("$_line")
     done < <(shql_db_list_tables "$SHQL_DB_PATH" 2>/dev/null)
-    local _n=${#_SHQL_BROWSER_TABLES[@]}
-    shellframe_sel_init "$_SHQL_BROWSER_SIDEBAR_CTX" "$_n"
+    SHELLFRAME_LIST_CTX="$_SHQL_BROWSER_SIDEBAR_CTX"
+    SHELLFRAME_LIST_ITEMS=("${_SHQL_BROWSER_TABLES[@]+"${_SHQL_BROWSER_TABLES[@]}"}")
+    shellframe_list_init "$_SHQL_BROWSER_SIDEBAR_CTX"
+    # Sidebar starts focused
+    shellframe_shell_focus_set "sidebar"
 }
 
 # ── _shql_browser_sidebar_width ───────────────────────────────────────────────
@@ -321,46 +333,43 @@ _shql_TABLE_sidebar_render() {
     local _it _il _iw _ih
     shellframe_panel_inner "$_top" "$_left" "$_width" "$_height" _it _il _iw _ih
 
-    local _n=${#_SHQL_BROWSER_TABLES[@]}
-    local _cursor=0
-    shellframe_sel_cursor "$_SHQL_BROWSER_SIDEBAR_CTX" _cursor 2>/dev/null || true
-
-    local _r
-    for (( _r=0; _r<_ih && _r<_n; _r++ )); do
-        local _row=$(( _it + _r ))
-        printf '\033[%d;%dH%*s' "$_row" "$_il" "$_iw" '' >/dev/tty
-        local _name="${_SHQL_BROWSER_TABLES[$_r]}"
-        local _clipped
-        _clipped=$(shellframe_str_clip_ellipsis "$_name" "$_name" "$(( _iw - 2 ))")
-        if (( _r == _cursor && _SHQL_BROWSER_SIDEBAR_FOCUSED )); then
-            printf '\033[%d;%dH▶ %s' "$_row" "$_il" "$_clipped" >/dev/tty
-        else
-            printf '\033[%d;%dH  %s' "$_row" "$_il" "$_clipped" >/dev/tty
-        fi
-    done
+    # Render list inside panel (handles scroll offset + cursor)
+    SHELLFRAME_LIST_CTX="$_SHQL_BROWSER_SIDEBAR_CTX"
+    SHELLFRAME_LIST_ITEMS=("${_SHQL_BROWSER_TABLES[@]+"${_SHQL_BROWSER_TABLES[@]}"}")
+    SHELLFRAME_LIST_FOCUSED=$_SHQL_BROWSER_SIDEBAR_FOCUSED
+    shellframe_list_render "$_it" "$_il" "$_iw" "$_ih"
 }
 
 # ── _shql_TABLE_sidebar_on_key ────────────────────────────────────────────────
 
 _shql_TABLE_sidebar_on_key() {
     local _key="$1"
-    local _k_up="${SHELLFRAME_KEY_UP:-$'\033[A'}"
-    local _k_down="${SHELLFRAME_KEY_DOWN:-$'\033[B'}"
     local _k_right="${SHELLFRAME_KEY_RIGHT:-$'\033[C'}"
     local _k_enter=$'\r'
 
     case "$_key" in
-        "$_k_up")    shellframe_sel_move "$_SHQL_BROWSER_SIDEBAR_CTX" up;   return 0 ;;
-        "$_k_down")  shellframe_sel_move "$_SHQL_BROWSER_SIDEBAR_CTX" down; return 0 ;;
-        "$_k_right") shellframe_shell_focus_set "content";  return 0 ;;
+        "$_k_right") shellframe_shell_focus_set "tabbar";  return 0 ;;
         "$_k_enter") _shql_TABLE_sidebar_action; return 0 ;;
         s)           _shql_TABLE_sidebar_action_schema; return 0 ;;
+        n)
+            local _fits=1
+            local _rows _cols; _shellframe_shell_terminal_size _rows _cols
+            local _sidebar_w; _shql_browser_sidebar_width "$_cols" _sidebar_w
+            _shql_tab_fits $(( _cols - _sidebar_w )) _fits
+            if (( _fits )); then
+                _shql_tab_open "" "query"
+                shellframe_shell_focus_set "content"
+            fi
+            return 0 ;;
     esac
-    return 1
+    # Delegate ↑/↓ and other list keys to the list widget
+    SHELLFRAME_LIST_CTX="$_SHQL_BROWSER_SIDEBAR_CTX"
+    shellframe_list_on_key "$_key"
 }
 
 _shql_TABLE_sidebar_on_focus() {
     _SHQL_BROWSER_SIDEBAR_FOCUSED="${1:-0}"
+    SHELLFRAME_LIST_FOCUSED=$_SHQL_BROWSER_SIDEBAR_FOCUSED
 }
 
 # ── _shql_TABLE_sidebar_action / sidebar_action_schema ────────────────────────
@@ -427,13 +436,13 @@ _shql_TABLE_render() {
     local _body_top=2
     local _body_h=$(( _rows - 2 ))
     (( _body_h < 2 )) && _body_h=2
-    local _content_top=3
-    local _content_h=$(( _rows - 3 ))
+    local _content_top=4
+    local _content_h=$(( _rows - 4 ))
     (( _content_h < 1 )) && _content_h=1
 
     shellframe_shell_region header   1              1              "$_cols"      1             nofocus
     shellframe_shell_region sidebar  "$_body_top"   1              "$_sidebar_w" "$_body_h"    focus
-    shellframe_shell_region tabbar   "$_body_top"   "$_right_left" "$_right_w"  1             focus
+    shellframe_shell_region tabbar   "$_body_top"   "$_right_left" "$_right_w"  2             focus
     shellframe_shell_region content  "$_content_top" "$_right_left" "$_right_w" "$_content_h" focus
     shellframe_shell_region footer   "$_rows"       1              "$_cols"      1             nofocus
 }
@@ -449,34 +458,61 @@ _shql_TABLE_header_render() {
 # ── _shql_TABLE_tabbar_render ─────────────────────────────────────────────────
 # Replaces the old static shellframe_tabbar_render call.
 
+_SHQL_BROWSER_TABBAR_ON_SQL=0  # 1 when cursor is on the +SQL button
+
 _shql_TABLE_tabbar_render() {
-    local _top="$1" _left="$2" _width="$3"
+    local _top="$1" _left="$2" _width="$3" _height="${4:-1}"
     local _inv="${SHELLFRAME_REVERSE:-}" _rst="${SHELLFRAME_RESET:-}"
     local _gray="${SHELLFRAME_GRAY:-}" _bold="${SHELLFRAME_BOLD:-}"
 
-    printf '\033[%d;%dH\033[2K' "$_top" "$_left" >/dev/tty
+    # Clear only the tabbar's portion of the row (not the sidebar's border)
+    printf '\033[%d;%dH%*s' "$_top" "$_left" "$_width" '' >/dev/tty
 
     local _n=${#_SHQL_TABS_LABEL[@]}
     local _col=$_left
+    # Track active tab pixel range for the content border gap
+    _SHQL_TABBAR_ACTIVE_X0=-1
+    _SHQL_TABBAR_ACTIVE_X1=-1
     local _i
     for (( _i=0; _i<_n; _i++ )); do
         if (( _i > 0 )); then
-            printf '\033[%d;%dH│' "$_top" "$_col" >/dev/tty
+            printf '\033[%d;%dH ' "$_top" "$_col" >/dev/tty
             (( _col++ ))
         fi
         local _label=" ${_SHQL_TABS_LABEL[$_i]} "
-        if (( _i == _SHQL_TAB_ACTIVE && _SHQL_BROWSER_TABBAR_FOCUSED == 0 )); then
-            printf '\033[%d;%dH%s%s%s' "$_top" "$_col" "$_inv" "$_label" "$_rst" >/dev/tty
-        elif (( _i == _SHQL_TAB_ACTIVE )); then
-            printf '\033[%d;%dH%s%s%s' "$_top" "$_col" "$_bold" "$_label" "$_rst" >/dev/tty
-        else
+        if (( _i == _SHQL_TAB_ACTIVE )); then
+            _SHQL_TABBAR_ACTIVE_X0=$_col
+            _SHQL_TABBAR_ACTIVE_X1=$(( _col + ${#_label} ))
+            # Active tab: normal text (blends with content below)
             printf '\033[%d;%dH%s' "$_top" "$_col" "$_label" >/dev/tty
+        else
+            # Inactive tabs: inverted (black text, white background)
+            printf '\033[%d;%dH%s%s%s' "$_top" "$_col" "$_inv" "$_label" "$_rst" >/dev/tty
         fi
         _col=$(( _col + ${#_label} ))
     done
-    # +SQL affordance
-    local _sql_hint="  ${_gray}+SQL${_rst}"
-    printf '\033[%d;%dH%s' "$_top" "$_col" "$_sql_hint" >/dev/tty
+    # +SQL button — rendered as a button (bordered), not a tab
+    (( _col += 1 ))  # 1-char gap after last tab
+    if (( _SHQL_BROWSER_TABBAR_ON_SQL )); then
+        # Focused button: bold bordered
+        printf '\033[%d;%dH%s[+SQL]%s' "$_top" "$_col" "$_bold" "$_rst" >/dev/tty
+    else
+        # Unfocused button: dim bordered
+        printf '\033[%d;%dH%s[+SQL]%s' "$_top" "$_col" "$_gray" "$_rst" >/dev/tty
+    fi
+
+    # Content border: ─ line below tabbar with gap at active tab
+    local _border_row=$(( _top + 1 ))
+    printf '\033[%d;%dH%s' "$_border_row" "$_left" "$_gray" >/dev/tty
+    local _x
+    for (( _x=_left; _x < _left + _width; _x++ )); do
+        if (( _SHQL_TABBAR_ACTIVE_X0 >= 0 && _x >= _SHQL_TABBAR_ACTIVE_X0 && _x < _SHQL_TABBAR_ACTIVE_X1 )); then
+            printf ' ' >/dev/tty
+        else
+            printf '─' >/dev/tty
+        fi
+    done
+    printf '%s' "$_rst" >/dev/tty
 }
 
 # ── _shql_TABLE_tabbar_on_key ────────────────────────────────────────────────
@@ -490,19 +526,56 @@ _shql_TABLE_tabbar_on_key() {
 
     case "$_key" in
         "$_k_left")
-            (( _SHQL_TAB_ACTIVE > 0 )) && _shql_tab_activate $(( _SHQL_TAB_ACTIVE - 1 ))
+            if (( _SHQL_BROWSER_TABBAR_ON_SQL )); then
+                # From +SQL → back to last tab (or sidebar if no tabs)
+                _SHQL_BROWSER_TABBAR_ON_SQL=0
+                if (( ${#_SHQL_TABS_TYPE[@]} == 0 )); then
+                    shellframe_shell_focus_set "sidebar"
+                fi
+            elif (( _SHQL_TAB_ACTIVE > 0 )); then
+                _shql_tab_activate $(( _SHQL_TAB_ACTIVE - 1 ))
+            else
+                # At first tab → sidebar
+                shellframe_shell_focus_set "sidebar"
+            fi
             return 0 ;;
         "$_k_right")
+            if (( _SHQL_BROWSER_TABBAR_ON_SQL )); then
+                return 0  # already at rightmost position
+            fi
             local _max=$(( ${#_SHQL_TABS_TYPE[@]} - 1 ))
-            (( _SHQL_TAB_ACTIVE < _max )) && _shql_tab_activate $(( _SHQL_TAB_ACTIVE + 1 ))
+            if (( _SHQL_TAB_ACTIVE < _max )); then
+                _shql_tab_activate $(( _SHQL_TAB_ACTIVE + 1 ))
+            else
+                # Past last tab → +SQL
+                _SHQL_BROWSER_TABBAR_ON_SQL=1
+            fi
             return 0 ;;
-        "$_k_down"|"$_k_enter")
+        "$_k_down")
+            _SHQL_BROWSER_TABBAR_ON_SQL=0
             shellframe_shell_focus_set "content"
+            return 0 ;;
+        "$_k_enter")
+            if (( _SHQL_BROWSER_TABBAR_ON_SQL )); then
+                # Enter on +SQL → new query
+                _SHQL_BROWSER_TABBAR_ON_SQL=0
+                local _fits=1
+                local _rows _cols; _shellframe_shell_terminal_size _rows _cols
+                local _sidebar_w; _shql_browser_sidebar_width "$_cols" _sidebar_w
+                _shql_tab_fits $(( _cols - _sidebar_w )) _fits
+                if (( _fits )); then
+                    _shql_tab_open "" "query"
+                    shellframe_shell_focus_set "content"
+                fi
+            else
+                shellframe_shell_focus_set "content"
+            fi
             return 0 ;;
         w)
             _shql_tab_close
             return 0 ;;
         n)
+            _SHQL_BROWSER_TABBAR_ON_SQL=0
             local _fits=1
             local _rows _cols; _shellframe_shell_terminal_size _rows _cols
             local _sidebar_w; _shql_browser_sidebar_width "$_cols" _sidebar_w
@@ -518,6 +591,9 @@ _shql_TABLE_tabbar_on_key() {
 
 _shql_TABLE_tabbar_on_focus() {
     _SHQL_BROWSER_TABBAR_FOCUSED="${1:-0}"
+    if (( ! _SHQL_BROWSER_TABBAR_FOCUSED )); then
+        _SHQL_BROWSER_TABBAR_ON_SQL=0
+    fi
 }
 
 # ── _shql_table_structure_render / on_key ─────────────────────────────────────
@@ -667,14 +743,16 @@ _shql_content_type() {
 }
 
 # ── _shql_content_data_ensure ─────────────────────────────────────────────────
-# Loads data grid for the active tab's table if it hasn't been loaded yet.
-# Uses a "loaded" sentinel stored as a variable named _SHQL_TAB_DATA_LOADED_<ctx>.
+# Loads data grid for the active tab's table into the shared grid globals.
+# Tracks which ctx currently owns the globals; reloads from sqlite on tab switch.
+_SHQL_BROWSER_GRID_OWNER_CTX=""
+
 _shql_content_data_ensure() {
     (( _SHQL_TAB_ACTIVE < 0 )) && return 0
     local _ctx="${_SHQL_TABS_CTX[$_SHQL_TAB_ACTIVE]}"
     local _table="${_SHQL_TABS_TABLE[$_SHQL_TAB_ACTIVE]}"
-    local _sentinel="_SHQL_TAB_DATA_LOADED_${_ctx}"
-    [[ "${!_sentinel:-0}" == "1" ]] && return 0
+    # Skip reload if this ctx already owns the globals
+    [[ "$_SHQL_BROWSER_GRID_OWNER_CTX" == "$_ctx" ]] && return 0
 
     SHELLFRAME_GRID_HEADERS=()
     SHELLFRAME_GRID_DATA=()
@@ -715,7 +793,7 @@ _shql_content_data_ensure() {
 
     _shql_detect_grid_align
     shellframe_grid_init "${_ctx}_grid"
-    printf -v "$_sentinel" '%s' "1"
+    _SHQL_BROWSER_GRID_OWNER_CTX="$_ctx"
 }
 
 # ── _shql_schema_tab_load ─────────────────────────────────────────────────────
@@ -834,13 +912,16 @@ _shql_TABLE_content_render() {
         data)
             # Load data for this tab's table if not already loaded
             _shql_content_data_ensure
-            SHELLFRAME_GRID_CTX="${_SHQL_TABS_CTX[$_SHQL_TAB_ACTIVE]}_grid"
-            SHELLFRAME_GRID_FOCUSED=$_SHQL_BROWSER_CONTENT_FOCUSED
-            _shql_grid_fill_width "$_width"
-            shellframe_grid_render "$_top" "$_left" "$_width" "$_height"
-            _shql_grid_restore_last
-            # Overlay inspector if active
-            (( _SHQL_INSPECTOR_ACTIVE )) && _shql_inspector_render "$_top" "$_left" "$_width" "$_height"
+            if (( _SHQL_INSPECTOR_ACTIVE )); then
+                # Render inspector directly — skip grid to avoid flash
+                _shql_inspector_render "$_top" "$_left" "$_width" "$_height"
+            else
+                SHELLFRAME_GRID_CTX="${_SHQL_TABS_CTX[$_SHQL_TAB_ACTIVE]}_grid"
+                SHELLFRAME_GRID_FOCUSED=$_SHQL_BROWSER_CONTENT_FOCUSED
+                _shql_grid_fill_width "$_width"
+                shellframe_grid_render "$_top" "$_left" "$_width" "$_height"
+                _shql_grid_restore_last
+            fi
             ;;
         schema)
             _shql_schema_tab_render "$_top" "$_left" "$_width" "$_height"
@@ -876,6 +957,12 @@ _shql_TABLE_content_on_key() {
 
     local _type
     _shql_content_type _type
+
+    # Esc from content → move focus to tabbar (prevent global quit)
+    if [[ "$_key" == $'\033' ]]; then
+        shellframe_shell_focus_set "tabbar"
+        return 0
+    fi
 
     # [ / ] switch tabs from content (D1: _shql_tab_activate resets inspector)
     case "$_key" in

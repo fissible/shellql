@@ -48,6 +48,15 @@ _SHQL_TABLE_TAB_STRUCTURE=0
 _SHQL_TABLE_TAB_DATA=1
 _SHQL_TABLE_TAB_QUERY=2
 
+# ── Browser state ─────────────────────────────────────────────────────────────
+
+_SHQL_BROWSER_TABLES=()      # loaded from db on shql_browser_init
+_SHQL_BROWSER_SIDEBAR_CTX="browser_sidebar"
+_SHQL_BROWSER_SIDEBAR_FOCUSED=0
+_SHQL_BROWSER_TABBAR_FOCUSED=0
+_SHQL_BROWSER_CONTENT_FOCUSED=0
+_SHQL_BROWSER_CONTENT_FOCUS="data"  # "data" | "schema_cols" | "schema_ddl" | "query_editor" | "query_results"
+
 # ── TTY for stderr passthrough ────────────────────────────────────────────────
 # Use /dev/tty when available (interactive terminal); fall back to /dev/null in
 # test environments where no controlling terminal exists.
@@ -260,31 +269,62 @@ _shql_tab_fits() {
     fi
 }
 
+# ── shql_browser_init ─────────────────────────────────────────────────────────
+# Load tables list and reset browser state. Call before entering TABLE screen.
+shql_browser_init() {
+    shql_table_init_browser
+    _SHQL_BROWSER_TABLES=()
+    _SHQL_BROWSER_SIDEBAR_FOCUSED=0
+    _SHQL_BROWSER_TABBAR_FOCUSED=0
+    _SHQL_BROWSER_CONTENT_FOCUSED=0
+    _SHQL_BROWSER_CONTENT_FOCUS="data"
+    local _line
+    while IFS= read -r _line; do
+        [[ -z "$_line" ]] && continue
+        _SHQL_BROWSER_TABLES+=("$_line")
+    done < <(shql_db_list_tables "$SHQL_DB_PATH" 2>/dev/null)
+    local _n=${#_SHQL_BROWSER_TABLES[@]}
+    shellframe_sel_init "$_SHQL_BROWSER_SIDEBAR_CTX" "$_n"
+}
+
+# ── _shql_browser_sidebar_width ───────────────────────────────────────────────
+_shql_browser_sidebar_width() {
+    local _cols="$1" _out_var="$2"
+    local _sbw=$(( _cols / 4 ))
+    (( _sbw < 15 )) && _sbw=15
+    (( _sbw > 30 )) && _sbw=30
+    printf -v "$_out_var" '%d' "$_sbw"
+}
+
 # ── _shql_TABLE_render ────────────────────────────────────────────────────────
 
 _shql_TABLE_render() {
     local _rows _cols
     _shellframe_shell_terminal_size _rows _cols
 
-    local _body_top=4
-    local _body_h=$(( _rows - 4 ))
-    (( _body_h < 1 )) && _body_h=1
+    local _sidebar_w
+    _shql_browser_sidebar_width "$_cols" _sidebar_w
+    local _right_w=$(( _cols - _sidebar_w ))
+    local _right_left=$(( _sidebar_w + 1 ))
 
-    shellframe_shell_region header  1            1 "$_cols" 1          nofocus
-    shellframe_shell_region tabbar  2            1 "$_cols" 1          focus
-    shellframe_shell_region gap     3            1 "$_cols" 1          nofocus
-    shellframe_shell_region body    "$_body_top" 1 "$_cols" "$_body_h" focus
-    shellframe_shell_region footer  "$_rows"     1 "$_cols" 1          nofocus
-}
+    local _body_top=2
+    local _body_h=$(( _rows - 2 ))
+    (( _body_h < 2 )) && _body_h=2
+    local _content_top=3
+    local _content_h=$(( _rows - 3 ))
+    (( _content_h < 1 )) && _content_h=1
 
-_shql_TABLE_gap_render() {
-    printf '\033[%d;%dH\033[2K' "$1" "$2" >/dev/tty
+    shellframe_shell_region header   1              1              "$_cols"      1             nofocus
+    shellframe_shell_region sidebar  "$_body_top"   1              "$_sidebar_w" "$_body_h"    focus
+    shellframe_shell_region tabbar   "$_body_top"   "$_right_left" "$_right_w"  1             focus
+    shellframe_shell_region content  "$_content_top" "$_right_left" "$_right_w" "$_content_h" focus
+    shellframe_shell_region footer   "$_rows"       1              "$_cols"      1             nofocus
 }
 
 # ── _shql_TABLE_header_render ─────────────────────────────────────────────────
 
 _shql_TABLE_header_render() {
-    _shql_header_render "$1" "$2" "$3" "$(_shql_breadcrumb "${_SHQL_TABLE_NAME:-}")"
+    _shql_header_render "$1" "$2" "$3" "$(_shql_breadcrumb "")"
 }
 
 # ── _shql_TABLE_tabbar_render / on_key / on_focus ─────────────────────────────
@@ -449,95 +489,11 @@ _shql_table_data_render() {
     _shql_grid_restore_last
 }
 
-# ── _shql_TABLE_body_render / on_key / on_focus ───────────────────────────────
-
-_shql_TABLE_body_render() {
-    local _tab="${SHELLFRAME_TABBAR_ACTIVE:-0}"
-    case "$_tab" in
-        "$_SHQL_TABLE_TAB_DATA")      _shql_table_data_render "$@" ;;
-        "$_SHQL_TABLE_TAB_QUERY")     _shql_query_render "$@" ;;
-        *)                            _shql_table_structure_render "$@" ;;
-    esac
-    # Overlay the record inspector if active
-    (( _SHQL_INSPECTOR_ACTIVE )) && _shql_inspector_render "$@"
-}
-
-_shql_TABLE_body_on_key() {
-    # Route all keys to the inspector when it is open
-    if (( _SHQL_INSPECTOR_ACTIVE )); then
-        _shql_inspector_on_key "$1"
-        return $?
-    fi
-
-    # Query tab: delegate first. The editor consumes printable chars (including
-    # [ and ]) before they reach the tab-switch logic.
-    if [[ "${SHELLFRAME_TABBAR_ACTIVE:-0}" == "$_SHQL_TABLE_TAB_QUERY" ]]; then
-        _shql_query_on_key "$1"
-        return $?
-    fi
-
-    # [ / ] switch tabs from the body for Structure and Data tabs only.
-    case "$1" in
-        '[') (( SHELLFRAME_TABBAR_ACTIVE > 0 )) && (( SHELLFRAME_TABBAR_ACTIVE-- )) || true; return 0 ;;
-        ']') (( SHELLFRAME_TABBAR_ACTIVE < _SHQL_TABLE_TAB_QUERY )) && (( SHELLFRAME_TABBAR_ACTIVE++ )) || true; return 0 ;;
-    esac
-
-    local _tab="${SHELLFRAME_TABBAR_ACTIVE:-0}"
-    local _k_up="${SHELLFRAME_KEY_UP:-$'\033[A'}"
-
-    # Up at the top of content → return focus to the tab bar.
-    if [[ "$1" == "$_k_up" ]]; then
-        local _at_top=0
-        case "$_tab" in
-            "$_SHQL_TABLE_TAB_DATA")
-                local _cursor=0
-                shellframe_sel_cursor "$_SHQL_TABLE_GRID_CTX" _cursor 2>/dev/null || true
-                (( _cursor == 0 )) && _at_top=1
-                ;;
-            "$_SHQL_TABLE_TAB_STRUCTURE")
-                local _scroll_top=0
-                shellframe_scroll_top "$_SHQL_TABLE_DDL_CTX" _scroll_top
-                (( _scroll_top == 0 )) && _at_top=1
-                ;;
-        esac
-        if (( _at_top )); then
-            shellframe_shell_focus_set "tabbar"
-            return 0
-        fi
-    fi
-
-    case "$_tab" in
-        "$_SHQL_TABLE_TAB_DATA")
-            SHELLFRAME_GRID_CTX="$_SHQL_TABLE_GRID_CTX"
-            shellframe_grid_on_key "$1"
-            return $?
-            ;;
-        "$_SHQL_TABLE_TAB_STRUCTURE")
-            _shql_table_structure_on_key "$1"
-            return $?
-            ;;
-    esac
-    return 1
-}
-
-_shql_TABLE_body_on_focus() {
-    _SHQL_TABLE_BODY_FOCUSED="${1:-0}"
-    SHELLFRAME_GRID_FOCUSED=$_SHQL_TABLE_BODY_FOCUSED
-}
-
-# ── _shql_TABLE_body_action ───────────────────────────────────────────────────
-# Called by shellframe shell when body on_key returns 2 (Enter on grid row).
-
-_shql_TABLE_body_action() {
-    local _tab="${SHELLFRAME_TABBAR_ACTIVE:-0}"
-    if [[ "$_tab" == "$_SHQL_TABLE_TAB_DATA" ]]; then
-        SHELLFRAME_GRID_CTX="$_SHQL_TABLE_GRID_CTX"
-        _shql_inspector_open
-    elif [[ "$_tab" == "$_SHQL_TABLE_TAB_QUERY" ]]; then
-        SHELLFRAME_GRID_CTX="$_SHQL_QUERY_GRID_CTX"
-        _shql_inspector_open
-    fi
-}
+# ── Content region stubs (replaced in Task 7) ─────────────────────────────────
+_shql_TABLE_content_render()   { :; }
+_shql_TABLE_content_on_key()   { return 1; }
+_shql_TABLE_content_on_focus() { _SHQL_BROWSER_CONTENT_FOCUSED="${1:-0}"; }
+_shql_TABLE_content_action()   { :; }
 
 # ── _shql_table_data_footer_hint ─────────────────────────────────────────────
 # Build the data-tab footer hint with a live row-range prefix.

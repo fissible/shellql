@@ -247,4 +247,16 @@ done
 _shql_tab_fits 40 _result
 assert_eq 0 "$_result"
 
+ptyunit_test_begin "browser_init: loads tables into _SHQL_BROWSER_TABLES"
+_SHQL_TABLE_NAME=""
+SHQL_DB_PATH="/mock/test.db"
+shql_browser_init
+assert_eq 1 $(( ${#_SHQL_BROWSER_TABLES[@]} > 0 ))
+assert_eq "users" "${_SHQL_BROWSER_TABLES[0]}"
+
+ptyunit_test_begin "browser_sidebar_width: is approx 1/4 terminal width"
+_w=""
+_shql_browser_sidebar_width 80 _w
+assert_eq 1 $(( _w >= 15 && _w <= 25 ))
+
 ptyunit_test_summary

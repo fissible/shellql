@@ -265,22 +265,53 @@ _shql_query_render() {
         fi
     fi
 
-    # ── Results area ──
+    # ── Results panel ──
+    local _results_pane_focused=0
+    [[ "$_SHQL_QUERY_FOCUSED_PANE" == "results" ]] && _results_pane_focused=1
+
+    local _results_panel_style
+    if (( _results_pane_focused && _SHQL_QUERY_HAS_RESULTS )); then
+        _results_panel_style="${SHQL_THEME_PANEL_STYLE_FOCUSED:-double}"
+    else
+        _results_panel_style="${SHQL_THEME_PANEL_STYLE:-single}"
+    fi
+    SHELLFRAME_PANEL_STYLE="$_results_panel_style"
+    SHELLFRAME_PANEL_TITLE="Results"
+    SHELLFRAME_PANEL_TITLE_ALIGN="left"
+    SHELLFRAME_PANEL_FOCUSED=$_results_pane_focused
+    SHELLFRAME_PANEL_MODE="framed"
+    shellframe_panel_render "$_results_top" "$_left" "$_width" "$_results_rows"
+
+    local _rit _ril _riw _rih
+    shellframe_panel_inner "$_results_top" "$_left" "$_width" "$_results_rows" \
+        _rit _ril _riw _rih
+
     SHELLFRAME_GRID_CTX="$_SHQL_QUERY_GRID_CTX"
-    [[ "$_SHQL_QUERY_FOCUSED_PANE" == "results" ]] && SHELLFRAME_GRID_FOCUSED=1 || SHELLFRAME_GRID_FOCUSED=0
+    SHELLFRAME_GRID_FOCUSED=$_results_pane_focused
 
     if (( _SHQL_QUERY_HAS_RESULTS )); then
-        _shql_grid_fill_width "$_width"
-        shellframe_grid_render "$_results_top" "$_left" "$_width" "$_results_rows"
+        _shql_grid_fill_width "$_riw"
+        shellframe_grid_render "$_rit" "$_ril" "$_riw" "$_rih"
         _shql_grid_restore_last
     else
+        # Empty state with instructional placeholder and examples
         local _r
-        for (( _r=0; _r<_results_rows; _r++ )); do
-            printf '\033[%d;%dH\033[2K' "$(( _results_top + _r ))" "$_left" >/dev/tty
+        for (( _r=0; _r<_rih; _r++ )); do
+            printf '\033[%d;%dH%*s' "$(( _rit + _r ))" "$_ril" "$_riw" '' >/dev/tty
         done
-        local _placeholder="Run a query to see results  [Ctrl-D]"
-        local _mid=$(( _results_top + _results_rows / 2 ))
         local _gray="${SHELLFRAME_GRAY:-}" _rst="${SHELLFRAME_RESET:-}"
-        printf '\033[%d;%dH%s%s%s' "$_mid" "$_left" "$_gray" "$_placeholder" "$_rst" >/dev/tty
+        local _tbl="${_SHQL_TABLE_NAME:-users}"
+        local _mid=$(( _rit + _rih / 2 - 2 ))
+        (( _mid < _rit )) && _mid="$_rit"
+        printf '\033[%d;%dH%sNo results yet.  Press [Enter] to type SQL, then [Ctrl-D] to run.%s' \
+            "$_mid" "$_ril" "$_gray" "$_rst" >/dev/tty
+        if (( _rih >= 5 )); then
+            printf '\033[%d;%dH%sExamples:%s' \
+                "$(( _mid + 2 ))" "$_ril" "$_gray" "$_rst" >/dev/tty
+            printf '\033[%d;%dH%s  SELECT * FROM %s LIMIT 10;%s' \
+                "$(( _mid + 3 ))" "$_ril" "$_gray" "$_tbl" "$_rst" >/dev/tty
+            printf '\033[%d;%dH%s  SELECT count(*) FROM %s;%s' \
+                "$(( _mid + 4 ))" "$_ril" "$_gray" "$_tbl" "$_rst" >/dev/tty
+        fi
     fi
 }

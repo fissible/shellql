@@ -1040,7 +1040,7 @@ _shql_TABLE_content_on_key() {
             # ← at col 0 → sidebar
             if [[ "$_key" == "$_k_left" ]]; then
                 local _scroll_left=0
-                shellframe_scroll_top "${_ctx}_grid" _scroll_left 2>/dev/null || true
+                shellframe_scroll_left "${_ctx}_grid" _scroll_left 2>/dev/null || true
                 if (( _scroll_left == 0 )); then
                     shellframe_shell_focus_set "sidebar"
                     return 0

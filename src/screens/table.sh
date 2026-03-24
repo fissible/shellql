@@ -385,6 +385,23 @@ _shql_TABLE_sidebar_action_schema() {
     shellframe_shell_focus_set "content"
 }
 
+# ── _shql_tabbar_build_line ───────────────────────────────────────────────────
+# Build the tab bar text content into out_var. No ANSI codes — used for tests.
+_shql_tabbar_build_line() {
+    local _width="$1" _out_var="$2"
+    local _n=${#_SHQL_TABS_LABEL[@]}
+    local _tbline=""
+    local _i
+    for (( _i=0; _i<_n; _i++ )); do
+        local _label=" ${_SHQL_TABS_LABEL[$_i]} "
+        if (( _i > 0 )); then _tbline+="│"; fi
+        _tbline+="$_label"
+    done
+    # Append +SQL affordance
+    if [[ -n "$_tbline" ]]; then _tbline+="  +SQL"; else _tbline="+SQL"; fi
+    printf -v "$_out_var" '%s' "$_tbline"
+}
+
 # ── _shql_TABLE_render ────────────────────────────────────────────────────────
 
 _shql_TABLE_render() {
@@ -418,29 +435,78 @@ _shql_TABLE_header_render() {
 
 # ── _shql_TABLE_tabbar_render / on_key / on_focus ─────────────────────────────
 
+# ── _shql_TABLE_tabbar_render ─────────────────────────────────────────────────
+# Replaces the old static shellframe_tabbar_render call.
+
 _shql_TABLE_tabbar_render() {
-    SHELLFRAME_TABBAR_LABELS=("Structure" "Data" "Query")
-    SHELLFRAME_TABBAR_FOCUSED=$_SHQL_TABLE_TABBAR_FOCUSED
-    SHELLFRAME_TABBAR_BG="${SHQL_THEME_TABBAR_BG:-}"
-    shellframe_tabbar_render "$@"
+    local _top="$1" _left="$2" _width="$3"
+    local _inv="${SHELLFRAME_REVERSE:-}" _rst="${SHELLFRAME_RESET:-}"
+    local _gray="${SHELLFRAME_GRAY:-}" _bold="${SHELLFRAME_BOLD:-}"
+
+    printf '\033[%d;%dH\033[2K' "$_top" "$_left" >/dev/tty
+
+    local _n=${#_SHQL_TABS_LABEL[@]}
+    local _col=$_left
+    local _i
+    for (( _i=0; _i<_n; _i++ )); do
+        if (( _i > 0 )); then
+            printf '\033[%d;%dH│' "$_top" "$_col" >/dev/tty
+            (( _col++ ))
+        fi
+        local _label=" ${_SHQL_TABS_LABEL[$_i]} "
+        if (( _i == _SHQL_TAB_ACTIVE && _SHQL_BROWSER_TABBAR_FOCUSED == 0 )); then
+            printf '\033[%d;%dH%s%s%s' "$_top" "$_col" "$_inv" "$_label" "$_rst" >/dev/tty
+        elif (( _i == _SHQL_TAB_ACTIVE )); then
+            printf '\033[%d;%dH%s%s%s' "$_top" "$_col" "$_bold" "$_label" "$_rst" >/dev/tty
+        else
+            printf '\033[%d;%dH%s' "$_top" "$_col" "$_label" >/dev/tty
+        fi
+        _col=$(( _col + ${#_label} ))
+    done
+    # +SQL affordance
+    local _sql_hint="  ${_gray}+SQL${_rst}"
+    printf '\033[%d;%dH%s' "$_top" "$_col" "$_sql_hint" >/dev/tty
 }
 
+# ── _shql_TABLE_tabbar_on_key ────────────────────────────────────────────────
+
 _shql_TABLE_tabbar_on_key() {
+    local _key="$1"
+    local _k_left="${SHELLFRAME_KEY_LEFT:-$'\033[D'}"
+    local _k_right="${SHELLFRAME_KEY_RIGHT:-$'\033[C'}"
     local _k_down="${SHELLFRAME_KEY_DOWN:-$'\033[B'}"
-    if [[ "$1" == "$_k_down" ]]; then
-        shellframe_shell_focus_set "body"
-        return 0
-    fi
-    case "$1" in
-        '[') (( SHELLFRAME_TABBAR_ACTIVE > 0 )) && (( SHELLFRAME_TABBAR_ACTIVE-- )) || true; return 0 ;;
-        ']') (( SHELLFRAME_TABBAR_ACTIVE < _SHQL_TABLE_TAB_QUERY )) && (( SHELLFRAME_TABBAR_ACTIVE++ )) || true; return 0 ;;
+    local _k_enter=$'\r'
+
+    case "$_key" in
+        "$_k_left")
+            (( _SHQL_TAB_ACTIVE > 0 )) && _shql_tab_activate $(( _SHQL_TAB_ACTIVE - 1 ))
+            return 0 ;;
+        "$_k_right")
+            local _max=$(( ${#_SHQL_TABS_TYPE[@]} - 1 ))
+            (( _SHQL_TAB_ACTIVE < _max )) && _shql_tab_activate $(( _SHQL_TAB_ACTIVE + 1 ))
+            return 0 ;;
+        "$_k_down"|"$_k_enter")
+            shellframe_shell_focus_set "content"
+            return 0 ;;
+        w)
+            _shql_tab_close
+            return 0 ;;
+        n)
+            local _fits=1
+            local _rows _cols; _shellframe_shell_terminal_size _rows _cols
+            local _sidebar_w; _shql_browser_sidebar_width "$_cols" _sidebar_w
+            _shql_tab_fits $(( _cols - _sidebar_w )) _fits
+            if (( _fits )); then
+                _shql_tab_open "" "query"
+                shellframe_shell_focus_set "content"
+            fi
+            return 0 ;;
     esac
-    shellframe_tabbar_on_key "$1"
+    return 1
 }
 
 _shql_TABLE_tabbar_on_focus() {
-    _SHQL_TABLE_TABBAR_FOCUSED="${1:-0}"
-    SHELLFRAME_TABBAR_FOCUSED=$_SHQL_TABLE_TABBAR_FOCUSED
+    _SHQL_BROWSER_TABBAR_FOCUSED="${1:-0}"
 }
 
 # ── _shql_table_structure_render / on_key ─────────────────────────────────────

@@ -287,4 +287,18 @@ assert_eq 0 "$_rc"
 assert_eq "content" "$_saved_focus"
 shellframe_shell_focus_set() { true; }   # restore
 
+ptyunit_test_begin "tabbar_labels: no tabs shows empty with +SQL hint"
+shql_table_init_browser
+_shql_tabbar_build_line 40 _line
+assert_contains "$_line" "+SQL"
+
+ptyunit_test_begin "tabbar_labels: active tab label highlighted in output"
+shql_table_init_browser
+_shql_tab_open "users" "data"
+_shql_tab_open "orders" "schema"
+_SHQL_TAB_ACTIVE=0
+_shql_tabbar_build_line 80 _line
+assert_contains "$_line" "users·Data"
+assert_contains "$_line" "orders·Schema"
+
 ptyunit_test_summary

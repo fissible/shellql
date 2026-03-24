@@ -44,6 +44,19 @@ shql_db_describe() {
         "SELECT sql FROM sqlite_master WHERE type IN ('table','view') AND name='$_safe'"
 }
 
+# ── shql_db_columns ───────────────────────────────────────────────────────────
+# shql_db_columns <db_path> <table>
+# Print column info as TSV rows (no header): name TAB type TAB flags.
+# flags is a space-separated set of PK and/or NN badges, or empty.
+
+shql_db_columns() {
+    local _db="$1" _table="$2"
+    _shql_db_check_path "$_db" || return 1
+    local _et="${_table//\'/\'\'}"
+    sqlite3 -separator $'\t' "$_db" \
+        "SELECT name, type, TRIM(CASE WHEN pk>0 THEN 'PK' ELSE '' END || CASE WHEN notnull=1 THEN ' NN' ELSE '' END) FROM pragma_table_info('$_et')"
+}
+
 # ── shql_db_fetch ─────────────────────────────────────────────────────────────
 # shql_db_fetch <db_path> <table> [limit] [offset]
 # Print TSV rows with a header row as the first line.

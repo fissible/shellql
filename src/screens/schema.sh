@@ -27,6 +27,7 @@ _SHQL_SCHEMA_DDL_CTX="schema_ddl"
 
 _SHQL_SCHEMA_TABLES=()       # table names loaded from db adapter
 _SHQL_SCHEMA_DDL_LINES=()    # DDL lines for currently shown table
+_SHQL_SCHEMA_COLUMNS=()      # column rows for currently shown table: "name\ttype\tflags"
 _SHQL_SCHEMA_PREV_TABLE=""   # detect table change → reset DDL scroll
 
 _SHQL_SCHEMA_SIDEBAR_FOCUSED=0
@@ -64,7 +65,7 @@ _shql_schema_load_tables() {
 # ── _shql_schema_load_ddl ─────────────────────────────────────────────────────
 
 # Populate _SHQL_SCHEMA_DDL_LINES for $1 (table name).
-# Resets the DDL scroll context.
+# Resets the DDL scroll context and reloads columns.
 _shql_schema_load_ddl() {
     local _table="$1"
     _SHQL_SCHEMA_DDL_LINES=()
@@ -75,6 +76,21 @@ _shql_schema_load_ddl() {
     local _n=${#_SHQL_SCHEMA_DDL_LINES[@]}
     shellframe_scroll_init "$_SHQL_SCHEMA_DDL_CTX" "$_n" 1 10 1
     _SHQL_SCHEMA_PREV_TABLE="$_table"
+    _shql_schema_load_columns "$_table"
+}
+
+# ── _shql_schema_load_columns ─────────────────────────────────────────────────
+
+# Populate _SHQL_SCHEMA_COLUMNS for $1 (table name).
+# Each element is a TSV string: name TAB type TAB flags.
+_shql_schema_load_columns() {
+    local _table="$1"
+    _SHQL_SCHEMA_COLUMNS=()
+    local _line
+    while IFS= read -r _line; do
+        [[ -z "$_line" ]] && continue
+        _SHQL_SCHEMA_COLUMNS+=("$_line")
+    done < <(shql_db_columns "$SHQL_DB_PATH" "$_table" 2>/dev/null)
 }
 
 # ── _shql_schema_current_table ────────────────────────────────────────────────
@@ -100,16 +116,22 @@ _shql_SCHEMA_render() {
 
     local _sidebar_w
     _shql_schema_sidebar_width "$_cols" _sidebar_w
-    local _detail_w=$(( _cols - _sidebar_w ))
+    local _right_w=$(( _cols - _sidebar_w ))
+    local _columns_w=$(( _right_w * 4 / 10 ))
+    (( _columns_w < 15 )) && _columns_w=15
+    (( _columns_w > _right_w - 10 )) && _columns_w=$(( _right_w - 10 ))
+    local _ddl_w=$(( _right_w - _columns_w ))
+    local _ddl_left=$(( _sidebar_w + _columns_w + 1 ))
 
     local _body_top=2
     local _body_h=$(( _rows - 2 ))
     (( _body_h < 2 )) && _body_h=2
 
-    shellframe_shell_region header   1            1             "$_cols"    1          nofocus
-    shellframe_shell_region sidebar  "$_body_top" 1             "$_sidebar_w" "$_body_h" focus
-    shellframe_shell_region detail   "$_body_top" "$(( _sidebar_w + 1 ))" "$_detail_w" "$_body_h" focus
-    shellframe_shell_region footer   "$_rows"     1             "$_cols"    1          nofocus
+    shellframe_shell_region header   1            1                       "$_cols"      1          nofocus
+    shellframe_shell_region sidebar  "$_body_top" 1                       "$_sidebar_w" "$_body_h" focus
+    shellframe_shell_region columns  "$_body_top" "$(( _sidebar_w + 1 ))" "$_columns_w" "$_body_h" nofocus
+    shellframe_shell_region detail   "$_body_top" "$_ddl_left"            "$_ddl_w"     "$_body_h" focus
+    shellframe_shell_region footer   "$_rows"     1                       "$_cols"      1          nofocus
 }
 
 # ── _shql_SCHEMA_header_render ────────────────────────────────────────────────
@@ -162,6 +184,42 @@ _shql_SCHEMA_sidebar_action() {
 _shql_SCHEMA_sidebar_on_focus() {
     _SHQL_SCHEMA_SIDEBAR_FOCUSED="${1:-0}"
     SHELLFRAME_LIST_FOCUSED=$_SHQL_SCHEMA_SIDEBAR_FOCUSED
+}
+
+# ── _shql_SCHEMA_columns_render ───────────────────────────────────────────────
+
+_shql_SCHEMA_columns_render() {
+    local _top="$1" _left="$2" _width="$3" _height="$4"
+
+    SHELLFRAME_PANEL_STYLE="${SHQL_THEME_PANEL_STYLE:-single}"
+    SHELLFRAME_PANEL_TITLE="Columns"
+    SHELLFRAME_PANEL_TITLE_ALIGN="left"
+    SHELLFRAME_PANEL_FOCUSED=0
+    shellframe_panel_render "$_top" "$_left" "$_width" "$_height"
+
+    local _it _il _iw _ih
+    shellframe_panel_inner "$_top" "$_left" "$_width" "$_height" _it _il _iw _ih
+
+    local _n="${#_SHQL_SCHEMA_COLUMNS[@]}"
+    local _r
+    for (( _r=0; _r<_ih; _r++ )); do
+        local _row=$(( _it + _r ))
+        printf '\033[%d;%dH%*s' "$_row" "$_il" "$_iw" '' >/dev/tty
+        [[ $_r -ge $_n ]] && continue
+        local _entry="${_SHQL_SCHEMA_COLUMNS[$_r]}"
+        local _cname _ctype _cflags
+        IFS=$'\t' read -r _cname _ctype _cflags <<< "$_entry"
+        local _plain
+        if [[ -n "$_cflags" ]]; then
+            _plain=$(printf '%-14s %-8s %s' "$_cname" "$_ctype" "$_cflags")
+        else
+            _plain=$(printf '%-14s %s' "$_cname" "$_ctype")
+        fi
+        local _clipped
+        _clipped=$(shellframe_str_clip_ellipsis "$_plain" "$_plain" "$_iw")
+        printf '\033[%d;%dH%s' "$_row" "$_il" "$_clipped" >/dev/tty
+    done
+    printf '\033[%d;%dH' "$(( _it + _ih - 1 ))" "$_il" >/dev/tty
 }
 
 # ── _shql_SCHEMA_detail_render ────────────────────────────────────────────────
@@ -272,6 +330,7 @@ _shql_SCHEMA_quit() {
 shql_schema_init() {
     _SHQL_SCHEMA_TABLES=()
     _SHQL_SCHEMA_DDL_LINES=()
+    _SHQL_SCHEMA_COLUMNS=()
     _SHQL_SCHEMA_PREV_TABLE=""
     _SHQL_SCHEMA_SIDEBAR_FOCUSED=0
     _SHQL_SCHEMA_DETAIL_FOCUSED=0

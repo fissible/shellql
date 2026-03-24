@@ -87,6 +87,40 @@ assert_eq "users" "$_SHQL_SCHEMA_PREV_TABLE"
 ptyunit_test_begin "load_ddl: first line contains CREATE TABLE"
 assert_contains "${_SHQL_SCHEMA_DDL_LINES[0]}" "CREATE TABLE"
 
+# ── Test: shql_db_columns mock returns columns for users ─────────────────────
+
+ptyunit_test_begin "db_columns: mock returns 15 columns for users"
+_cols_out=$(shql_db_columns "/mock/test.db" "users")
+_col_count=$(printf '%s\n' "$_cols_out" | wc -l | tr -d ' ')
+assert_eq 15 "$_col_count"
+
+ptyunit_test_begin "db_columns: first column is id with PK flag"
+_first=$(printf '%s\n' "$_cols_out" | head -1)
+assert_contains "$_first" "id"
+assert_contains "$_first" "PK"
+
+ptyunit_test_begin "db_columns: second column is name with NN flag"
+_second=$(printf '%s\n' "$_cols_out" | sed -n '2p')
+assert_contains "$_second" "name"
+assert_contains "$_second" "NN"
+
+# ── Test: _shql_schema_load_columns populates array ──────────────────────────
+
+ptyunit_test_begin "load_columns: populates _SHQL_SCHEMA_COLUMNS for users"
+_SHQL_SCHEMA_COLUMNS=()
+_shql_schema_load_columns "users"
+assert_eq 1 $(( ${#_SHQL_SCHEMA_COLUMNS[@]} > 0 ))
+
+ptyunit_test_begin "load_columns: first entry contains id and PK"
+assert_contains "${_SHQL_SCHEMA_COLUMNS[0]}" "id"
+assert_contains "${_SHQL_SCHEMA_COLUMNS[0]}" "PK"
+
+ptyunit_test_begin "load_columns: load_ddl triggers column reload"
+_SHQL_SCHEMA_COLUMNS=()
+_shql_schema_load_ddl "orders"
+assert_eq 1 $(( ${#_SHQL_SCHEMA_COLUMNS[@]} > 0 ))
+assert_contains "${_SHQL_SCHEMA_COLUMNS[0]}" "id"
+
 # ── Test: _shql_schema_sidebar_width respects minimum ────────────────────────
 
 ptyunit_test_begin "sidebar_width: respects minimum of 20"

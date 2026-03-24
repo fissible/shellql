@@ -173,6 +173,60 @@ shql_db_fetch() {
     esac
 }
 
+# shql_db_columns <db_path> <table>
+# Print column info as TSV rows: name TAB type TAB flags (no header).
+shql_db_columns() {
+    local _table="${2:-users}"
+    case "$_table" in
+        users)
+            printf '%s\t%s\t%s\n' id         INTEGER  PK
+            printf '%s\t%s\t%s\n' name        TEXT     NN
+            printf '%s\t%s\t%s\n' email       TEXT     ''
+            printf '%s\t%s\t%s\n' phone       TEXT     ''
+            printf '%s\t%s\t%s\n' role        TEXT     ''
+            printf '%s\t%s\t%s\n' status      TEXT     ''
+            printf '%s\t%s\t%s\n' city        TEXT     ''
+            printf '%s\t%s\t%s\n' country     TEXT     ''
+            printf '%s\t%s\t%s\n' plan        TEXT     ''
+            printf '%s\t%s\t%s\n' score       INTEGER  ''
+            printf '%s\t%s\t%s\n' verified    INTEGER  ''
+            printf '%s\t%s\t%s\n' last_login  TEXT     ''
+            printf '%s\t%s\t%s\n' notes       TEXT     ''
+            printf '%s\t%s\t%s\n' created_at  TEXT     ''
+            printf '%s\t%s\t%s\n' updated_at  TEXT     ''
+            ;;
+        orders)
+            printf '%s\t%s\t%s\n' id               INTEGER 'PK'
+            printf '%s\t%s\t%s\n' user_id          INTEGER ''
+            printf '%s\t%s\t%s\n' status           TEXT    ''
+            printf '%s\t%s\t%s\n' total            REAL    'NN'
+            printf '%s\t%s\t%s\n' currency         TEXT    ''
+            printf '%s\t%s\t%s\n' shipping_address TEXT    ''
+            printf '%s\t%s\t%s\n' placed_at        TEXT    ''
+            printf '%s\t%s\t%s\n' fulfilled_at     TEXT    ''
+            ;;
+        products)
+            printf '%s\t%s\t%s\n' id          INTEGER 'PK'
+            printf '%s\t%s\t%s\n' sku         TEXT    'NN'
+            printf '%s\t%s\t%s\n' name        TEXT    'NN'
+            printf '%s\t%s\t%s\n' description TEXT    ''
+            printf '%s\t%s\t%s\n' price       REAL    'NN'
+            printf '%s\t%s\t%s\n' stock       INTEGER ''
+            printf '%s\t%s\t%s\n' category_id INTEGER ''
+            printf '%s\t%s\t%s\n' created_at  TEXT    ''
+            ;;
+        categories)
+            printf '%s\t%s\t%s\n' id        INTEGER 'PK'
+            printf '%s\t%s\t%s\n' slug      TEXT    'NN'
+            printf '%s\t%s\t%s\n' label     TEXT    'NN'
+            printf '%s\t%s\t%s\n' parent_id INTEGER ''
+            ;;
+        *)
+            printf '%s\t%s\t%s\n' id INTEGER 'PK'
+            ;;
+    esac
+}
+
 # shql_db_query <db_path> <sql>
 # First line: tab-separated column headers. Subsequent lines: data rows.
 shql_db_query() {

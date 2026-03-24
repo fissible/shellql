@@ -31,6 +31,17 @@ shql_db_list_tables() {
         "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
 }
 
+# ── shql_db_list_objects ──────────────────────────────────────────────────────
+# shql_db_list_objects <db_path>
+# Print name TAB type, one per line. type is "table" or "view".
+
+shql_db_list_objects() {
+    local _db="$1"
+    _shql_db_check_path "$_db" || return 1
+    sqlite3 -separator $'\t' "$_db" \
+        "SELECT name, type FROM sqlite_master WHERE type IN ('table','view') ORDER BY type, name"
+}
+
 # ── shql_db_describe ──────────────────────────────────────────────────────────
 # shql_db_describe <db_path> <table>
 # Print DDL for <table> or view. No header row. Multi-line DDL text is printed

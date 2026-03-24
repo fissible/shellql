@@ -135,4 +135,15 @@ _w=""
 _shql_schema_sidebar_width 90 _w
 assert_eq 30 "$_w"
 
+# ── Test: shql_db_list_objects mock returns name and type ─────────────────────
+
+ptyunit_test_begin "db_list_objects: mock returns at least 4 objects"
+_objs=$(shql_db_list_objects "/mock/test.db")
+_obj_count=$(printf '%s\n' "$_objs" | wc -l | tr -d ' ')
+assert_eq 1 $(( _obj_count >= 4 ))
+
+ptyunit_test_begin "db_list_objects: first object is a table"
+_first=$(printf '%s\n' "$_objs" | head -1)
+assert_contains "$_first" "table"
+
 ptyunit_test_summary

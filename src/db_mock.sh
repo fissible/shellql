@@ -39,6 +39,16 @@ shql_db_list_tables() {
     printf '%s\n' users orders products categories
 }
 
+# shql_db_list_objects <db_path>
+# Print name TAB type (table or view).
+shql_db_list_objects() {
+    printf '%s\t%s\n' categories   table
+    printf '%s\t%s\n' orders       table
+    printf '%s\t%s\n' products     table
+    printf '%s\t%s\n' users        table
+    printf '%s\t%s\n' active_users view
+}
+
 # shql_db_describe <db_path> <table>
 shql_db_describe() {
     local _table="${2:-users}"

@@ -147,9 +147,9 @@ shellframe primitives (P1–P4)
 ## Session handoff notes
 > Update this section at the end of each session.
 
-_Last updated: 2026-03-23_
+_Last updated: 2026-03-24_
 
-**v0.3.0 released. Phases 6.1–6.6 complete. M3 milestone (ShellQL v0.1 alpha) reached — 226/226 assertions passing. ptyunit migrated to Homebrew consumer pattern.**
+**v0.3.0 released. Phases 6.1–6.6 complete. M3 milestone (ShellQL v0.1 alpha) reached. Post-release bug fixes in progress.**
 
 Completed 2026-03-22 (Phase 6.1):
 - `src/db_mock.sh` — fixture data for all adapter functions (`shql_mock_load_recent`, `shql_db_list_tables`, `shql_db_describe`, `shql_db_fetch`, `shql_db_query`)
@@ -212,4 +212,12 @@ Completed 2026-03-23 (ptyunit consumer migration):
 - `.github/workflows/ci.yml` — `bootstrap-command: bash bootstrap.sh`, `test-command: bash tests/run.sh`
 - 207/207 assertions pass (unit only; integration requires `SHELLFRAME_DIR` in env)
 
-**Next task:** PM decision — UI polish sprint or next feature.
+**Completed 2026-03-24 (shellql#11 — welcome back-nav):**
+- `src/screens/welcome.sh` — extracted `_shql_welcome_init`; `shql_welcome_run` delegates to it
+- `bin/shql` — `open`/`table`/`query-tui` dispatch blocks call `_shql_welcome_init` after `shql_conn_push`
+- `src/connections.sh` — fixed IFS whitespace collapsing in `shql_conn_load_recent`: read fields 1-4 + merged _rest, extract ref_id via `${_rest##*$'\t'}`; fixes empty SHQL_DB_PATH when last_used is absent
+- `tests/unit/test-welcome.sh` — updated stale SHQL_RECENT_FILES refs; added 2 tests for `_shql_welcome_init`
+- `tests/unit/test-connections.sh` — added regression test for the IFS collapsing bug
+- **Total: 181/181 assertions passing**
+
+**Next task:** [shellql#12](https://github.com/fissible/shellql/issues/12) — `[o]` key does nothing on welcome screen (S effort)

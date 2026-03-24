@@ -133,21 +133,26 @@ _shql_WELCOME_quit() {
     _SHELLFRAME_SHELL_NEXT="__QUIT__"
 }
 
-# ── shql_welcome_run ──────────────────────────────────────────────────────────
+# ── _shql_welcome_init ────────────────────────────────────────────────────────
+# Load recent connections and initialise the list widget.
+# Called by shql_welcome_run (welcome mode) and by open/table/query-tui dispatch
+# blocks in bin/shql so WELCOME is ready when the user navigates back from SCHEMA.
 
-shql_welcome_run() {
-    # Populate recent files (real or mock)
-    if (( SHQL_MOCK )); then
+_shql_welcome_init() {
+    if (( ${SHQL_MOCK:-0} )); then
         shql_mock_load_recent
     else
         shql_conn_load_recent
     fi
-
-    # Initialise list widget
     SHELLFRAME_LIST_CTX="$_SHQL_LIST_CTX"
     SHELLFRAME_LIST_ITEMS=("${SHQL_RECENT_NAMES[@]+"${SHQL_RECENT_NAMES[@]}"}")
     shellframe_list_init "$_SHQL_LIST_CTX"
+}
 
+# ── shql_welcome_run ──────────────────────────────────────────────────────────
+
+shql_welcome_run() {
+    _shql_welcome_init
     shellframe_shell "_shql" "WELCOME"
 
     # Caller can read SHQL_DB_PATH to know which file was selected (may be empty)

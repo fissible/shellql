@@ -87,6 +87,7 @@ case "$_SHQL_CLI_MODE" in
         SHQL_DB_PATH="$_SHQL_CLI_DB"
         if ! (( SHQL_MOCK )); then _shql_db_check_path "$SHQL_DB_PATH" || exit 1; fi
         shql_conn_push "sqlite" "$SHQL_DB_PATH"
+        _shql_welcome_init
         shql_schema_init
         shellframe_shell "_shql" "SCHEMA"
         ;;
@@ -101,6 +102,7 @@ case "$_SHQL_CLI_MODE" in
         _SHQL_TABLE_NAME="$_SHQL_CLI_TABLE"
         if ! (( SHQL_MOCK )); then _shql_db_check_path "$SHQL_DB_PATH" || exit 1; fi
         shql_conn_push "sqlite" "$SHQL_DB_PATH"
+        _shql_welcome_init
         shql_schema_init
         shql_table_init
         shellframe_shell "_shql" "TABLE"
@@ -115,6 +117,7 @@ case "$_SHQL_CLI_MODE" in
         _SHQL_TABLE_NAME=""
         if ! (( SHQL_MOCK )); then _shql_db_check_path "$SHQL_DB_PATH" || exit 1; fi
         shql_conn_push "sqlite" "$SHQL_DB_PATH"
+        _shql_welcome_init
         shql_schema_init
         shql_table_init
         SHELLFRAME_TABBAR_ACTIVE=$_SHQL_TABLE_TAB_QUERY

@@ -474,8 +474,8 @@ _shql_TABLE_render() {
     local _body_top=2
     local _body_h=$(( _rows - 2 ))
     (( _body_h < 2 )) && _body_h=2
-    local _content_top=4
-    local _content_h=$(( _rows - 4 ))
+    local _content_top=3
+    local _content_h=$(( _rows - 3 ))
     (( _content_h < 1 )) && _content_h=1
 
     # Content is only focusable when a tab is open
@@ -484,7 +484,7 @@ _shql_TABLE_render() {
 
     shellframe_shell_region header   1              1              "$_cols"      1             nofocus
     shellframe_shell_region sidebar  "$_body_top"   1              "$_sidebar_w" "$_body_h"    focus
-    shellframe_shell_region tabbar   "$_body_top"   "$_right_left" "$_right_w"  2             focus
+    shellframe_shell_region tabbar   "$_body_top"   "$_right_left" "$_right_w"  1             focus
     shellframe_shell_region content  "$_content_top" "$_right_left" "$_right_w" "$_content_h" "$_content_focus"
     shellframe_shell_region footer   "$_rows"       1              "$_cols"      1             nofocus
 }
@@ -550,33 +550,12 @@ _shql_TABLE_tabbar_render() {
     local _sql_label=" +SQL "
     local _itab_style="${SHQL_THEME_TAB_INACTIVE_BG:-${SHQL_THEME_TABBAR_BG:-$_inv}}"
     if (( _SHQL_BROWSER_TABBAR_ON_SQL )); then
-        # Focused: content bg (like active tab)
-        local _sql_style="${SHQL_THEME_CONTENT_BG:-}"
-        if [[ -n "$_sql_style" ]]; then
-            printf '\033[%d;%dH%s%s%s' "$_top" "$_col" "$_sql_style" "$_sql_label" "$_rst" >/dev/tty
-        else
-            printf '\033[%d;%dH%s%s%s' "$_top" "$_col" "$_bold" "$_sql_label" "$_rst" >/dev/tty
-        fi
+        # Focused: purple text on inactive tab bg
+        local _focus_color="${SHQL_THEME_QUERY_PANEL_COLOR:-$_bold}"
+        printf '\033[%d;%dH%s%s%s%s' "$_top" "$_col" "$_itab_style" "$_focus_color" "$_sql_label" "$_rst" >/dev/tty
     else
         printf '\033[%d;%dH%s%s%s' "$_top" "$_col" "$_itab_style" "$_sql_label" "$_rst" >/dev/tty
     fi
-
-    # Content border: ─ line below tabbar with gap at active tab
-    local _border_row=$(( _top + 1 ))
-    if [[ -n "${SHQL_THEME_CONTENT_BG:-}" ]]; then
-        printf '\033[%d;%dH%s%s' "$_border_row" "$_left" "$SHQL_THEME_CONTENT_BG" "$_gray" >/dev/tty
-    else
-        printf '\033[%d;%dH%s' "$_border_row" "$_left" "$_gray" >/dev/tty
-    fi
-    local _x
-    for (( _x=_left; _x < _left + _width; _x++ )); do
-        if (( _SHQL_TABBAR_ACTIVE_X0 >= 0 && _x >= _SHQL_TABBAR_ACTIVE_X0 && _x < _SHQL_TABBAR_ACTIVE_X1 )); then
-            printf ' ' >/dev/tty
-        else
-            printf '─' >/dev/tty
-        fi
-    done
-    printf '%s' "$_rst" >/dev/tty
 }
 
 # ── _shql_TABLE_tabbar_on_key ────────────────────────────────────────────────

@@ -476,27 +476,14 @@ _shql_TABLE_render() {
     local _rows _cols
     _shellframe_shell_terminal_size _rows _cols
 
-    # Viewport padding: 1-row/1-col buffer when >= 50x50
-    local _pad_top=0 _pad_left=0 _pad_bottom=0 _pad_right=0
-    if (( _rows >= 50 && _cols >= 50 )); then
-        _pad_top=1; _pad_left=1; _pad_bottom=1; _pad_right=1
-    fi
-
-    local _area_top=$(( 1 + _pad_top ))
-    local _area_left=$(( 1 + _pad_left ))
-    local _area_w=$(( _cols - _pad_left - _pad_right ))
-    local _area_h=$(( _rows - _pad_top - _pad_bottom ))
-    (( _area_w < 20 )) && _area_w=20
-    (( _area_h < 6 )) && _area_h=6
-
     local _sidebar_w
-    _shql_browser_sidebar_width "$_area_w" _sidebar_w
-    local _right_left=$(( _area_left + _sidebar_w ))
-    local _right_w=$(( _area_w - _sidebar_w ))
+    _shql_browser_sidebar_width "$_cols" _sidebar_w
+    local _right_left=$(( _sidebar_w + 1 ))
+    local _right_w=$(( _cols - _sidebar_w ))
 
-    local _header_top=$_area_top
-    local _body_top=$(( _area_top + 1 ))
-    local _footer_top=$(( _area_top + _area_h - 2 ))  # 2 rows for footer (status + hints)
+    local _header_top=1
+    local _body_top=2
+    local _footer_top=$(( _rows - 1 ))  # 2 rows for footer (status + hints)
     local _body_h=$(( _footer_top - _body_top ))
     (( _body_h < 2 )) && _body_h=2
     local _content_top=$(( _body_top + 2 ))
@@ -507,17 +494,17 @@ _shql_TABLE_render() {
     local _content_focus="nofocus"
     (( _SHQL_TAB_ACTIVE >= 0 )) && _content_focus="focus"
 
-    shellframe_shell_region header   "$_header_top"  "$_area_left"  "$_area_w"   1             nofocus
-    shellframe_shell_region sidebar  "$_body_top"    "$_area_left"  "$_sidebar_w" "$_body_h"   focus
-    shellframe_shell_region tabbar   "$_body_top"    "$_right_left" "$_right_w"  1             focus
-    shellframe_shell_region content  "$_content_top" "$_right_left" "$_right_w"  "$_content_h" "$_content_focus"
-    shellframe_shell_region footer   "$_footer_top"  "$_area_left"  "$_area_w"   2             nofocus
+    shellframe_shell_region header   1              1              "$_cols"      1             nofocus
+    shellframe_shell_region sidebar  "$_body_top"   1              "$_sidebar_w" "$_body_h"    focus
+    shellframe_shell_region tabbar   "$_body_top"   "$_right_left" "$_right_w"  1             focus
+    shellframe_shell_region content  "$_content_top" "$_right_left" "$_right_w" "$_content_h" "$_content_focus"
+    shellframe_shell_region footer   "$_footer_top" 1              "$_cols"      2             nofocus
 }
 
 # ── _shql_TABLE_header_render ─────────────────────────────────────────────────
 
 _shql_TABLE_header_render() {
-    _shql_header_render "$1" "$2" "$3" "$(_shql_breadcrumb "")"
+    _shql_header_render "$1" "$2" "$3" "ShellQL"
 }
 
 # ── _shql_TABLE_tabbar_render / on_key / on_focus ─────────────────────────────
@@ -1281,9 +1268,10 @@ _shql_TABLE_footer_render() {
 
     # Row 1: Status bar — connection info (left) + query timing (right)
     printf '\033[%d;%dH%*s' "$_top" "$_left" "$_width" '' >/dev/tty
-    local _db_name
-    _db_name="$(basename "${SHQL_DB_PATH:-}" 2>/dev/null)"
-    local _conn_info="Connected to ${_db_name:-<none>}"
+    local _host="${SHQL_DB_HOST:-localhost}"
+    local _db_file
+    _db_file="$(basename "${SHQL_DB_PATH:-}" 2>/dev/null)"
+    local _conn_info="${_host} // ${_db_file:-<none>}"
     printf '\033[%d;%dH%s%s%s' "$_top" "$_left" "$_gray" "$_conn_info" "$_rst" >/dev/tty
     # Right side: time + query status
     local _time_str

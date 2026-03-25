@@ -13,6 +13,7 @@ _SHQL_QUERY_FOCUSED_PANE="editor"       # "editor" | "results"
 _SHQL_QUERY_HAS_RESULTS=0               # 0 = no results yet; 1 = grid populated
 _SHQL_QUERY_INITIALIZED=0               # 0 = widget inits not yet called
 _SHQL_QUERY_EDITOR_ACTIVE=0             # 0 = button state; 1 = typing state
+_SHQL_QUERY_ERROR=""                    # non-empty = error message to display
 _SHQL_QUERY_PLACEHOLDER="No results yet"
 
 # ── _shql_query_init ──────────────────────────────────────────────────────────
@@ -25,6 +26,7 @@ _shql_query_init() {
     _SHQL_QUERY_HAS_RESULTS=0
     _SHQL_QUERY_INITIALIZED=0
     _SHQL_QUERY_EDITOR_ACTIVE=0
+    _SHQL_QUERY_ERROR=""
 }
 
 # ── _shql_query_init_ctx ──────────────────────────────────────────────────────
@@ -36,6 +38,7 @@ _shql_query_init_ctx() {
     printf -v "_SHQL_QUERY_CTX_STATUS_${_ctx}"         '%s' ""
     printf -v "_SHQL_QUERY_CTX_EDITOR_ACTIVE_${_ctx}" '%d' 0
     printf -v "_SHQL_QUERY_CTX_HAS_RESULTS_${_ctx}"   '%d' 0
+    printf -v "_SHQL_QUERY_CTX_ERROR_${_ctx}"          '%s' ""
 }
 
 # ── _shql_query_render_ctx ────────────────────────────────────────────────────
@@ -56,11 +59,13 @@ _shql_query_render_ctx() {
     local _hr_var="_SHQL_QUERY_CTX_HAS_RESULTS_${_ctx}"
     local _st_var="_SHQL_QUERY_CTX_STATUS_${_ctx}"
     local _ini_var="_SHQL_QUERY_CTX_INITIALIZED_${_ctx}"
+    local _err_var="_SHQL_QUERY_CTX_ERROR_${_ctx}"
     _SHQL_QUERY_FOCUSED_PANE="${!_fp_var:-editor}"
     _SHQL_QUERY_EDITOR_ACTIVE="${!_ea_var:-0}"
     _SHQL_QUERY_HAS_RESULTS="${!_hr_var:-0}"
     _SHQL_QUERY_STATUS="${!_st_var:-}"
     _SHQL_QUERY_INITIALIZED="${!_ini_var:-0}"
+    _SHQL_QUERY_ERROR="${!_err_var:-}"
 
     _shql_query_render "$@"
 
@@ -69,6 +74,7 @@ _shql_query_render_ctx() {
     printf -v "_SHQL_QUERY_CTX_EDITOR_ACTIVE_${_ctx}" '%d' "$_SHQL_QUERY_EDITOR_ACTIVE"
     printf -v "_SHQL_QUERY_CTX_HAS_RESULTS_${_ctx}"   '%d' "$_SHQL_QUERY_HAS_RESULTS"
     printf -v "_SHQL_QUERY_CTX_STATUS_${_ctx}"         '%s' "$_SHQL_QUERY_STATUS"
+    printf -v "_SHQL_QUERY_CTX_ERROR_${_ctx}"          '%s' "$_SHQL_QUERY_ERROR"
     printf -v "_SHQL_QUERY_CTX_INITIALIZED_${_ctx}"   '%d' "$_SHQL_QUERY_INITIALIZED"
 }
 
@@ -85,10 +91,13 @@ _shql_query_run() {
     local _rc=$?
 
     if (( _rc != 0 )); then
-        _SHQL_QUERY_STATUS="ERROR: $(head -1 "$_tmpfile")"
+        _SHQL_QUERY_ERROR="$(cat "$_tmpfile" 2>/dev/null)"
+        _SHQL_QUERY_STATUS="ERROR"
+        _SHQL_QUERY_HAS_RESULTS=0
         rm -f "$_tmpfile"
         return 0
     fi
+    _SHQL_QUERY_ERROR=""
 
     local _warning=""
     [[ -s "$_tmpfile" ]] && _warning="$(head -1 "$_tmpfile")"
@@ -149,6 +158,13 @@ _shql_query_run() {
 _shql_query_footer_hint() {
     local _out_var="$1"
     local _status="${_SHQL_QUERY_STATUS:-}"
+
+    if [[ -n "$_SHQL_QUERY_ERROR" ]]; then
+        local _err_short="${_SHQL_QUERY_ERROR%%$'\n'*}"
+        local _err_clipped="${_err_short:0:60}"
+        printf -v "$_out_var" 'ERROR: %s  [Tab] Editor' "$_err_clipped"
+        return 0
+    fi
 
     if [[ "$_SHQL_QUERY_FOCUSED_PANE" == "results" ]]; then
         if [[ -n "$_status" ]]; then
@@ -385,7 +401,41 @@ _shql_query_render() {
         SHELLFRAME_GRID_CURSOR_STYLE=""
     fi
 
-    if (( _SHQL_QUERY_HAS_RESULTS )); then
+    if [[ -n "$_SHQL_QUERY_ERROR" ]]; then
+        # Error page — styled error display
+        local _rbg="${SHQL_THEME_EDITOR_FOCUSED_BG:-${SHQL_THEME_CONTENT_BG:-}}"
+        local _err_color=$'\033[38;5;196m'   # bright red
+        local _err_dim=$'\033[38;5;174m'     # muted red/pink for detail text
+        local _rst_bg="${_rst}${_rbg}"
+        local _r
+        for (( _r=0; _r<_rih; _r++ )); do
+            printf '\033[%d;%dH%s%*s' "$(( _rit + _r ))" "$_ril" "$_rbg" "$_riw" '' >/dev/tty
+        done
+        # Error header
+        local _err_title="  ERROR"
+        local _err_row=$(( _rit + 1 ))
+        (( _err_row >= _rit + _rih )) && _err_row=$_rit
+        printf '\033[%d;%dH%s%s%s%s' "$_err_row" "$(( _ril + 1 ))" "$_rbg" "$_err_color" "$_err_title" "$_rst_bg" >/dev/tty
+        # Separator
+        local _sep_row=$(( _err_row + 1 ))
+        if (( _sep_row < _rit + _rih )); then
+            printf '\033[%d;%dH%s%s' "$_sep_row" "$(( _ril + 1 ))" "${SHELLFRAME_GRAY:-}" \
+                "$(printf '─%.0s' $(seq 1 $(( _riw - 2 ))))" >/dev/tty
+            printf '%s' "$_rst_bg" >/dev/tty
+        fi
+        # Error detail lines
+        local _detail_top=$(( _sep_row + 1 ))
+        local _line_num=0
+        while IFS= read -r _err_line; do
+            [[ -z "$_err_line" ]] && continue
+            local _draw_row=$(( _detail_top + _line_num ))
+            (( _draw_row >= _rit + _rih - 1 )) && break
+            local _eclipped
+            _eclipped=$(shellframe_str_clip_ellipsis "$_err_line" "$_err_line" "$(( _riw - 4 ))")
+            printf '\033[%d;%dH%s%s%s%s' "$_draw_row" "$(( _ril + 2 ))" "$_rbg" "$_err_dim" "$_eclipped" "$_rst_bg" >/dev/tty
+            (( _line_num++ ))
+        done <<< "$_SHQL_QUERY_ERROR"
+    elif (( _SHQL_QUERY_HAS_RESULTS )); then
         _shql_grid_fill_width "$_riw"
         shellframe_grid_render "$_rit" "$_ril" "$_riw" "$_rih"
         _shql_grid_restore_last
@@ -396,7 +446,7 @@ _shql_query_render() {
         for (( _r=0; _r<_rih; _r++ )); do
             printf '\033[%d;%dH%s%*s' "$(( _rit + _r ))" "$_ril" "$_rbg" "$_riw" '' >/dev/tty
         done
-        local _gray="${SHELLFRAME_GRAY:-}" _rst="${SHELLFRAME_RESET:-}"
+        local _gray="${SHELLFRAME_GRAY:-}"
         local _mid=$(( _rit + _rih / 2 ))
         (( _mid < _rit )) && _mid="$_rit"
         local _plen=${#_SHQL_QUERY_PLACEHOLDER}

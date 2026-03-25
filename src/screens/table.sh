@@ -357,15 +357,24 @@ _shql_TABLE_sidebar_render() {
 
     SHELLFRAME_LIST_BG="${SHQL_THEME_SIDEBAR_BG:-}"
 
+    # "Relations" header
+    local _hdr_text="Relations"
+    local _hdr_color="${SHELLFRAME_GRAY:-}"
+    local _rst="${SHELLFRAME_RESET:-$'\033[0m'}"
+    printf '\033[%d;%dH%s%s%s%s' "$_top" "$(( _left + 1 ))" "${SHQL_THEME_SIDEBAR_BG:-}" "$_hdr_color" "$_hdr_text" "$_rst" >/dev/tty
+    local _list_top=$(( _top + 1 ))
+    local _list_h=$(( _height - 1 ))
+    (( _list_h < 1 )) && _list_h=1
+
     if [[ "${SHQL_THEME_SIDEBAR_BORDER:-}" == "none" ]]; then
-        # No panel border — render list directly in the full region
+        # No panel border — render list directly below header
         SHELLFRAME_LIST_CTX="$_SHQL_BROWSER_SIDEBAR_CTX"
         SHELLFRAME_LIST_ITEMS=("${_SHQL_BROWSER_SIDEBAR_ITEMS[@]+"${_SHQL_BROWSER_SIDEBAR_ITEMS[@]}"}")
         SHELLFRAME_LIST_FOCUSED=$_SHQL_BROWSER_SIDEBAR_FOCUSED
-        shellframe_list_render "$_top" "$_left" "$_width" "$_height"
+        shellframe_list_render "$_list_top" "$_left" "$_width" "$_list_h"
     else
         SHELLFRAME_PANEL_STYLE="${SHQL_THEME_PANEL_STYLE:-single}"
-        SHELLFRAME_PANEL_TITLE="Tables"
+        SHELLFRAME_PANEL_TITLE="Relations"
         SHELLFRAME_PANEL_TITLE_ALIGN="left"
         SHELLFRAME_PANEL_FOCUSED=$_SHQL_BROWSER_SIDEBAR_FOCUSED
         shellframe_panel_render "$_top" "$_left" "$_width" "$_height"

@@ -466,27 +466,42 @@ _shql_TABLE_render() {
     local _rows _cols
     _shellframe_shell_terminal_size _rows _cols
 
-    local _sidebar_w
-    _shql_browser_sidebar_width "$_cols" _sidebar_w
-    local _right_w=$(( _cols - _sidebar_w ))
-    local _right_left=$(( _sidebar_w + 1 ))
+    # Viewport padding: 1-row/1-col buffer when >= 50x50
+    local _pad_top=0 _pad_left=0 _pad_bottom=0 _pad_right=0
+    if (( _rows >= 50 && _cols >= 50 )); then
+        _pad_top=1; _pad_left=1; _pad_bottom=1; _pad_right=1
+    fi
 
-    local _body_top=2
-    local _body_h=$(( _rows - 2 ))
+    local _area_top=$(( 1 + _pad_top ))
+    local _area_left=$(( 1 + _pad_left ))
+    local _area_w=$(( _cols - _pad_left - _pad_right ))
+    local _area_h=$(( _rows - _pad_top - _pad_bottom ))
+    (( _area_w < 20 )) && _area_w=20
+    (( _area_h < 6 )) && _area_h=6
+
+    local _sidebar_w
+    _shql_browser_sidebar_width "$_area_w" _sidebar_w
+    local _right_left=$(( _area_left + _sidebar_w ))
+    local _right_w=$(( _area_w - _sidebar_w ))
+
+    local _header_top=$_area_top
+    local _body_top=$(( _area_top + 1 ))
+    local _footer_top=$(( _area_top + _area_h - 1 ))
+    local _body_h=$(( _footer_top - _body_top ))
     (( _body_h < 2 )) && _body_h=2
-    local _content_top=4
-    local _content_h=$(( _rows - 4 ))
+    local _content_top=$(( _body_top + 2 ))
+    local _content_h=$(( _footer_top - _content_top ))
     (( _content_h < 1 )) && _content_h=1
 
     # Content is only focusable when a tab is open
     local _content_focus="nofocus"
     (( _SHQL_TAB_ACTIVE >= 0 )) && _content_focus="focus"
 
-    shellframe_shell_region header   1              1              "$_cols"      1             nofocus
-    shellframe_shell_region sidebar  "$_body_top"   1              "$_sidebar_w" "$_body_h"    focus
-    shellframe_shell_region tabbar   "$_body_top"   "$_right_left" "$_right_w"  1             focus
-    shellframe_shell_region content  "$_content_top" "$_right_left" "$_right_w" "$_content_h" "$_content_focus"
-    shellframe_shell_region footer   "$_rows"       1              "$_cols"      1             nofocus
+    shellframe_shell_region header   "$_header_top"  "$_area_left"  "$_area_w"   1             nofocus
+    shellframe_shell_region sidebar  "$_body_top"    "$_area_left"  "$_sidebar_w" "$_body_h"   focus
+    shellframe_shell_region tabbar   "$_body_top"    "$_right_left" "$_right_w"  1             focus
+    shellframe_shell_region content  "$_content_top" "$_right_left" "$_right_w"  "$_content_h" "$_content_focus"
+    shellframe_shell_region footer   "$_footer_top"  "$_area_left"  "$_area_w"   1             nofocus
 }
 
 # ── _shql_TABLE_header_render ─────────────────────────────────────────────────

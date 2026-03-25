@@ -238,8 +238,8 @@ _shql_query_on_key() {
             # Ctrl-D submit: SHELLFRAME_EDITOR_RESULT contains the SQL
             _shql_query_run "$SHELLFRAME_EDITOR_RESULT"
             if [[ -n "$_SHQL_QUERY_ERROR" ]]; then
-                # Error: stay in editor so user can fix the SQL
-                _SHQL_QUERY_EDITOR_ACTIVE=0
+                # Error: stay in typing mode so user can fix immediately
+                _SHQL_QUERY_EDITOR_ACTIVE=1
             else
                 _SHQL_QUERY_FOCUSED_PANE="results"
                 _SHQL_QUERY_EDITOR_ACTIVE=0
@@ -268,6 +268,7 @@ _shql_query_on_key() {
         _shql_query_run "$_sql"
         if [[ -n "$_SHQL_QUERY_ERROR" ]]; then
             _SHQL_QUERY_FOCUSED_PANE="editor"
+            _SHQL_QUERY_EDITOR_ACTIVE=1
         fi
         return 0
     elif [[ "$_key" == "$_k_escape" || "$_key" == "q" ]]; then
@@ -366,8 +367,12 @@ _shql_query_render() {
         shellframe_editor_get_text "$_SHQL_QUERY_EDITOR_CTX" _sql_text 2>/dev/null || true
         if [[ -z "$_sql_text" ]]; then
             local _mid=$(( _it + _ih / 2 ))
-            printf '\033[%d;%dH%sPress [Enter] to type SQL%s' \
-                "$_mid" "$_il" "$_gray" "$_rst" >/dev/tty
+            local _ph_text="Press [Enter] to type SQL"
+            local _ph_len=${#_ph_text}
+            local _ph_col=$(( _il + (_iw - _ph_len) / 2 ))
+            (( _ph_col < _il )) && _ph_col=$_il
+            printf '\033[%d;%dH%s%s%s' \
+                "$_mid" "$_ph_col" "$_gray" "$_ph_text" "$_rst" >/dev/tty
         fi
     fi
 

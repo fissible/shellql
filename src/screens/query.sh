@@ -293,6 +293,8 @@ _shql_query_on_key() {
 
 _shql_query_render() {
     local _top="$1" _left="$2" _width="$3" _height="$4"
+    local _rst="${SHELLFRAME_RESET:-$'\033[0m'}"
+    local _gray="${SHELLFRAME_GRAY:-}"
 
     # Lazy widget init: requires viewport dimensions, so deferred from _shql_query_init.
     if (( ! _SHQL_QUERY_INITIALIZED )); then
@@ -355,7 +357,6 @@ _shql_query_render() {
         local _sql_text=""
         shellframe_editor_get_text "$_SHQL_QUERY_EDITOR_CTX" _sql_text 2>/dev/null || true
         if [[ -z "$_sql_text" ]]; then
-            local _gray="${SHELLFRAME_GRAY:-}" _rst="${SHELLFRAME_RESET:-}"
             local _mid=$(( _it + _ih / 2 ))
             printf '\033[%d;%dH%sPress [Enter] to type SQL%s' \
                 "$_mid" "$_il" "$_gray" "$_rst" >/dev/tty
@@ -446,7 +447,6 @@ _shql_query_render() {
         for (( _r=0; _r<_rih; _r++ )); do
             printf '\033[%d;%dH%s%*s' "$(( _rit + _r ))" "$_ril" "$_rbg" "$_riw" '' >/dev/tty
         done
-        local _gray="${SHELLFRAME_GRAY:-}"
         local _mid=$(( _rit + _rih / 2 ))
         (( _mid < _rit )) && _mid="$_rit"
         local _plen=${#_SHQL_QUERY_PLACEHOLDER}

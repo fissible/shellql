@@ -237,8 +237,13 @@ _shql_query_on_key() {
         if (( _rc == 2 )); then
             # Ctrl-D submit: SHELLFRAME_EDITOR_RESULT contains the SQL
             _shql_query_run "$SHELLFRAME_EDITOR_RESULT"
-            _SHQL_QUERY_FOCUSED_PANE="results"
-            _SHQL_QUERY_EDITOR_ACTIVE=0
+            if [[ -n "$_SHQL_QUERY_ERROR" ]]; then
+                # Error: stay in editor so user can fix the SQL
+                _SHQL_QUERY_EDITOR_ACTIVE=0
+            else
+                _SHQL_QUERY_FOCUSED_PANE="results"
+                _SHQL_QUERY_EDITOR_ACTIVE=0
+            fi
             return 0
         fi
         if (( _rc == 0 )); then
@@ -261,6 +266,9 @@ _shql_query_on_key() {
         local _sql
         shellframe_editor_get_text "$_SHQL_QUERY_EDITOR_CTX" _sql
         _shql_query_run "$_sql"
+        if [[ -n "$_SHQL_QUERY_ERROR" ]]; then
+            _SHQL_QUERY_FOCUSED_PANE="editor"
+        fi
         return 0
     elif [[ "$_key" == "$_k_escape" || "$_key" == "q" ]]; then
         shellframe_shell_focus_set "tabbar"

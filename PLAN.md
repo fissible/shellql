@@ -147,9 +147,9 @@ shellframe primitives (P1–P4)
 ## Session handoff notes
 > Update this section at the end of each session.
 
-_Last updated: 2026-03-24 (UI polish sprint complete — #16 #17 #18 #19 closed)_
+_Last updated: 2026-03-24 (Browser Redesign + Cascade Theme)_
 
-**v0.3.0 released. Phases 6.1–6.6 complete. M3 milestone (ShellQL v0.1 alpha) reached. Post-release bug fixes in progress.**
+**v0.3.0 released. Browser redesign complete (15 tasks). Cascade theme implemented with extensive UX polish.**
 
 Completed 2026-03-22 (Phase 6.1):
 - `src/db_mock.sh` — fixture data for all adapter functions (`shql_mock_load_recent`, `shql_db_list_tables`, `shql_db_describe`, `shql_db_fetch`, `shql_db_query`)
@@ -231,7 +231,38 @@ Completed 2026-03-23 (ptyunit consumer migration):
 - `tests/unit/test-schema.sh` — 6 new tests (db_columns mock, load_columns, load_ddl trigger); 199/199 pass
 - **Total: 199/199 shellql unit assertions passing**
 
-**Next task:** [shellql#12](https://github.com/fissible/shellql/issues/12) — `[o]` key: Open Database form (S effort)
+**Completed 2026-03-24 (Browser Redesign — 15 tasks):**
+- Evolved TABLE screen into persistent browser: sidebar + dynamic tabs + inline record inspector
+- Dynamic tab arrays (`_SHQL_TABS_TYPE/TABLE/LABEL/CTX[]`), lifecycle functions, tab bar renderer
+- Sidebar uses `shellframe_list_render` with table/view icons (`▤`/`◉`)
+- Content dispatch routes to data/schema/query renderers based on active tab type
+- Inspector redesigned as inline content view with nav bar, ←→ row stepping
+- `bin/shql` routing updated: open/table/query-tui dispatch to TABLE browser
+- `welcome.sh` updated: `shql_browser_init` + TABLE (was `shql_schema_init` + SCHEMA)
+- **319/319 assertions passing (264 unit + 55 integration)**
+
+**Completed 2026-03-24 (Cascade Theme + UX polish):**
+- New "cascade" theme: dark purple header, gray content bg (236), alternating row stripes (238), dim cursor (60), blue sidebar cursor (25), muted blue headers (74)
+- shellframe enhancements: `SHELLFRAME_GRID_BG`, `GRID_STRIPE_BG`, `GRID_CURSOR_STYLE`, `GRID_HEADER_STYLE`, `GRID_HEADER_BG`, `SHELLFRAME_LIST_BG`, `LIST_CURSOR_STYLE`, `SHELLFRAME_EDITOR_BG`
+- Esc timeout reduced to 50ms on bash 4+ (was 1s)
+- Grid line-clear uses positional space-fill (no more `\033[2K` wiping sidebar)
+- Grid bg preserved through separator resets (`$_bg_rst`, `$_row_bg_rst`)
+- Grid cursor row fills full width with cursor bg (no cell gaps)
+- Query tab: spatial arrow nav, error page in Results panel, error keeps editor in typing mode, per-ctx SQL re-run on tab switch
+- `shql_db_list_objects` — returns name + type for sidebar icons
+- Content area nofocus when no tabs open; +SQL auto-select on tabbar focus
+- Tab focus: only active tab gets accent color; sub-pane focus gated on content region
+- Dark surface below last data row; padding row above grid headers
+- Inspector: grid header visible above, ↑ at scroll top dismisses, themed backgrounds, focus accent border
+
+**Pending design items (saved in memory):**
+- Footer status bar (connection info + query timing)
+- Viewport padding at 50x50+
+- "Relations" header above table list
+- Taller sidebar rows when space permits
+- Welcome screen padding
+
+**Next task:** Cascade theme layout enhancements (footer status bar, viewport padding) or [shellql#12](https://github.com/fissible/shellql/issues/12)
 - **BLOCKED** on [shellframe#27](https://github.com/fissible/shellframe/issues/27) — Sheet navigation primitive (M effort in shellframe)
 - Design decision: `[o]` should use the sheet pattern rather than a modal, so shellframe#27 ships first
 - Flag for PM: shellframe#27 is M+ cross-repo work; needs scheduling before shellql#12 can proceed

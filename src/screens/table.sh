@@ -1004,6 +1004,16 @@ _shql_TABLE_content_render() {
                 _shql_grid_fill_width "$_width"
                 shellframe_grid_render "$_top" "$_left" "$_width" "$_height"
                 _shql_grid_restore_last
+                # Dark surface below last data row
+                local _data_end=$(( _top + 2 + SHELLFRAME_GRID_ROWS ))
+                local _surface_bg="${SHQL_THEME_EDITOR_FOCUSED_BG:-${SHQL_THEME_CONTENT_BG:-}}"
+                if [[ -n "$_surface_bg" ]] && (( _data_end < _top + _height )); then
+                    local _sr
+                    for (( _sr=_data_end; _sr < _top + _height; _sr++ )); do
+                        printf '\033[%d;%dH%s%*s' "$_sr" "$_left" "$_surface_bg" "$_width" '' >/dev/tty
+                    done
+                    printf '%s' "${SHQL_THEME_RESET:-$'\033[0m'}" >/dev/tty
+                fi
             fi
             ;;
         schema)

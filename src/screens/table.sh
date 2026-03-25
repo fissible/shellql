@@ -1022,7 +1022,10 @@ _shql_TABLE_content_render() {
             done
             local _mid=$(( _top + _height / 2 ))
             local _hint="↑↓ select a table · Enter = Data · s = Schema · n = New query"
-            printf '\033[%d;%dH%s%s%s' "$_mid" "$_left" "$_gray" "$_hint" "$_rst" >/dev/tty
+            local _hlen=${#_hint}
+            local _hcol=$(( _left + (_width - _hlen) / 2 ))
+            (( _hcol < _left )) && _hcol=$_left
+            printf '\033[%d;%dH%s%s%s' "$_mid" "$_hcol" "$_gray" "$_hint" "$_rst" >/dev/tty
             ;;
     esac
 }

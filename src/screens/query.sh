@@ -304,22 +304,12 @@ _shql_query_render() {
     SHELLFRAME_EDITOR_CTX="$_SHQL_QUERY_EDITOR_CTX"
     if (( _editor_pane_focused && _SHQL_QUERY_EDITOR_ACTIVE )); then
         SHELLFRAME_EDITOR_FOCUSED=1
-        # Typing mode: lighter bg (ghost effect)
-        if [[ -n "${SHQL_THEME_EDITOR_FOCUSED_BG:-}" ]]; then
-            local _er
-            for (( _er=0; _er<_ih; _er++ )); do
-                printf '\033[%d;%dH%s%*s' "$(( _it + _er ))" "$_il" "$SHQL_THEME_EDITOR_FOCUSED_BG" "$_iw" '' >/dev/tty
-            done
-        fi
+        # Typing mode: dark gray bg (between sidebar and content)
+        SHELLFRAME_EDITOR_BG="${SHQL_THEME_EDITOR_FOCUSED_BG:-}"
     else
         SHELLFRAME_EDITOR_FOCUSED=0
-        # Not typing: disabled look — fill with content bg (gray, not black)
-        if [[ -n "$_cbg" ]]; then
-            local _er
-            for (( _er=0; _er<_ih; _er++ )); do
-                printf '\033[%d;%dH%s%*s' "$(( _it + _er ))" "$_il" "$_cbg" "$_iw" '' >/dev/tty
-            done
-        fi
+        # Not typing: disabled look — content bg (lighter gray)
+        SHELLFRAME_EDITOR_BG="${_cbg}"
     fi
     shellframe_editor_render "$_it" "$_il" "$_iw" "$_ih"
 
@@ -364,7 +354,7 @@ _shql_query_render() {
 
     SHELLFRAME_GRID_CTX="$_SHQL_QUERY_GRID_CTX"
     SHELLFRAME_GRID_FOCUSED=$_results_pane_focused
-    SHELLFRAME_GRID_BG="${SHQL_THEME_CONTENT_BG:-}"
+    SHELLFRAME_GRID_BG="${SHQL_THEME_EDITOR_FOCUSED_BG:-${SHQL_THEME_CONTENT_BG:-}}"
     SHELLFRAME_GRID_HEADER_STYLE="${SHQL_THEME_GRID_HEADER_COLOR:-}"
     SHELLFRAME_GRID_STRIPE_BG="${SHQL_THEME_ROW_STRIPE_BG:-}"
     if [[ -n "${SHQL_THEME_CURSOR_BG:-}" ]]; then
@@ -378,11 +368,11 @@ _shql_query_render() {
         shellframe_grid_render "$_rit" "$_ril" "$_riw" "$_rih"
         _shql_grid_restore_last
     else
-        # Empty state — centered placeholder
-        local _cbg="${SHQL_THEME_CONTENT_BG:-}"
+        # Empty state — centered placeholder (darker bg like editor)
+        local _rbg="${SHQL_THEME_EDITOR_FOCUSED_BG:-${SHQL_THEME_CONTENT_BG:-}}"
         local _r
         for (( _r=0; _r<_rih; _r++ )); do
-            printf '\033[%d;%dH%s%*s' "$(( _rit + _r ))" "$_ril" "$_cbg" "$_riw" '' >/dev/tty
+            printf '\033[%d;%dH%s%*s' "$(( _rit + _r ))" "$_ril" "$_rbg" "$_riw" '' >/dev/tty
         done
         local _gray="${SHELLFRAME_GRAY:-}" _rst="${SHELLFRAME_RESET:-}"
         local _mid=$(( _rit + _rih / 2 ))

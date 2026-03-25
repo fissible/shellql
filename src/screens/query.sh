@@ -182,21 +182,28 @@ _shql_query_on_key() {
     local _k_enter=$'\r'
     local _k_newline=$'\n'
     local _k_ctrl_d=$'\004'
+    local _k_up="${SHELLFRAME_KEY_UP:-$'\033[A'}"
+    local _k_down="${SHELLFRAME_KEY_DOWN:-$'\033[B'}"
+    local _k_left="${SHELLFRAME_KEY_LEFT:-$'\033[D'}"
 
     if [[ "$_SHQL_QUERY_FOCUSED_PANE" == "editor" ]]; then
         if (( ! _SHQL_QUERY_EDITOR_ACTIVE )); then
-            # Button state: Enter activates typing; Tab switches pane; Esc exits
+            # Button state: arrow keys for spatial nav
             case "$_key" in
                 "$_k_enter"|"$_k_newline")
                     _SHQL_QUERY_EDITOR_ACTIVE=1
                     return 0
                     ;;
-                "$_k_tab"|"$_k_shift_tab")
+                "$_k_up"|"$_k_escape")
+                    shellframe_shell_focus_set "tabbar"
+                    return 0
+                    ;;
+                "$_k_down"|"$_k_tab"|"$_k_shift_tab")
                     _SHQL_QUERY_FOCUSED_PANE="results"
                     return 0
                     ;;
-                "$_k_escape")
-                    shellframe_shell_focus_set "tabbar"
+                "$_k_left")
+                    shellframe_shell_focus_set "sidebar"
                     return 0
                     ;;
             esac
@@ -239,9 +246,23 @@ _shql_query_on_key() {
         shellframe_editor_get_text "$_SHQL_QUERY_EDITOR_CTX" _sql
         _shql_query_run "$_sql"
         return 0
-    elif [[ "$_key" == "q" ]]; then
+    elif [[ "$_key" == "$_k_escape" || "$_key" == "q" ]]; then
         shellframe_shell_focus_set "tabbar"
         return 0
+    elif [[ "$_key" == "$_k_left" ]]; then
+        local _scroll_left=0
+        shellframe_scroll_left "$_SHQL_QUERY_GRID_CTX" _scroll_left 2>/dev/null || true
+        if (( _scroll_left == 0 )); then
+            shellframe_shell_focus_set "sidebar"
+            return 0
+        fi
+    elif [[ "$_key" == "$_k_up" ]]; then
+        local _cursor=0
+        shellframe_sel_cursor "$_SHQL_QUERY_GRID_CTX" _cursor 2>/dev/null || true
+        if (( _cursor == 0 )); then
+            _SHQL_QUERY_FOCUSED_PANE="editor"
+            return 0
+        fi
     fi
     SHELLFRAME_GRID_CTX="$_SHQL_QUERY_GRID_CTX"
     shellframe_grid_on_key "$_key"

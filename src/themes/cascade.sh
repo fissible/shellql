@@ -23,12 +23,13 @@ SHQL_THEME_RESET=$'\033[0m'
 # ── Header bar: dark purple background, white text ────────────────────────────
 SHQL_THEME_HEADER_BG=$'\033[48;5;53m\033[97m'
 
-# ── Sidebar ───────────────────────────────────────────────────────────────────
+# ── Sidebar: very dark gray (not black) ───────────────────────────────────────
 SHQL_THEME_SIDEBAR_BORDER="none"
+SHQL_THEME_SIDEBAR_BG=$'\033[48;5;234m'          # 234 (#1c1c1c) — dark gray, lighter than black
 SHQL_THEME_TABLE_ICON="▤ "
 SHQL_THEME_VIEW_ICON="◉ "
 
-# ── Content area: dark gray background ────────────────────────────────────────
+# ── Content area: medium gray background ──────────────────────────────────────
 SHQL_THEME_CONTENT_BG=$'\033[48;5;236m'
 
 # ── Grid: alternating stripes + dim cursor ────────────────────────────────────
@@ -41,7 +42,7 @@ SHQL_THEME_SIDEBAR_CURSOR_BG=$'\033[48;5;25m\033[97m'   # dark blue bg + bright 
 
 # ── Query panel: bright purple accent ──────────────────────────────────────────
 SHQL_THEME_QUERY_PANEL_COLOR=$'\033[38;5;135m'   # bright purple border/title
-SHQL_THEME_EDITOR_FOCUSED_BG=$'\033[48;5;237m'   # slightly lighter gray when editing
+SHQL_THEME_EDITOR_FOCUSED_BG=$'\033[48;5;235m'   # 235 (#262626) — darker than content, lighter than sidebar
 
 # ── Grid header color ─────────────────────────────────────────────────────────
 SHQL_THEME_GRID_HEADER_COLOR=$'\033[38;5;135m'    # purple column headers

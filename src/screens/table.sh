@@ -345,6 +345,17 @@ _shql_TABLE_sidebar_render() {
         SHELLFRAME_LIST_CURSOR_STYLE=""
     fi
 
+    # Fill sidebar with sidebar bg
+    if [[ -n "${SHQL_THEME_SIDEBAR_BG:-}" ]]; then
+        local _sr
+        for (( _sr=0; _sr<_height; _sr++ )); do
+            printf '\033[%d;%dH%s%*s' "$(( _top + _sr ))" "$_left" "$SHQL_THEME_SIDEBAR_BG" "$_width" '' >/dev/tty
+        done
+        printf '%s' "${SHQL_THEME_RESET:-$'\033[0m'}" >/dev/tty
+    fi
+
+    SHELLFRAME_LIST_BG="${SHQL_THEME_SIDEBAR_BG:-}"
+
     if [[ "${SHQL_THEME_SIDEBAR_BORDER:-}" == "none" ]]; then
         # No panel border — render list directly in the full region
         SHELLFRAME_LIST_CTX="$_SHQL_BROWSER_SIDEBAR_CTX"

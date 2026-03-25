@@ -33,22 +33,36 @@ _shql_WELCOME_render() {
     local _rows _cols
     _shellframe_shell_terminal_size _rows _cols
 
+    # Viewport padding: 1-row/1-col buffer when >= 50x50
+    local _pad_top=0 _pad_left=0 _pad_bottom=0 _pad_right=0
+    if (( _rows >= 50 && _cols >= 50 )); then
+        _pad_top=1; _pad_left=1; _pad_bottom=1; _pad_right=1
+    fi
+
+    local _area_top=$(( 1 + _pad_top ))
+    local _area_left=$(( 1 + _pad_left ))
+    local _area_w=$(( _cols - _pad_left - _pad_right ))
+    local _area_h=$(( _rows - _pad_top - _pad_bottom ))
+    (( _area_w < 20 )) && _area_w=20
+    (( _area_h < 4 )) && _area_h=4
+
     # Header: 1 row
-    shellframe_shell_region header 1 1 "$_cols" 1 nofocus
+    shellframe_shell_region header "$_area_top" "$_area_left" "$_area_w" 1 nofocus
 
     # Body: list or empty state
-    local _body_top=2
-    local _body_h=$(( _rows - 2 ))
+    local _body_top=$(( _area_top + 1 ))
+    local _footer_top=$(( _area_top + _area_h - 1 ))
+    local _body_h=$(( _footer_top - _body_top ))
     (( _body_h < 1 )) && _body_h=1
 
     if (( ${#SHQL_RECENT_NAMES[@]} > 0 )); then
-        shellframe_shell_region list "$_body_top" 1 "$_cols" "$_body_h" focus
+        shellframe_shell_region list "$_body_top" "$_area_left" "$_area_w" "$_body_h" focus
     else
-        shellframe_shell_region empty "$_body_top" 1 "$_cols" "$_body_h" nofocus
+        shellframe_shell_region empty "$_body_top" "$_area_left" "$_area_w" "$_body_h" nofocus
     fi
 
     # Footer: 1 row
-    shellframe_shell_region footer "$_rows" 1 "$_cols" 1 nofocus
+    shellframe_shell_region footer "$_footer_top" "$_area_left" "$_area_w" 1 nofocus
 }
 
 # ── _shql_WELCOME_header_render ───────────────────────────────────────────────

@@ -58,6 +58,7 @@ _SHQL_BROWSER_SIDEBAR_FOCUSED=0
 _SHQL_BROWSER_TABBAR_FOCUSED=0
 _SHQL_BROWSER_CONTENT_FOCUSED=0
 _SHQL_BROWSER_CONTENT_FOCUS="data"  # "data" | "schema_cols" | "schema_ddl" | "query_editor" | "query_results"
+_SHQL_BROWSER_QUERY_STATUS=""       # "Query returned N rows in Xms" (set by _shql_query_run)
 
 # ── TTY for stderr passthrough ────────────────────────────────────────────────
 # Use /dev/tty when available (interactive terminal); fall back to /dev/null in
@@ -486,7 +487,7 @@ _shql_TABLE_render() {
 
     local _header_top=$_area_top
     local _body_top=$(( _area_top + 1 ))
-    local _footer_top=$(( _area_top + _area_h - 1 ))
+    local _footer_top=$(( _area_top + _area_h - 2 ))  # 2 rows for footer (status + hints)
     local _body_h=$(( _footer_top - _body_top ))
     (( _body_h < 2 )) && _body_h=2
     local _content_top=$(( _body_top + 2 ))
@@ -501,7 +502,7 @@ _shql_TABLE_render() {
     shellframe_shell_region sidebar  "$_body_top"    "$_area_left"  "$_sidebar_w" "$_body_h"   focus
     shellframe_shell_region tabbar   "$_body_top"    "$_right_left" "$_right_w"  1             focus
     shellframe_shell_region content  "$_content_top" "$_right_left" "$_right_w"  "$_content_h" "$_content_focus"
-    shellframe_shell_region footer   "$_footer_top"  "$_area_left"  "$_area_w"   1             nofocus
+    shellframe_shell_region footer   "$_footer_top"  "$_area_left"  "$_area_w"   2             nofocus
 }
 
 # ── _shql_TABLE_header_render ─────────────────────────────────────────────────
@@ -1266,11 +1267,33 @@ _shql_browser_footer_hint() {
 # ── _shql_TABLE_footer_render ─────────────────────────────────────────────────
 
 _shql_TABLE_footer_render() {
-    local _top="$1" _left="$2"
+    local _top="$1" _left="$2" _width="$3" _height="${4:-2}"
     local _gray="${SHELLFRAME_GRAY:-}" _rst="${SHELLFRAME_RESET:-}"
-    printf '\033[%d;%dH\033[2K' "$_top" "$_left" >/dev/tty
+
+    # Row 1: Status bar — connection info (left) + query timing (right)
+    printf '\033[%d;%dH%*s' "$_top" "$_left" "$_width" '' >/dev/tty
+    local _db_name
+    _db_name="$(basename "${SHQL_DB_PATH:-}" 2>/dev/null)"
+    local _conn_info="Connected to ${_db_name:-<none>}"
+    printf '\033[%d;%dH%s%s%s' "$_top" "$_left" "$_gray" "$_conn_info" "$_rst" >/dev/tty
+    # Right side: time + query status
+    local _time_str
+    _time_str=$(date '+%l:%M %p' 2>/dev/null || date '+%H:%M')
+    _time_str="${_time_str# }"  # trim leading space from %l
+    local _right_info="$_time_str"
+    if [[ -n "${_SHQL_BROWSER_QUERY_STATUS:-}" ]]; then
+        _right_info="${_time_str}  —  ${_SHQL_BROWSER_QUERY_STATUS}"
+    fi
+    local _rlen=${#_right_info}
+    local _rcol=$(( _left + _width - _rlen ))
+    (( _rcol < _left )) && _rcol=$_left
+    printf '\033[%d;%dH%s%s%s' "$_top" "$_rcol" "$_gray" "$_right_info" "$_rst" >/dev/tty
+
+    # Row 2: Key hints
+    local _hints_row=$(( _top + 1 ))
+    printf '\033[%d;%dH%*s' "$_hints_row" "$_left" "$_width" '' >/dev/tty
     local _hint; _shql_browser_footer_hint _hint
-    printf '\033[%d;%dH%s%s%s' "$_top" "$_left" "$_gray" "$_hint" "$_rst" >/dev/tty
+    printf '\033[%d;%dH%s%s%s' "$_hints_row" "$_left" "$_gray" "$_hint" "$_rst" >/dev/tty
 }
 
 # ── _shql_TABLE_quit ──────────────────────────────────────────────────────────

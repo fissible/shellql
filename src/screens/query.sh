@@ -97,9 +97,15 @@ _shql_query_run() {
     local _sql="$1"
     local _tmpfile="/tmp/shql_query_err.$$"
 
+    local _t0 _t1 _elapsed_ms=0
+    _t0=$SECONDS
     local _out
     _out=$(shql_db_query "$SHQL_DB_PATH" "$_sql" 2>"$_tmpfile")
     local _rc=$?
+    _t1=$SECONDS
+    _elapsed_ms=$(( (_t1 - _t0) * 1000 ))
+    # Sub-second: if 0s elapsed, report <1ms
+    (( _elapsed_ms == 0 )) && _elapsed_ms=1
 
     if (( _rc != 0 )); then
         _SHQL_QUERY_ERROR="$(cat "$_tmpfile" 2>/dev/null)"
@@ -163,6 +169,7 @@ _shql_query_run() {
     else
         _SHQL_QUERY_STATUS="${SHELLFRAME_GRID_ROWS} rows"
     fi
+    _SHQL_BROWSER_QUERY_STATUS="Query returned ${SHELLFRAME_GRID_ROWS} rows in ${_elapsed_ms}ms"
 }
 
 # ── _shql_query_footer_hint ───────────────────────────────────────────────────

@@ -474,8 +474,8 @@ _shql_TABLE_render() {
     local _body_top=2
     local _body_h=$(( _rows - 2 ))
     (( _body_h < 2 )) && _body_h=2
-    local _content_top=3
-    local _content_h=$(( _rows - 3 ))
+    local _content_top=4
+    local _content_h=$(( _rows - 4 ))
     (( _content_h < 1 )) && _content_h=1
 
     # Content is only focusable when a tab is open
@@ -527,13 +527,13 @@ _shql_TABLE_tabbar_render() {
             (( _col++ ))
         fi
         local _label=" ${_SHQL_TABS_LABEL[$_i]} "
-        local _focus_color="${SHQL_THEME_QUERY_PANEL_COLOR:-$_bold}"
         if (( _i == _SHQL_TAB_ACTIVE )); then
             _SHQL_TABBAR_ACTIVE_X0=$_col
             _SHQL_TABBAR_ACTIVE_X1=$(( _col + ${#_label} ))
-            # Active tab: content bg, focus color text when tabbar focused
+            # Active tab: content bg, focus color only on THIS tab when focused
             local _tab_bg="${SHQL_THEME_CONTENT_BG:-}"
-            if (( _SHQL_BROWSER_TABBAR_FOCUSED )); then
+            if (( _SHQL_BROWSER_TABBAR_FOCUSED && ! _SHQL_BROWSER_TABBAR_ON_SQL )); then
+                local _focus_color="${SHQL_THEME_QUERY_PANEL_COLOR:-$_bold}"
                 printf '\033[%d;%dH%s%s%s%s' "$_top" "$_col" "$_tab_bg" "$_focus_color" "$_label" "$_rst" >/dev/tty
             elif [[ -n "$_tab_bg" ]]; then
                 printf '\033[%d;%dH%s%s%s' "$_top" "$_col" "$_tab_bg" "$_label" "$_rst" >/dev/tty
@@ -541,13 +541,9 @@ _shql_TABLE_tabbar_render() {
                 printf '\033[%d;%dH%s' "$_top" "$_col" "$_label" >/dev/tty
             fi
         else
-            # Inactive tabs: focus color text when tabbar focused
+            # Inactive tabs: always normal inactive styling (no focus color)
             local _itab_style="${SHQL_THEME_TAB_INACTIVE_BG:-${SHQL_THEME_TABBAR_BG:-$_inv}}"
-            if (( _SHQL_BROWSER_TABBAR_FOCUSED )); then
-                printf '\033[%d;%dH%s%s%s%s' "$_top" "$_col" "$_itab_style" "$_focus_color" "$_label" "$_rst" >/dev/tty
-            else
-                printf '\033[%d;%dH%s%s%s' "$_top" "$_col" "$_itab_style" "$_label" "$_rst" >/dev/tty
-            fi
+            printf '\033[%d;%dH%s%s%s' "$_top" "$_col" "$_itab_style" "$_label" "$_rst" >/dev/tty
         fi
         _col=$(( _col + ${#_label} ))
     done

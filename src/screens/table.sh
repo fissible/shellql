@@ -523,7 +523,7 @@ _shql_TABLE_tabbar_render() {
     local _i
     for (( _i=0; _i<_n; _i++ )); do
         if (( _i > 0 )); then
-            printf '\033[%d;%dH ' "$_top" "$_col" >/dev/tty
+            printf '\033[%d;%dH%s %s' "$_top" "$_col" "${SHQL_THEME_CONTENT_BG:-}" "${_rst}" >/dev/tty
             (( _col++ ))
         fi
         local _label=" ${_SHQL_TABS_LABEL[$_i]} "
@@ -545,6 +545,7 @@ _shql_TABLE_tabbar_render() {
         _col=$(( _col + ${#_label} ))
     done
     # +SQL button — styled like inactive tabs
+    printf '\033[%d;%dH%s %s' "$_top" "$_col" "${SHQL_THEME_CONTENT_BG:-}" "${_rst}" >/dev/tty
     (( _col += 1 ))  # 1-char gap after last tab
     local _sql_label=" +SQL "
     local _itab_style="${SHQL_THEME_TAB_INACTIVE_BG:-${SHQL_THEME_TABBAR_BG:-$_inv}}"

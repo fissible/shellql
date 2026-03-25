@@ -249,7 +249,7 @@ _shql_inspector_render() {
             _val_clipped=$(shellframe_str_clip_ellipsis "$_val" "$_val" "$_val_avail_l")
             printf '\033[%d;%dH%s%s%-*s%s  %s%s%s' \
                 "$_row" "$_l_left" "$_ibg" "$_kc" "$_kw" "$_key" "$_ibg_rst" \
-                "$_vc" "$_val_clipped" "$_ibg_rst" >/dev/tty
+                "$_ibg" "$_val_clipped" "$_ibg_rst" >/dev/tty
         fi
 
         printf '\033[%d;%dH%s│%s' "$_row" "$_divider_col" "$_gray" "$_ibg_rst" >/dev/tty
@@ -261,7 +261,7 @@ _shql_inspector_render() {
             _val_clipped=$(shellframe_str_clip_ellipsis "$_val" "$_val" "$_val_avail_r")
             printf '\033[%d;%dH%s%s%-*s%s  %s%s%s' \
                 "$_row" "$_r_left" "$_ibg" "$_kc" "$_kw" "$_key" "$_ibg_rst" \
-                "$_vc" "$_val_clipped" "$_ibg_rst" >/dev/tty
+                "$_ibg" "$_val_clipped" "$_ibg_rst" >/dev/tty
         fi
     done
 }

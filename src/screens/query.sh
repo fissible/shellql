@@ -276,6 +276,7 @@ _shql_query_render() {
     # ── Editor panel ──
     local _editor_pane_focused=0
     [[ "$_SHQL_QUERY_FOCUSED_PANE" == "editor" ]] && _editor_pane_focused=1
+    local _cbg="${SHQL_THEME_CONTENT_BG:-}"
 
     local _panel_style
     if (( _editor_pane_focused )); then
@@ -288,14 +289,13 @@ _shql_query_render() {
     SHELLFRAME_PANEL_TITLE_ALIGN="left"
     SHELLFRAME_PANEL_FOCUSED=$_editor_pane_focused
     SHELLFRAME_PANEL_MODE="framed"
-    # Apply accent color only when focused
+    # Set content bg + accent color for panel border rendering
+    [[ -n "$_cbg" ]] && printf '%s' "$_cbg" >/dev/tty
     if (( _editor_pane_focused )) && [[ -n "${SHQL_THEME_QUERY_PANEL_COLOR:-}" ]]; then
         printf '%s' "$SHQL_THEME_QUERY_PANEL_COLOR" >/dev/tty
     fi
     shellframe_panel_render "$_top" "$_left" "$_width" "$_editor_rows"
-    if (( _editor_pane_focused )) && [[ -n "${SHQL_THEME_QUERY_PANEL_COLOR:-}" ]]; then
-        printf '%s' "${SHQL_THEME_RESET:-$'\033[0m'}" >/dev/tty
-    fi
+    printf '%s' "${SHQL_THEME_RESET:-$'\033[0m'}" >/dev/tty
 
     local _it _il _iw _ih
     shellframe_panel_inner "$_top" "$_left" "$_width" "$_editor_rows" _it _il _iw _ih
@@ -304,7 +304,7 @@ _shql_query_render() {
     SHELLFRAME_EDITOR_CTX="$_SHQL_QUERY_EDITOR_CTX"
     if (( _editor_pane_focused && _SHQL_QUERY_EDITOR_ACTIVE )); then
         SHELLFRAME_EDITOR_FOCUSED=1
-        # Ghost effect: fill editor area with lighter bg when editing
+        # Typing mode: lighter bg (ghost effect)
         if [[ -n "${SHQL_THEME_EDITOR_FOCUSED_BG:-}" ]]; then
             local _er
             for (( _er=0; _er<_ih; _er++ )); do
@@ -313,6 +313,13 @@ _shql_query_render() {
         fi
     else
         SHELLFRAME_EDITOR_FOCUSED=0
+        # Not typing: disabled look — fill with content bg (gray, not black)
+        if [[ -n "$_cbg" ]]; then
+            local _er
+            for (( _er=0; _er<_ih; _er++ )); do
+                printf '\033[%d;%dH%s%*s' "$(( _it + _er ))" "$_il" "$_cbg" "$_iw" '' >/dev/tty
+            done
+        fi
     fi
     shellframe_editor_render "$_it" "$_il" "$_iw" "$_ih"
 
@@ -343,14 +350,13 @@ _shql_query_render() {
     SHELLFRAME_PANEL_TITLE_ALIGN="left"
     SHELLFRAME_PANEL_FOCUSED=$_results_pane_focused
     SHELLFRAME_PANEL_MODE="framed"
-    # Apply accent color when focused
+    # Set content bg + accent color for panel border rendering
+    [[ -n "$_cbg" ]] && printf '%s' "$_cbg" >/dev/tty
     if (( _results_pane_focused )) && [[ -n "${SHQL_THEME_QUERY_PANEL_COLOR:-}" ]]; then
         printf '%s' "$SHQL_THEME_QUERY_PANEL_COLOR" >/dev/tty
     fi
     shellframe_panel_render "$_results_top" "$_left" "$_width" "$_results_rows"
-    if (( _results_pane_focused )) && [[ -n "${SHQL_THEME_QUERY_PANEL_COLOR:-}" ]]; then
-        printf '%s' "${SHQL_THEME_RESET:-$'\033[0m'}" >/dev/tty
-    fi
+    printf '%s' "${SHQL_THEME_RESET:-$'\033[0m'}" >/dev/tty
 
     local _rit _ril _riw _rih
     shellframe_panel_inner "$_results_top" "$_left" "$_width" "$_results_rows" \
@@ -358,6 +364,14 @@ _shql_query_render() {
 
     SHELLFRAME_GRID_CTX="$_SHQL_QUERY_GRID_CTX"
     SHELLFRAME_GRID_FOCUSED=$_results_pane_focused
+    SHELLFRAME_GRID_BG="${SHQL_THEME_CONTENT_BG:-}"
+    SHELLFRAME_GRID_HEADER_STYLE="${SHQL_THEME_GRID_HEADER_COLOR:-}"
+    SHELLFRAME_GRID_STRIPE_BG="${SHQL_THEME_ROW_STRIPE_BG:-}"
+    if [[ -n "${SHQL_THEME_CURSOR_BG:-}" ]]; then
+        SHELLFRAME_GRID_CURSOR_STYLE="${SHQL_THEME_CURSOR_BG}${SHQL_THEME_CURSOR_BOLD:-}"
+    else
+        SHELLFRAME_GRID_CURSOR_STYLE=""
+    fi
 
     if (( _SHQL_QUERY_HAS_RESULTS )); then
         _shql_grid_fill_width "$_riw"

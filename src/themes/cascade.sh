@@ -43,6 +43,9 @@ SHQL_THEME_SIDEBAR_CURSOR_BG=$'\033[48;5;25m\033[97m'   # dark blue bg + bright 
 SHQL_THEME_QUERY_PANEL_COLOR=$'\033[38;5;135m'   # bright purple border/title
 SHQL_THEME_EDITOR_FOCUSED_BG=$'\033[48;5;237m'   # slightly lighter gray when editing
 
+# ── Grid header color ─────────────────────────────────────────────────────────
+SHQL_THEME_GRID_HEADER_COLOR=$'\033[38;5;135m'    # purple column headers
+
 # ── Tab bar ───────────────────────────────────────────────────────────────────
 SHQL_THEME_TAB_ACTIVE=""                          # uses CONTENT_BG (set at render time)
 SHQL_THEME_TAB_INACTIVE_BG=$'\033[48;5;238m\033[37m'  # medium gray bg + light gray text

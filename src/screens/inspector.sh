@@ -160,12 +160,17 @@ _shql_inspector_on_key() {
 _shql_inspector_render() {
     local _top="$1" _left="$2" _width="$3" _height="$4"
 
-    # Draw panel border filling the full content area
-    SHELLFRAME_PANEL_STYLE="${SHQL_THEME_PANEL_STYLE:-single}"
-    SHELLFRAME_PANEL_TITLE="${_SHQL_TABS_LABEL[$_SHQL_TAB_ACTIVE]:-Record Inspector}"
+    # Draw panel border with content bg
+    local _cbg="${SHQL_THEME_CONTENT_BG:-}"
+    local _rst="${SHELLFRAME_RESET:-$'\033[0m'}"
+    [[ -n "$_cbg" ]] && printf '%s' "$_cbg" >/dev/tty
+    SHELLFRAME_PANEL_STYLE="${SHQL_THEME_PANEL_STYLE_FOCUSED:-double}"
+    local _table_name="${_SHQL_TABS_TABLE[$_SHQL_TAB_ACTIVE]:-}"
+    SHELLFRAME_PANEL_TITLE="Record — ${_table_name}"
     SHELLFRAME_PANEL_TITLE_ALIGN="left"
     SHELLFRAME_PANEL_FOCUSED=1
     shellframe_panel_render "$_top" "$_left" "$_width" "$_height"
+    printf '%s' "$_rst" >/dev/tty
 
     local _it _il _iw _ih
     shellframe_panel_inner "$_top" "$_left" "$_width" "$_height" _it _il _iw _ih
@@ -178,24 +183,29 @@ _shql_inspector_render() {
     (( _pw < 1 )) && _pw=1
     (( _ph < 1 )) && _ph=1
 
-    # Clear inner area
-    local _ir _blank
-    printf -v _blank '%*s' "$_iw" ''
+    # Clear inner area with editor bg (darker than content, lighter than black)
+    local _ibg="${SHQL_THEME_EDITOR_FOCUSED_BG:-$_cbg}"
+    local _ir
     for (( _ir=0; _ir<_ih; _ir++ )); do
-        printf '\033[%d;%dH%s' "$(( _it + _ir ))" "$_il" "$_blank" >/dev/tty
+        printf '\033[%d;%dH%s%*s' "$(( _it + _ir ))" "$_il" "$_ibg" "$_iw" '' >/dev/tty
     done
+    printf '%s' "$_rst" >/dev/tty
 
-    # Nav bar (first inner padded row)
-    local _gray="${SHELLFRAME_GRAY:-}" _rst="${SHELLFRAME_RESET:-}"
+    # Nav bar — distinct bg for gradation (stripe color or cursor color)
+    local _gray="${SHELLFRAME_GRAY:-}"
+    local _nav_bg="${SHQL_THEME_ROW_STRIPE_BG:-$_cbg}"
     local _nav
     _shql_inspector_nav_label _nav
     local _nav_clipped
     _nav_clipped=$(shellframe_str_clip_ellipsis "$_nav" "$_nav" "$_pw")
-    printf '\033[%d;%dH%s%s%s' "$_pt" "$_pl" "$_gray" "$_nav_clipped" "$_rst" >/dev/tty
+    # Fill nav bar row with distinct bg
+    printf '\033[%d;%dH%s%*s' "$_pt" "$_il" "$_nav_bg" "$_iw" '' >/dev/tty
+    printf '\033[%d;%dH%s%s%s' "$_pt" "$_pl" "$_nav_bg" "$_nav_clipped" "$_rst" >/dev/tty
 
     # Separator line
     local _sep_row=$(( _pt + 1 ))
-    printf '\033[%d;%dH%s' "$_sep_row" "$_il" "$(printf '─%.0s' $(seq 1 $_iw))" >/dev/tty
+    printf '\033[%d;%dH%s%s%s' "$_sep_row" "$_il" "$_ibg" "$_gray" "$(printf '─%.0s' $(seq 1 $_iw))" >/dev/tty
+    printf '%s' "$_rst" >/dev/tty
 
     # Two-column key/value area starts 2 rows after padded top (nav + sep)
     local _kv_top=$(( _pt + 2 ))

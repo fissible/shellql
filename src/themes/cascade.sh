@@ -44,8 +44,10 @@ SHQL_THEME_SIDEBAR_CURSOR_BG=$'\033[48;5;25m\033[97m'   # dark blue bg + bright 
 SHQL_THEME_QUERY_PANEL_COLOR=$'\033[38;5;135m'   # bright purple border/title
 SHQL_THEME_EDITOR_FOCUSED_BG=$'\033[48;5;235m'   # 235 (#262626) — darker than content, lighter than sidebar
 
-# ── Grid header color ─────────────────────────────────────────────────────────
-SHQL_THEME_GRID_HEADER_COLOR=$'\033[38;5;110m'    # muted blue/cyan column headers
+# ── Grid header ───────────────────────────────────────────────────────────────
+SHQL_THEME_GRID_HEADER_COLOR=$'\033[38;5;25m'     # 25 (#005faf) — blue, matches sidebar cursor
+SHQL_THEME_GRID_HEADER_BG=$'\033[48;5;237m'       # 237 (#3a3a3a) — shade lighter than content (236)
+SHQL_THEME_GRID_HEADER_BORDER=1                   # draw ─ border above header row
 
 # ── Tab bar ───────────────────────────────────────────────────────────────────
 SHQL_THEME_TAB_ACTIVE=""                          # uses CONTENT_BG (set at render time)

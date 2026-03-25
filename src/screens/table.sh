@@ -978,6 +978,7 @@ _shql_TABLE_content_render() {
                 SHELLFRAME_GRID_BG="${SHQL_THEME_CONTENT_BG:-}"
                 SHELLFRAME_GRID_STRIPE_BG="${SHQL_THEME_ROW_STRIPE_BG:-}"
                 SHELLFRAME_GRID_HEADER_STYLE="${SHQL_THEME_GRID_HEADER_COLOR:-}"
+                SHELLFRAME_GRID_HEADER_BG="${SHQL_THEME_GRID_HEADER_BG:-}"
                 SHELLFRAME_GRID_CURSOR_STYLE=""
                 _shql_grid_fill_width "$_width"
                 # Render 3 rows: header label + separator + 1 data row
@@ -994,6 +995,7 @@ _shql_TABLE_content_render() {
                 SHELLFRAME_GRID_BG="${SHQL_THEME_CONTENT_BG:-}"
                 SHELLFRAME_GRID_STRIPE_BG="${SHQL_THEME_ROW_STRIPE_BG:-}"
                 SHELLFRAME_GRID_HEADER_STYLE="${SHQL_THEME_GRID_HEADER_COLOR:-}"
+                SHELLFRAME_GRID_HEADER_BG="${SHQL_THEME_GRID_HEADER_BG:-}"
                 if [[ -n "${SHQL_THEME_CURSOR_BG:-}" ]]; then
                     SHELLFRAME_GRID_CURSOR_STYLE="${SHQL_THEME_CURSOR_BG}${SHQL_THEME_CURSOR_BOLD:-}"
                 else

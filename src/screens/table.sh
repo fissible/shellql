@@ -1177,11 +1177,13 @@ _shql_query_on_key_ctx() {
     local _hr="_SHQL_QUERY_CTX_HAS_RESULTS_${_ctx}"
     local _st="_SHQL_QUERY_CTX_STATUS_${_ctx}"
     local _er="_SHQL_QUERY_CTX_ERROR_${_ctx}"
+    local _ls="_SHQL_QUERY_CTX_LAST_SQL_${_ctx}"
     _SHQL_QUERY_FOCUSED_PANE="${!_fp:-editor}"
     _SHQL_QUERY_EDITOR_ACTIVE="${!_ea:-0}"
     _SHQL_QUERY_HAS_RESULTS="${!_hr:-0}"
     _SHQL_QUERY_STATUS="${!_st:-}"
     _SHQL_QUERY_ERROR="${!_er:-}"
+    _SHQL_QUERY_LAST_SQL="${!_ls:-}"
     _shql_query_on_key "$_key"
     local _rc=$?
     printf -v "_SHQL_QUERY_CTX_FOCUSED_PANE_${_ctx}"  '%s' "$_SHQL_QUERY_FOCUSED_PANE"
@@ -1189,6 +1191,7 @@ _shql_query_on_key_ctx() {
     printf -v "_SHQL_QUERY_CTX_HAS_RESULTS_${_ctx}"   '%d' "$_SHQL_QUERY_HAS_RESULTS"
     printf -v "_SHQL_QUERY_CTX_STATUS_${_ctx}"         '%s' "$_SHQL_QUERY_STATUS"
     printf -v "_SHQL_QUERY_CTX_ERROR_${_ctx}"          '%s' "$_SHQL_QUERY_ERROR"
+    printf -v "_SHQL_QUERY_CTX_LAST_SQL_${_ctx}"       '%s' "$_SHQL_QUERY_LAST_SQL"
     return $_rc
 }
 

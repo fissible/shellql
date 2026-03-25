@@ -14,6 +14,7 @@ _SHQL_QUERY_HAS_RESULTS=0               # 0 = no results yet; 1 = grid populated
 _SHQL_QUERY_INITIALIZED=0               # 0 = widget inits not yet called
 _SHQL_QUERY_EDITOR_ACTIVE=0             # 0 = button state; 1 = typing state
 _SHQL_QUERY_ERROR=""                    # non-empty = error message to display
+_SHQL_QUERY_LAST_SQL=""                 # SQL that produced current results (for re-run on tab switch)
 _SHQL_QUERY_PLACEHOLDER="No results yet"
 
 # ── _shql_query_init ──────────────────────────────────────────────────────────
@@ -27,6 +28,7 @@ _shql_query_init() {
     _SHQL_QUERY_INITIALIZED=0
     _SHQL_QUERY_EDITOR_ACTIVE=0
     _SHQL_QUERY_ERROR=""
+    _SHQL_QUERY_LAST_SQL=""
 }
 
 # ── _shql_query_init_ctx ──────────────────────────────────────────────────────
@@ -39,6 +41,7 @@ _shql_query_init_ctx() {
     printf -v "_SHQL_QUERY_CTX_EDITOR_ACTIVE_${_ctx}" '%d' 0
     printf -v "_SHQL_QUERY_CTX_HAS_RESULTS_${_ctx}"   '%d' 0
     printf -v "_SHQL_QUERY_CTX_ERROR_${_ctx}"          '%s' ""
+    printf -v "_SHQL_QUERY_CTX_LAST_SQL_${_ctx}"       '%s' ""
 }
 
 # ── _shql_query_render_ctx ────────────────────────────────────────────────────
@@ -60,12 +63,19 @@ _shql_query_render_ctx() {
     local _st_var="_SHQL_QUERY_CTX_STATUS_${_ctx}"
     local _ini_var="_SHQL_QUERY_CTX_INITIALIZED_${_ctx}"
     local _err_var="_SHQL_QUERY_CTX_ERROR_${_ctx}"
+    local _lsql_var="_SHQL_QUERY_CTX_LAST_SQL_${_ctx}"
     _SHQL_QUERY_FOCUSED_PANE="${!_fp_var:-editor}"
     _SHQL_QUERY_EDITOR_ACTIVE="${!_ea_var:-0}"
     _SHQL_QUERY_HAS_RESULTS="${!_hr_var:-0}"
     _SHQL_QUERY_STATUS="${!_st_var:-}"
     _SHQL_QUERY_INITIALIZED="${!_ini_var:-0}"
     _SHQL_QUERY_ERROR="${!_err_var:-}"
+    _SHQL_QUERY_LAST_SQL="${!_lsql_var:-}"
+
+    # Re-run query if another tab stole the grid globals
+    if (( _SHQL_QUERY_HAS_RESULTS )) && [[ "$_SHQL_BROWSER_GRID_OWNER_CTX" != "${_ctx}_results" ]] && [[ -n "$_SHQL_QUERY_LAST_SQL" ]]; then
+        _shql_query_run "$_SHQL_QUERY_LAST_SQL"
+    fi
 
     _shql_query_render "$@"
 
@@ -75,6 +85,7 @@ _shql_query_render_ctx() {
     printf -v "_SHQL_QUERY_CTX_HAS_RESULTS_${_ctx}"   '%d' "$_SHQL_QUERY_HAS_RESULTS"
     printf -v "_SHQL_QUERY_CTX_STATUS_${_ctx}"         '%s' "$_SHQL_QUERY_STATUS"
     printf -v "_SHQL_QUERY_CTX_ERROR_${_ctx}"          '%s' "$_SHQL_QUERY_ERROR"
+    printf -v "_SHQL_QUERY_CTX_LAST_SQL_${_ctx}"       '%s' "$_SHQL_QUERY_LAST_SQL"
     printf -v "_SHQL_QUERY_CTX_INITIALIZED_${_ctx}"   '%d' "$_SHQL_QUERY_INITIALIZED"
 }
 
@@ -145,6 +156,8 @@ _shql_query_run() {
     SHELLFRAME_GRID_CTX="$_SHQL_QUERY_GRID_CTX"
     shellframe_grid_init "$_SHQL_QUERY_GRID_CTX"
     _SHQL_QUERY_HAS_RESULTS=1
+    _SHQL_BROWSER_GRID_OWNER_CTX="$_SHQL_QUERY_GRID_CTX"
+    _SHQL_QUERY_LAST_SQL="$_sql"
     if [[ -n "$_warning" ]]; then
         _SHQL_QUERY_STATUS="${SHELLFRAME_GRID_ROWS} rows — $_warning"
     else

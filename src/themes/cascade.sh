@@ -34,7 +34,7 @@ SHQL_THEME_CONTENT_BG=$'\033[48;5;236m'
 
 # ── Grid: alternating stripes + dim cursor ────────────────────────────────────
 SHQL_THEME_ROW_STRIPE_BG=$'\033[48;5;238m'
-SHQL_THEME_CURSOR_BG=$'\033[48;5;240m'
+SHQL_THEME_CURSOR_BG=$'\033[48;5;54m'     # 54 (#5f0087) — muted purple, matches focus accent
 SHQL_THEME_CURSOR_BOLD=$'\033[1m'
 
 # ── Sidebar cursor: blue ──────────────────────────────────────────────────────

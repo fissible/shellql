@@ -163,7 +163,9 @@ _shql_inspector_render() {
     # Draw panel border with content bg
     local _cbg="${SHQL_THEME_CONTENT_BG:-}"
     local _rst="${SHELLFRAME_RESET:-$'\033[0m'}"
+    local _focus_color="${SHQL_THEME_QUERY_PANEL_COLOR:-}"
     [[ -n "$_cbg" ]] && printf '%s' "$_cbg" >/dev/tty
+    [[ -n "$_focus_color" ]] && printf '%s' "$_focus_color" >/dev/tty
     SHELLFRAME_PANEL_STYLE="${SHQL_THEME_PANEL_STYLE_FOCUSED:-double}"
     local _table_name="${_SHQL_TABS_TABLE[$_SHQL_TAB_ACTIVE]:-}"
     SHELLFRAME_PANEL_TITLE="Record — ${_table_name}"
@@ -225,6 +227,8 @@ _shql_inspector_render() {
     (( _val_avail_r < 1 )) && _val_avail_r=1
 
     local _kc="${SHQL_THEME_KEY_COLOR:-}" _vc="${SHQL_THEME_VALUE_COLOR:-}"
+    # Reset that preserves inner bg (not black)
+    local _ibg_rst="${_rst}${_ibg}"
     local _n_pairs=${#_SHQL_INSPECTOR_PAIRS[@]}
     local _n_rows=$(( (_n_pairs + 1) / 2 ))
 
@@ -243,21 +247,21 @@ _shql_inspector_render() {
             _pair="${_SHQL_INSPECTOR_PAIRS[$_l_idx]}"
             _key="${_pair%%	*}"; _val="${_pair#*	}"
             _val_clipped=$(shellframe_str_clip_ellipsis "$_val" "$_val" "$_val_avail_l")
-            printf '\033[%d;%dH%s%-*s%s  %s%s%s' \
-                "$_row" "$_l_left" "$_kc" "$_kw" "$_key" "$_rst" \
-                "$_vc" "$_val_clipped" "$_rst" >/dev/tty
+            printf '\033[%d;%dH%s%s%-*s%s  %s%s%s' \
+                "$_row" "$_l_left" "$_ibg" "$_kc" "$_kw" "$_key" "$_ibg_rst" \
+                "$_vc" "$_val_clipped" "$_ibg_rst" >/dev/tty
         fi
 
-        printf '\033[%d;%dH│' "$_row" "$_divider_col" >/dev/tty
+        printf '\033[%d;%dH%s│%s' "$_row" "$_divider_col" "$_gray" "$_ibg_rst" >/dev/tty
 
         _r_idx=$(( _logical_r * 2 + 1 ))
         if [[ $_r_idx -lt $_n_pairs ]]; then
             _pair="${_SHQL_INSPECTOR_PAIRS[$_r_idx]}"
             _key="${_pair%%	*}"; _val="${_pair#*	}"
             _val_clipped=$(shellframe_str_clip_ellipsis "$_val" "$_val" "$_val_avail_r")
-            printf '\033[%d;%dH%s%-*s%s  %s%s%s' \
-                "$_row" "$_r_left" "$_kc" "$_kw" "$_key" "$_rst" \
-                "$_vc" "$_val_clipped" "$_rst" >/dev/tty
+            printf '\033[%d;%dH%s%s%-*s%s  %s%s%s' \
+                "$_row" "$_r_left" "$_ibg" "$_kc" "$_kw" "$_key" "$_ibg_rst" \
+                "$_vc" "$_val_clipped" "$_ibg_rst" >/dev/tty
         fi
     done
 }

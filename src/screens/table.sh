@@ -974,8 +974,22 @@ _shql_TABLE_content_render() {
             # Load data for this tab's table if not already loaded
             _shql_content_data_ensure
             if (( _SHQL_INSPECTOR_ACTIVE )); then
-                # Render inspector directly — skip grid to avoid flash
-                _shql_inspector_render "$_top" "$_left" "$_width" "$_height"
+                # Render grid header row visible above the inspector
+                SHELLFRAME_GRID_CTX="${_SHQL_TABS_CTX[$_SHQL_TAB_ACTIVE]}_grid"
+                SHELLFRAME_GRID_FOCUSED=0
+                SHELLFRAME_GRID_BG="${SHQL_THEME_CONTENT_BG:-}"
+                SHELLFRAME_GRID_STRIPE_BG="${SHQL_THEME_ROW_STRIPE_BG:-}"
+                SHELLFRAME_GRID_HEADER_STYLE="${SHQL_THEME_GRID_HEADER_COLOR:-}"
+                SHELLFRAME_GRID_CURSOR_STYLE=""
+                _shql_grid_fill_width "$_width"
+                # Render just 2 rows for the header (header label + separator)
+                shellframe_grid_render "$_top" "$_left" "$_width" 2
+                _shql_grid_restore_last
+                # Inspector starts below the header rows
+                local _insp_top=$(( _top + 2 ))
+                local _insp_h=$(( _height - 2 ))
+                (( _insp_h < 3 )) && _insp_h=3
+                _shql_inspector_render "$_insp_top" "$_left" "$_width" "$_insp_h"
             else
                 SHELLFRAME_GRID_CTX="${_SHQL_TABS_CTX[$_SHQL_TAB_ACTIVE]}_grid"
                 SHELLFRAME_GRID_FOCUSED=$_SHQL_BROWSER_CONTENT_FOCUSED

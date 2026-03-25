@@ -147,9 +147,9 @@ shellframe primitives (P1–P4)
 ## Session handoff notes
 > Update this section at the end of each session.
 
-_Last updated: 2026-03-24 (Browser Redesign + Cascade Theme)_
+_Last updated: 2026-03-25 (Layout enhancements — padding, footer status bar, Relations header)_
 
-**v0.3.0 released. Browser redesign complete (15 tasks). Cascade theme implemented with extensive UX polish.**
+**v0.3.0 released. Browser redesign + cascade theme complete. Layout enhancements shipped.**
 
 Completed 2026-03-22 (Phase 6.1):
 - `src/db_mock.sh` — fixture data for all adapter functions (`shql_mock_load_recent`, `shql_db_list_tables`, `shql_db_describe`, `shql_db_fetch`, `shql_db_query`)
@@ -255,14 +255,13 @@ Completed 2026-03-23 (ptyunit consumer migration):
 - Dark surface below last data row; padding row above grid headers
 - Inspector: grid header visible above, ↑ at scroll top dismisses, themed backgrounds, focus accent border
 
-**Pending design items (saved in memory):**
-- Footer status bar (connection info + query timing)
-- Viewport padding at 50x50+
-- "Relations" header above table list
-- Taller sidebar rows when space permits
-- Welcome screen padding
+**Completed 2026-03-25 (Layout enhancements):**
+- Viewport padding: 1-row/1-col buffer on all edges when >= 50x50 (TABLE + WELCOME screens)
+- Footer status bar: two-row footer — "Connected to <db>" (left) + "H:MM am — Query returned N rows in Xms" (right) above key hints
+- "Relations" header above table list in sidebar
+- Welcome screen padding: same 50x50 logic
 
-**Next task:** Cascade theme layout enhancements (footer status bar, viewport padding) or [shellql#12](https://github.com/fissible/shellql/issues/12)
+**Next task:** [shellql#12](https://github.com/fissible/shellql/issues/12)
 - **BLOCKED** on [shellframe#27](https://github.com/fissible/shellframe/issues/27) — Sheet navigation primitive (M effort in shellframe)
 - Design decision: `[o]` should use the sheet pattern rather than a modal, so shellframe#27 ships first
 - Flag for PM: shellframe#27 is M+ cross-repo work; needs scheduling before shellql#12 can proceed

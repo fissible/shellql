@@ -335,8 +335,10 @@ _shql_query_render() {
     (( _results_rows < 3 )) && _results_rows=3
 
     # ── Editor panel ──
+    # Sub-pane focus requires content region to be focused too
+    local _content_focused="${_SHQL_BROWSER_CONTENT_FOCUSED:-0}"
     local _editor_pane_focused=0
-    [[ "$_SHQL_QUERY_FOCUSED_PANE" == "editor" ]] && _editor_pane_focused=1
+    (( _content_focused )) && [[ "$_SHQL_QUERY_FOCUSED_PANE" == "editor" ]] && _editor_pane_focused=1
     local _cbg="${SHQL_THEME_CONTENT_BG:-}"
 
     local _panel_style
@@ -391,7 +393,7 @@ _shql_query_render() {
 
     # ── Results panel ──
     local _results_pane_focused=0
-    [[ "$_SHQL_QUERY_FOCUSED_PANE" == "results" ]] && _results_pane_focused=1
+    (( _content_focused )) && [[ "$_SHQL_QUERY_FOCUSED_PANE" == "results" ]] && _results_pane_focused=1
 
     local _results_panel_style
     if (( _results_pane_focused )); then

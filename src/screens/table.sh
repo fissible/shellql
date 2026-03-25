@@ -953,8 +953,10 @@ _shql_schema_tab_render() {
 _shql_TABLE_content_render() {
     local _top="$1" _left="$2" _width="$3" _height="$4"
 
-    # Fill content area with theme background
+    # Fill content area + padding row above with theme background
     if [[ -n "${SHQL_THEME_CONTENT_BG:-}" ]]; then
+        # Padding row (1 row above content top)
+        printf '\033[%d;%dH%s%*s' "$(( _top - 1 ))" "$_left" "$SHQL_THEME_CONTENT_BG" "$_width" '' >/dev/tty
         local _r
         for (( _r=0; _r<_height; _r++ )); do
             printf '\033[%d;%dH%s%*s' "$(( _top + _r ))" "$_left" "$SHQL_THEME_CONTENT_BG" "$_width" '' >/dev/tty

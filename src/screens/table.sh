@@ -982,12 +982,12 @@ _shql_TABLE_content_render() {
                 SHELLFRAME_GRID_HEADER_STYLE="${SHQL_THEME_GRID_HEADER_COLOR:-}"
                 SHELLFRAME_GRID_CURSOR_STYLE=""
                 _shql_grid_fill_width "$_width"
-                # Render just 2 rows for the header (header label + separator)
-                shellframe_grid_render "$_top" "$_left" "$_width" 2
+                # Render 3 rows: header label + separator + 1 data row
+                shellframe_grid_render "$_top" "$_left" "$_width" 3
                 _shql_grid_restore_last
-                # Inspector starts below the header rows
-                local _insp_top=$(( _top + 2 ))
-                local _insp_h=$(( _height - 2 ))
+                # Inspector starts below the header
+                local _insp_top=$(( _top + 3 ))
+                local _insp_h=$(( _height - 3 ))
                 (( _insp_h < 3 )) && _insp_h=3
                 _shql_inspector_render "$_insp_top" "$_left" "$_width" "$_insp_h"
             else

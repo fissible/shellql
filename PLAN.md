@@ -261,6 +261,10 @@ Completed 2026-03-23 (ptyunit consumer migration):
 - "Relations" header above table list in sidebar
 - Welcome screen padding: same 50x50 logic
 
+**Completed 2026-03-26 (Sidebar rendering artifacts — uranium theme):**
+- `src/screens/table.sh` — moved "Relations" direct-write header inside the `"none"` border branch; it was firing unconditionally, causing the written text to bleed over the panel top-border on every frame after the first (framebuffer diff skipped re-emitting unchanged panel border cells)
+- `src/themes/uranium.sh` — added `SHQL_THEME_SIDEBAR_CURSOR_BG` (green bg + black text, matches header); without it the cursor fell back to reverse-video, making the bold `│` panel border visually merge into the highlight on the selected row while appearing prominently on non-selected rows
+
 **Next task:** [shellql#12](https://github.com/fissible/shellql/issues/12)
 - **BLOCKED** on [shellframe#27](https://github.com/fissible/shellframe/issues/27) — Sheet navigation primitive (M effort in shellframe)
 - Design decision: `[o]` should use the sheet pattern rather than a modal, so shellframe#27 ships first

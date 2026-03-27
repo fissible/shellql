@@ -8,6 +8,7 @@ source "$_SHELLFRAME_DIR/src/clip.sh"
 source "$_SHELLFRAME_DIR/src/draw.sh"
 source "$_SHELLFRAME_DIR/src/selection.sh"
 source "$_SHELLFRAME_DIR/src/scroll.sh"
+source "$_SHELLFRAME_DIR/src/screen.sh"
 source "$_SHELLFRAME_DIR/src/panel.sh"
 source "$_SHELLFRAME_DIR/src/widgets/list.sh"
 source "$_SHQL_ROOT/src/state.sh"
@@ -172,5 +173,42 @@ assert_eq "0" "$_SHQL_INSPECTOR_ROW_IDX" "→: wraps back to row 0"
 ptyunit_test_begin "inspector_step: ← at row 0 wraps to last"
 _shql_inspector_on_key $'\033[D'   # left from row 0
 assert_eq "1" "$_SHQL_INSPECTOR_ROW_IDX" "←: wraps to last row"
+
+ptyunit_test_begin "inspector_on_key: ↑ at scroll top (0) dismisses inspector"
+_SHQL_INSPECTOR_ACTIVE=1
+shellframe_scroll_init "$_SHQL_INSPECTOR_CTX" 5 1 3 1
+# After init scroll top is 0 — pressing up should dismiss
+_shql_inspector_on_key $'\033[A'
+assert_eq "0" "$_SHQL_INSPECTOR_ACTIVE" "↑ at top: ACTIVE=0"
+
+ptyunit_test_begin "inspector_on_key: ↑ when scroll_top>0 scrolls up (not dismiss)"
+_SHQL_INSPECTOR_ACTIVE=1
+shellframe_scroll_init "$_SHQL_INSPECTOR_CTX" 5 1 3 1
+shellframe_scroll_move "$_SHQL_INSPECTOR_CTX" down   # top becomes 1
+_shql_inspector_on_key $'\033[A'   # up from top=1
+assert_eq "1" "$_SHQL_INSPECTOR_ACTIVE" "↑ not at top: stays active"
+
+ptyunit_test_begin "inspector_on_key: page_up returns 0"
+_SHQL_INSPECTOR_ACTIVE=1
+shellframe_scroll_init "$_SHQL_INSPECTOR_CTX" 10 1 3 1
+_shql_inspector_on_key $'\033[5~'; _rc=$?
+assert_eq "0" "$_rc" "page_up: returns 0"
+
+ptyunit_test_begin "inspector_on_key: page_down returns 0"
+_shql_inspector_on_key $'\033[6~'; _rc=$?
+assert_eq "0" "$_rc" "page_down: returns 0"
+
+# ── Test: _shql_inspector_render (fb render) ──────────────────────────────────
+
+ptyunit_test_begin "inspector_render: writes cells to framebuffer"
+_setup_mock_grid
+_shql_inspector_open
+_SHQL_INSPECTOR_ACTIVE=1
+shellframe_fb_frame_start 24 80
+_shql_inspector_render 1 1 60 20
+assert_eq 1 $(( ${#_SF_FRAME_DIRTY[@]} > 0 )) "render: framebuffer has dirty cells"
+
+ptyunit_test_begin "inspector_render: panel title contains 'Record'"
+assert_contains "$SHELLFRAME_PANEL_TITLE" "Record" "render: PANEL_TITLE set to Record..."
 
 ptyunit_test_summary

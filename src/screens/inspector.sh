@@ -130,13 +130,14 @@ _shql_inspector_on_key() {
     local _k_right="${SHELLFRAME_KEY_RIGHT:-$'\033[C'}"
 
     case "$_key" in
-        "$_k_right") _shql_inspector_step 1;  return 0 ;;
-        "$_k_left")  _shql_inspector_step -1; return 0 ;;
+        "$_k_right") _shql_inspector_step 1;  shellframe_shell_mark_dirty; return 0 ;;
+        "$_k_left")  _shql_inspector_step -1; shellframe_shell_mark_dirty; return 0 ;;
         "$_k_up")
             # ↑ at scroll top dismisses inspector (back to grid)
             local _st=0; shellframe_scroll_top "$_SHQL_INSPECTOR_CTX" _st 2>/dev/null || true
             if (( _st == 0 )); then
                 _SHQL_INSPECTOR_ACTIVE=0
+                shellframe_shell_mark_dirty
             else
                 shellframe_scroll_move "$_SHQL_INSPECTOR_CTX" up
             fi
@@ -149,6 +150,7 @@ _shql_inspector_on_key() {
             # quit handler, which would navigate away from TABLE while the
             # inspector is still open.
             _SHQL_INSPECTOR_ACTIVE=0
+            shellframe_shell_mark_dirty
             return 0
             ;;
     esac

@@ -391,9 +391,9 @@ _shql_TABLE_sidebar_on_key() {
     local _k_right="${SHELLFRAME_KEY_RIGHT:-$'\033[C'}"
 
     case "$_key" in
-        "$_k_right") shellframe_shell_focus_set "tabbar";  return 0 ;;
-        $'\r'|$'\n') _shql_TABLE_sidebar_action; return 0 ;;
-        s)           _shql_TABLE_sidebar_action_schema; return 0 ;;
+        "$_k_right") shellframe_shell_focus_set "tabbar"; shellframe_shell_mark_dirty; return 0 ;;
+        $'\r'|$'\n') _shql_TABLE_sidebar_action; shellframe_shell_mark_dirty; return 0 ;;
+        s)           _shql_TABLE_sidebar_action_schema; shellframe_shell_mark_dirty; return 0 ;;
         n)
             local _fits=1
             local _rows _cols; _shellframe_shell_terminal_size _rows _cols
@@ -403,6 +403,7 @@ _shql_TABLE_sidebar_on_key() {
                 _shql_tab_open "" "query"
                 shellframe_shell_focus_set "content"
             fi
+            shellframe_shell_mark_dirty
             return 0 ;;
     esac
     # Delegate ↑/↓ and other list keys to the list widget
@@ -580,6 +581,7 @@ _shql_TABLE_tabbar_on_key() {
                 # At first tab → sidebar
                 shellframe_shell_focus_set "sidebar"
             fi
+            shellframe_shell_mark_dirty
             return 0 ;;
         "$_k_right")
             if (( _SHQL_BROWSER_TABBAR_ON_SQL )); then
@@ -592,10 +594,12 @@ _shql_TABLE_tabbar_on_key() {
                 # Past last tab → +SQL
                 _SHQL_BROWSER_TABBAR_ON_SQL=1
             fi
+            shellframe_shell_mark_dirty
             return 0 ;;
         "$_k_down")
             _SHQL_BROWSER_TABBAR_ON_SQL=0
             shellframe_shell_focus_set "content"
+            shellframe_shell_mark_dirty
             return 0 ;;
         $'\r'|$'\n')
             if (( _SHQL_BROWSER_TABBAR_ON_SQL )); then
@@ -612,9 +616,11 @@ _shql_TABLE_tabbar_on_key() {
             else
                 shellframe_shell_focus_set "content"
             fi
+            shellframe_shell_mark_dirty
             return 0 ;;
         w)
             _shql_tab_close
+            shellframe_shell_mark_dirty
             return 0 ;;
         n)
             _SHQL_BROWSER_TABBAR_ON_SQL=0
@@ -626,6 +632,7 @@ _shql_TABLE_tabbar_on_key() {
                 _shql_tab_open "" "query"
                 shellframe_shell_focus_set "content"
             fi
+            shellframe_shell_mark_dirty
             return 0 ;;
     esac
     return 1
@@ -1049,6 +1056,7 @@ _shql_TABLE_content_on_key() {
     # Exception: query tabs handle Esc internally (typing → button, button → tabbar)
     if [[ "$_key" == $'\033' && "$_type" != "query" ]]; then
         shellframe_shell_focus_set "tabbar"
+        shellframe_shell_mark_dirty
         return 0
     fi
 
@@ -1056,10 +1064,12 @@ _shql_TABLE_content_on_key() {
     case "$_key" in
         '[')
             (( _SHQL_TAB_ACTIVE > 0 )) && _shql_tab_activate $(( _SHQL_TAB_ACTIVE - 1 ))
+            shellframe_shell_mark_dirty
             return 0 ;;
         ']')
             local _max=$(( ${#_SHQL_TABS_TYPE[@]} - 1 ))
             (( _SHQL_TAB_ACTIVE < _max )) && _shql_tab_activate $(( _SHQL_TAB_ACTIVE + 1 ))
+            shellframe_shell_mark_dirty
             return 0 ;;
     esac
 
@@ -1072,6 +1082,7 @@ _shql_TABLE_content_on_key() {
                 shellframe_sel_cursor "${_ctx}_grid" _cursor 2>/dev/null || true
                 if (( _cursor == 0 )); then
                     shellframe_shell_focus_set "tabbar"
+                    shellframe_shell_mark_dirty
                     return 0
                 fi
             fi
@@ -1081,6 +1092,7 @@ _shql_TABLE_content_on_key() {
                 shellframe_scroll_left "${_ctx}_grid" _scroll_left 2>/dev/null || true
                 if (( _scroll_left == 0 )); then
                     shellframe_shell_focus_set "sidebar"
+                    shellframe_shell_mark_dirty
                     return 0
                 fi
             fi
@@ -1113,6 +1125,7 @@ _shql_TABLE_content_action() {
         local _ctx="${_SHQL_TABS_CTX[$_SHQL_TAB_ACTIVE]}"
         SHELLFRAME_GRID_CTX="${_ctx}_grid"
         _shql_inspector_open
+        shellframe_shell_mark_dirty
     fi
 }
 
@@ -1147,6 +1160,7 @@ _shql_schema_tab_on_key() {
                 _SHQL_BROWSER_CONTENT_FOCUS="schema_cols"
                 shellframe_shell_focus_set "sidebar"   # Tab from DDL exits
             fi
+            shellframe_shell_mark_dirty
             return 0 ;;
         "$_k_shift_tab")
             if [[ "$_SHQL_BROWSER_CONTENT_FOCUS" == "schema_ddl" ]]; then
@@ -1154,6 +1168,7 @@ _shql_schema_tab_on_key() {
             else
                 shellframe_shell_focus_set "tabbar"
             fi
+            shellframe_shell_mark_dirty
             return 0 ;;
     esac
     return 1

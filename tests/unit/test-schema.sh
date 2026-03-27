@@ -146,4 +146,207 @@ ptyunit_test_begin "db_list_objects: first object is a table"
 _first=$(printf '%s\n' "$_objs" | head -1)
 assert_contains "$_first" "table"
 
+# ── Additional logic and render tests ─────────────────────────────────────────
+
+_SHELLFRAME_DIR="${SHELLFRAME_DIR:-${SHQL_ROOT}/../shellframe}"
+source "$_SHELLFRAME_DIR/src/scroll.sh"
+source "$_SHELLFRAME_DIR/src/screen.sh"
+source "$_SHELLFRAME_DIR/src/clip.sh"
+
+# Stub panel/list functions for render tests
+shellframe_panel_render() { true; }
+shellframe_panel_inner() {
+    printf -v "$5" '%d' "$(( $1 + 1 ))"
+    printf -v "$6" '%d' "$(( $2 + 1 ))"
+    printf -v "$7" '%d' "$(( $3 - 2 ))"
+    printf -v "$8" '%d' "$(( $4 - 2 ))"
+}
+shellframe_list_render() { true; }
+shellframe_list_on_key() { return 1; }
+
+# Helper: extract stripped text from a framebuffer row
+_fb_schema_row_text() {
+    local _row="$1" _out="" _i _cols="${_SF_FRAME_COLS:-80}"
+    for (( _i=0; _i<_cols; _i++ )); do
+        local _idx=$(( (_row-1)*_cols + _i ))
+        _out+="${_SF_FRAME_CURR[${_idx}]:-}"
+    done
+    printf '%s' "$_out" | sed $'s/\033\\[[0-9;]*[A-Za-z]//g' | tr -d $'\033'
+}
+
+# ── Test: _shql_schema_current_table ─────────────────────────────────────────
+
+ptyunit_test_begin "schema_current_table: returns first table via out var"
+_SHQL_SCHEMA_TABLES=("users" "orders")
+_t=""
+_shql_schema_current_table _t
+assert_eq "users" "$_t"
+
+ptyunit_test_begin "schema_current_table: returns first table to stdout"
+_SHQL_SCHEMA_TABLES=("users" "orders")
+_t=$(_shql_schema_current_table)
+assert_eq "users" "$_t"
+
+ptyunit_test_begin "schema_current_table: empty tables returns empty string"
+_SHQL_SCHEMA_TABLES=()
+_t="nonempty"
+_shql_schema_current_table _t
+assert_eq "" "$_t"
+
+# ── Test: _shql_SCHEMA_footer_render ─────────────────────────────────────────
+
+ptyunit_test_begin "schema_footer_render: sidebar focused — contains 'Select table'"
+shellframe_fb_frame_start 24 80
+_SHQL_SCHEMA_DETAIL_FOCUSED=0
+_shql_SCHEMA_footer_render 1 1 80
+_text=$(_fb_schema_row_text 1)
+assert_contains "$_text" "Select table"
+
+ptyunit_test_begin "schema_footer_render: detail focused — contains 'Scroll DDL'"
+shellframe_fb_frame_start 24 80
+_SHQL_SCHEMA_DETAIL_FOCUSED=1
+_shql_SCHEMA_footer_render 2 1 80
+_text=$(_fb_schema_row_text 2)
+assert_contains "$_text" "Scroll DDL"
+
+# ── Test: _shql_SCHEMA_detail_on_key ─────────────────────────────────────────
+
+ptyunit_test_begin "detail_on_key: down moves scroll top to 1"
+shellframe_scroll_init "$_SHQL_SCHEMA_DDL_CTX" 20 1 5 1
+_shql_SCHEMA_detail_on_key $'\033[B'
+_st=0; shellframe_scroll_top "$_SHQL_SCHEMA_DDL_CTX" _st
+assert_eq "1" "$_st"
+
+ptyunit_test_begin "detail_on_key: up moves scroll top back to 0"
+_shql_SCHEMA_detail_on_key $'\033[A'
+shellframe_scroll_top "$_SHQL_SCHEMA_DDL_CTX" _st
+assert_eq "0" "$_st"
+
+ptyunit_test_begin "detail_on_key: page_down returns 0"
+_shql_SCHEMA_detail_on_key $'\033[6~'; _rc=$?
+assert_eq "0" "$_rc"
+
+ptyunit_test_begin "detail_on_key: page_up returns 0"
+_shql_SCHEMA_detail_on_key $'\033[5~'; _rc=$?
+assert_eq "0" "$_rc"
+
+ptyunit_test_begin "detail_on_key: home returns 0"
+_shql_SCHEMA_detail_on_key $'\033[H'; _rc=$?
+assert_eq "0" "$_rc"
+
+ptyunit_test_begin "detail_on_key: end returns 0"
+_shql_SCHEMA_detail_on_key $'\033[F'; _rc=$?
+assert_eq "0" "$_rc"
+
+ptyunit_test_begin "detail_on_key: unknown key returns 1"
+_shql_SCHEMA_detail_on_key 'x'; _rc=$?
+assert_eq "1" "$_rc"
+
+# ── Test: _shql_SCHEMA_detail_on_focus ───────────────────────────────────────
+
+ptyunit_test_begin "detail_on_focus: sets DETAIL_FOCUSED=1"
+_SHQL_SCHEMA_DETAIL_FOCUSED=0
+_shql_SCHEMA_detail_on_focus 1
+assert_eq "1" "$_SHQL_SCHEMA_DETAIL_FOCUSED"
+
+ptyunit_test_begin "detail_on_focus: sets DETAIL_FOCUSED=0"
+_SHQL_SCHEMA_DETAIL_FOCUSED=1
+_shql_SCHEMA_detail_on_focus 0
+assert_eq "0" "$_SHQL_SCHEMA_DETAIL_FOCUSED"
+
+# ── Test: _shql_SCHEMA_sidebar_on_focus ──────────────────────────────────────
+
+ptyunit_test_begin "sidebar_on_focus: sets SIDEBAR_FOCUSED=1"
+_SHQL_SCHEMA_SIDEBAR_FOCUSED=0
+_shql_SCHEMA_sidebar_on_focus 1
+assert_eq "1" "$_SHQL_SCHEMA_SIDEBAR_FOCUSED"
+
+# ── Test: _shql_SCHEMA_quit ───────────────────────────────────────────────────
+
+ptyunit_test_begin "schema_quit: sets NEXT=WELCOME"
+_SHELLFRAME_SHELL_NEXT=""
+_shql_SCHEMA_quit
+assert_eq "WELCOME" "$_SHELLFRAME_SHELL_NEXT"
+
+# ── Test: shql_schema_init ────────────────────────────────────────────────────
+
+ptyunit_test_begin "shql_schema_init: populates tables array from mock"
+_SHQL_SCHEMA_TABLES=()
+_SHQL_SCHEMA_DDL_LINES=()
+shql_schema_init
+assert_eq 1 $(( ${#_SHQL_SCHEMA_TABLES[@]} > 0 ))
+
+ptyunit_test_begin "shql_schema_init: loads DDL for first table"
+assert_eq 1 $(( ${#_SHQL_SCHEMA_DDL_LINES[@]} > 0 ))
+
+ptyunit_test_begin "shql_schema_init: resets PREV_TABLE to first table"
+assert_eq "users" "$_SHQL_SCHEMA_PREV_TABLE"
+
+# ── Test: _shql_SCHEMA_sidebar_action ────────────────────────────────────────
+
+shql_table_init() { true; }
+
+ptyunit_test_begin "sidebar_action: empty table list is no-op"
+_SHQL_SCHEMA_TABLES=()
+_SHELLFRAME_SHELL_NEXT=""
+_shql_SCHEMA_sidebar_action
+assert_eq "" "$_SHELLFRAME_SHELL_NEXT"
+
+ptyunit_test_begin "sidebar_action: valid table sets TABLE_NAME and navigates to TABLE"
+_SHQL_SCHEMA_TABLES=("users" "orders")
+_SHELLFRAME_SHELL_NEXT=""
+_SHQL_TABLE_NAME=""
+_shql_SCHEMA_sidebar_action
+assert_eq "TABLE" "$_SHELLFRAME_SHELL_NEXT"
+assert_eq "users" "$_SHQL_TABLE_NAME"
+
+# ── Test: _shql_SCHEMA_sidebar_on_key ─────────────────────────────────────────
+
+ptyunit_test_begin "sidebar_on_key: delegates to shellframe_list_on_key"
+_shql_SCHEMA_sidebar_on_key 'x'; _rc=$?
+assert_eq "1" "$_rc"
+
+# ── Test: _shql_SCHEMA_header_render (fb render) ─────────────────────────────
+
+ptyunit_test_begin "schema_header_render: writes cells to framebuffer"
+shellframe_fb_frame_start 24 80
+SHQL_DRIVER=sqlite SHQL_DB_PATH="/data/test.db"
+_shql_SCHEMA_header_render 1 1 80
+assert_eq 1 $(( ${#_SF_FRAME_DIRTY[@]} > 0 ))
+
+# ── Test: _shql_SCHEMA_sidebar_render (fb render) ─────────────────────────────
+
+ptyunit_test_begin "schema_sidebar_render: unfocused — sets single panel style"
+_SHQL_SCHEMA_TABLES=("users" "orders")
+_SHQL_SCHEMA_SIDEBAR_FOCUSED=0
+SHELLFRAME_PANEL_STYLE=""
+_shql_SCHEMA_sidebar_render 1 1 20 20
+assert_eq "single" "$SHELLFRAME_PANEL_STYLE"
+
+ptyunit_test_begin "schema_sidebar_render: focused — sets focused panel style"
+shellframe_fb_frame_start 24 40
+_SHQL_SCHEMA_SIDEBAR_FOCUSED=1
+_shql_SCHEMA_sidebar_render 1 1 20 20
+assert_eq "${SHQL_THEME_PANEL_STYLE_FOCUSED:-double}" "$SHELLFRAME_PANEL_STYLE"
+
+# ── Test: _shql_SCHEMA_columns_render (fb render) ────────────────────────────
+
+ptyunit_test_begin "schema_columns_render: renders columns to framebuffer"
+shellframe_fb_frame_start 24 80
+_SHQL_SCHEMA_COLUMNS=("id	INTEGER	PK" "name	TEXT	NN")
+_shql_SCHEMA_columns_render 1 1 30 20
+assert_eq 1 $(( ${#_SF_FRAME_DIRTY[@]} > 0 ))
+
+# ── Test: _shql_SCHEMA_detail_render (fb render) ──────────────────────────────
+
+ptyunit_test_begin "schema_detail_render: renders DDL to framebuffer"
+shellframe_fb_frame_start 24 80
+_SHQL_SCHEMA_TABLES=("users")
+_SHQL_SCHEMA_PREV_TABLE="users"
+_SHQL_SCHEMA_DDL_LINES=("CREATE TABLE users (" "  id INTEGER PRIMARY KEY" ");")
+shellframe_scroll_init "$_SHQL_SCHEMA_DDL_CTX" 3 1 5 1
+_SHQL_SCHEMA_DETAIL_FOCUSED=0
+_shql_SCHEMA_detail_render 1 1 40 20
+assert_eq 1 $(( ${#_SF_FRAME_DIRTY[@]} > 0 ))
+
 ptyunit_test_summary

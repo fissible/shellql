@@ -228,18 +228,22 @@ _shql_query_on_key() {
             case "$_key" in
                 "$_k_enter"|"$_k_newline")
                     _SHQL_QUERY_EDITOR_ACTIVE=1
+                    shellframe_shell_mark_dirty
                     return 0
                     ;;
                 "$_k_up"|"$_k_escape")
                     shellframe_shell_focus_set "tabbar"
+                    shellframe_shell_mark_dirty
                     return 0
                     ;;
                 "$_k_down"|"$_k_tab"|"$_k_shift_tab")
                     _SHQL_QUERY_FOCUSED_PANE="results"
+                    shellframe_shell_mark_dirty
                     return 0
                     ;;
                 "$_k_left")
                     shellframe_shell_focus_set "sidebar"
+                    shellframe_shell_mark_dirty
                     return 0
                     ;;
             esac
@@ -249,6 +253,7 @@ _shql_query_on_key() {
         # Typing state: Esc returns to button state; Ctrl-D submits; else → editor
         if [[ "$_key" == "$_k_escape" ]]; then
             _SHQL_QUERY_EDITOR_ACTIVE=0
+            shellframe_shell_mark_dirty
             return 0
         fi
         SHELLFRAME_EDITOR_CTX="$_SHQL_QUERY_EDITOR_CTX"
@@ -264,6 +269,7 @@ _shql_query_on_key() {
                 _SHQL_QUERY_FOCUSED_PANE="results"
                 _SHQL_QUERY_EDITOR_ACTIVE=0
             fi
+            shellframe_shell_mark_dirty
             return 0
         fi
         if (( _rc == 0 )); then
@@ -273,6 +279,7 @@ _shql_query_on_key() {
         if [[ "$_key" == "$_k_tab" ]] || [[ "$_key" == "$_k_shift_tab" ]]; then
             _SHQL_QUERY_FOCUSED_PANE="results"
             _SHQL_QUERY_EDITOR_ACTIVE=0
+            shellframe_shell_mark_dirty
             return 0
         fi
         return 1
@@ -281,6 +288,7 @@ _shql_query_on_key() {
     # results pane focused
     if   [[ "$_key" == "$_k_tab" ]] || [[ "$_key" == "$_k_shift_tab" ]]; then
         _SHQL_QUERY_FOCUSED_PANE="editor"
+        shellframe_shell_mark_dirty
         return 0
     elif [[ "$_key" == "$_k_ctrl_d" ]]; then
         local _sql
@@ -290,15 +298,18 @@ _shql_query_on_key() {
             _SHQL_QUERY_FOCUSED_PANE="editor"
             _SHQL_QUERY_EDITOR_ACTIVE=1
         fi
+        shellframe_shell_mark_dirty
         return 0
     elif [[ "$_key" == "$_k_escape" || "$_key" == "q" ]]; then
         shellframe_shell_focus_set "tabbar"
+        shellframe_shell_mark_dirty
         return 0
     elif [[ "$_key" == "$_k_left" ]]; then
         local _scroll_left=0
         shellframe_scroll_left "$_SHQL_QUERY_GRID_CTX" _scroll_left 2>/dev/null || true
         if (( _scroll_left == 0 )); then
             shellframe_shell_focus_set "sidebar"
+            shellframe_shell_mark_dirty
             return 0
         fi
     elif [[ "$_key" == "$_k_up" ]]; then
@@ -306,6 +317,7 @@ _shql_query_on_key() {
         shellframe_sel_cursor "$_SHQL_QUERY_GRID_CTX" _cursor 2>/dev/null || true
         if (( _cursor == 0 )); then
             _SHQL_QUERY_FOCUSED_PANE="editor"
+            shellframe_shell_mark_dirty
             return 0
         fi
     fi
@@ -392,7 +404,7 @@ _shql_query_render() {
             local _ph_len=${#_ph_text}
             local _ph_col=$(( _il + (_iw - _ph_len) / 2 ))
             (( _ph_col < _il )) && _ph_col=$_il
-            shellframe_fb_print "$_mid" "$_ph_col" "$_ph_text" "$_gray"
+            shellframe_fb_print "$_mid" "$_ph_col" "$_ph_text" "${_cbg}${_gray}"
         fi
     fi
 
@@ -486,6 +498,6 @@ _shql_query_render() {
         local _plen=${#_SHQL_QUERY_PLACEHOLDER}
         local _pcol=$(( _ril + (_riw - _plen) / 2 ))
         (( _pcol < _ril )) && _pcol=$_ril
-        shellframe_fb_print "$_mid" "$_pcol" "$_SHQL_QUERY_PLACEHOLDER" "$_gray"
+        shellframe_fb_print "$_mid" "$_pcol" "$_SHQL_QUERY_PLACEHOLDER" "${_rbg}${_gray}"
     fi
 }

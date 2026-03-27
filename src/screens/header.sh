@@ -65,8 +65,6 @@ _shql_header_render() {
     local _tlen=${#_text}
     local _pad=$(( _width - _tlen ))
     (( _pad < 0 )) && _pad=0
-    local _spaces
-    printf -v _spaces '%*s' "$_pad" ''
-    printf '\033[%d;%dH%s%s%s%s' \
-        "$_top" "$_left" "$_bg" "$_text" "$_spaces" "$_rst" >/dev/tty
+    shellframe_fb_print "$_top" "$_left" "$_text" "$_bg"
+    shellframe_fb_fill  "$_top" "$(( _left + _tlen ))" "$_pad" " " "$_bg"
 }

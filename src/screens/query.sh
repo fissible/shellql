@@ -322,7 +322,6 @@ _shql_query_on_key() {
 
 _shql_query_render() {
     local _top="$1" _left="$2" _width="$3" _height="$4"
-    local _rst="${SHELLFRAME_RESET:-$'\033[0m'}"
     local _gray="${SHELLFRAME_GRAY:-}"
 
     # Lazy widget init: requires viewport dimensions, so deferred from _shql_query_init.
@@ -359,13 +358,13 @@ _shql_query_render() {
     SHELLFRAME_PANEL_TITLE_ALIGN="left"
     SHELLFRAME_PANEL_FOCUSED=$_editor_pane_focused
     SHELLFRAME_PANEL_MODE="framed"
-    # Set content bg + accent color for panel border rendering
-    [[ -n "$_cbg" ]] && printf '%s' "$_cbg" >/dev/tty
+    # Set content bg + accent color for panel border cells
+    SHELLFRAME_PANEL_CELL_ATTRS="$_cbg"
     if (( _editor_pane_focused )) && [[ -n "${SHQL_THEME_QUERY_PANEL_COLOR:-}" ]]; then
-        printf '%s' "$SHQL_THEME_QUERY_PANEL_COLOR" >/dev/tty
+        SHELLFRAME_PANEL_CELL_ATTRS="${_cbg}${SHQL_THEME_QUERY_PANEL_COLOR}"
     fi
     shellframe_panel_render "$_top" "$_left" "$_width" "$_editor_rows"
-    printf '%s' "${SHQL_THEME_RESET:-$'\033[0m'}" >/dev/tty
+    SHELLFRAME_PANEL_CELL_ATTRS=""
 
     local _it _il _iw _ih
     shellframe_panel_inner "$_top" "$_left" "$_width" "$_editor_rows" _it _il _iw _ih
@@ -393,8 +392,7 @@ _shql_query_render() {
             local _ph_len=${#_ph_text}
             local _ph_col=$(( _il + (_iw - _ph_len) / 2 ))
             (( _ph_col < _il )) && _ph_col=$_il
-            printf '\033[%d;%dH%s%s%s' \
-                "$_mid" "$_ph_col" "$_gray" "$_ph_text" "$_rst" >/dev/tty
+            shellframe_fb_print "$_mid" "$_ph_col" "$_ph_text" "$_gray"
         fi
     fi
 
@@ -413,13 +411,13 @@ _shql_query_render() {
     SHELLFRAME_PANEL_TITLE_ALIGN="left"
     SHELLFRAME_PANEL_FOCUSED=$_results_pane_focused
     SHELLFRAME_PANEL_MODE="framed"
-    # Set content bg + accent color for panel border rendering
-    [[ -n "$_cbg" ]] && printf '%s' "$_cbg" >/dev/tty
+    # Set content bg + accent color for panel border cells
+    SHELLFRAME_PANEL_CELL_ATTRS="$_cbg"
     if (( _results_pane_focused )) && [[ -n "${SHQL_THEME_QUERY_PANEL_COLOR:-}" ]]; then
-        printf '%s' "$SHQL_THEME_QUERY_PANEL_COLOR" >/dev/tty
+        SHELLFRAME_PANEL_CELL_ATTRS="${_cbg}${SHQL_THEME_QUERY_PANEL_COLOR}"
     fi
     shellframe_panel_render "$_results_top" "$_left" "$_width" "$_results_rows"
-    printf '%s' "${SHQL_THEME_RESET:-$'\033[0m'}" >/dev/tty
+    SHELLFRAME_PANEL_CELL_ATTRS=""
 
     local _rit _ril _riw _rih
     shellframe_panel_inner "$_results_top" "$_left" "$_width" "$_results_rows" \
@@ -442,22 +440,23 @@ _shql_query_render() {
         local _rbg="${SHQL_THEME_EDITOR_FOCUSED_BG:-${SHQL_THEME_CONTENT_BG:-}}"
         local _err_color=$'\033[38;5;196m'   # bright red
         local _err_dim=$'\033[38;5;174m'     # muted red/pink for detail text
-        local _rst_bg="${_rst}${_rbg}"
         local _r
         for (( _r=0; _r<_rih; _r++ )); do
-            printf '\033[%d;%dH%s%*s' "$(( _rit + _r ))" "$_ril" "$_rbg" "$_riw" '' >/dev/tty
+            shellframe_fb_fill "$(( _rit + _r ))" "$_ril" "$_riw" " " "$_rbg"
         done
         # Error header
         local _err_title="  ERROR"
         local _err_row=$(( _rit + 1 ))
         (( _err_row >= _rit + _rih )) && _err_row=$_rit
-        printf '\033[%d;%dH%s%s%s%s' "$_err_row" "$(( _ril + 1 ))" "$_rbg" "$_err_color" "$_err_title" "$_rst_bg" >/dev/tty
-        # Separator
+        shellframe_fb_print "$_err_row" "$(( _ril + 1 ))" "$_err_title" "${_rbg}${_err_color}"
+        # Separator — ─ is 3-byte UTF-8; use shellframe_fb_put per cell
         local _sep_row=$(( _err_row + 1 ))
         if (( _sep_row < _rit + _rih )); then
-            printf '\033[%d;%dH%s%s' "$_sep_row" "$(( _ril + 1 ))" "${SHELLFRAME_GRAY:-}" \
-                "$(printf '─%.0s' $(seq 1 $(( _riw - 2 ))))" >/dev/tty
-            printf '%s' "$_rst_bg" >/dev/tty
+            local _si=0
+            while (( _si < _riw - 2 )); do
+                shellframe_fb_put "$_sep_row" "$(( _ril + 1 + _si ))" "${SHELLFRAME_GRAY:-}─"
+                (( _si++ ))
+            done
         fi
         # Error detail lines
         local _detail_top=$(( _sep_row + 1 ))
@@ -468,7 +467,7 @@ _shql_query_render() {
             (( _draw_row >= _rit + _rih - 1 )) && break
             local _eclipped
             _eclipped=$(shellframe_str_clip_ellipsis "$_err_line" "$_err_line" "$(( _riw - 4 ))")
-            printf '\033[%d;%dH%s%s%s%s' "$_draw_row" "$(( _ril + 2 ))" "$_rbg" "$_err_dim" "$_eclipped" "$_rst_bg" >/dev/tty
+            shellframe_fb_print "$_draw_row" "$(( _ril + 2 ))" "$_eclipped" "${_rbg}${_err_dim}"
             (( _line_num++ ))
         done <<< "$_SHQL_QUERY_ERROR"
     elif (( _SHQL_QUERY_HAS_RESULTS )); then
@@ -480,14 +479,13 @@ _shql_query_render() {
         local _rbg="${SHQL_THEME_EDITOR_FOCUSED_BG:-${SHQL_THEME_CONTENT_BG:-}}"
         local _r
         for (( _r=0; _r<_rih; _r++ )); do
-            printf '\033[%d;%dH%s%*s' "$(( _rit + _r ))" "$_ril" "$_rbg" "$_riw" '' >/dev/tty
+            shellframe_fb_fill "$(( _rit + _r ))" "$_ril" "$_riw" " " "$_rbg"
         done
         local _mid=$(( _rit + _rih / 2 ))
         (( _mid < _rit )) && _mid="$_rit"
         local _plen=${#_SHQL_QUERY_PLACEHOLDER}
         local _pcol=$(( _ril + (_riw - _plen) / 2 ))
         (( _pcol < _ril )) && _pcol=$_ril
-        printf '\033[%d;%dH%s%s%s' \
-            "$_mid" "$_pcol" "$_gray" "$_SHQL_QUERY_PLACEHOLDER" "$_rst" >/dev/tty
+        shellframe_fb_print "$_mid" "$_pcol" "$_SHQL_QUERY_PLACEHOLDER" "$_gray"
     fi
 }

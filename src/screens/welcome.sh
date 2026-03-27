@@ -107,16 +107,14 @@ _shql_WELCOME_list_action() {
 _shql_WELCOME_empty_render() {
     local _top="$1" _left="$2" _width="$3" _height="$4"
     local _gray="${SHELLFRAME_GRAY:-}"
-    local _rst="${SHELLFRAME_RESET:-}"
     # Clear the region
     local _r
     for (( _r=0; _r<_height; _r++ )); do
-        printf '\033[%d;%dH\033[2K' "$(( _top + _r ))" "$_left" >/dev/tty
+        shellframe_fb_fill "$(( _top + _r ))" "$_left" "$_width" " "
     done
     # Print empty message vertically centered
     local _mid=$(( _top + _height / 2 ))
-    printf '\033[%d;%dH%s%s%s' "$_mid" "$_left" \
-        "$_gray" "$_SHQL_WELCOME_EMPTY_MSG" "$_rst" >/dev/tty
+    shellframe_fb_print "$_mid" "$_left" "$_SHQL_WELCOME_EMPTY_MSG" "$_gray"
 }
 
 # ── _shql_WELCOME_footer_render ───────────────────────────────────────────────
@@ -124,10 +122,8 @@ _shql_WELCOME_empty_render() {
 _shql_WELCOME_footer_render() {
     local _top="$1" _left="$2" _width="$3"
     local _gray="${SHELLFRAME_GRAY:-}"
-    local _rst="${SHELLFRAME_RESET:-}"
-    printf '\033[%d;%dH\033[2K' "$_top" "$_left" >/dev/tty
-    printf '\033[%d;%dH%s%s%s' "$_top" "$_left" \
-        "$_gray" "$_SHQL_WELCOME_FOOTER_HINTS" "$_rst" >/dev/tty
+    shellframe_fb_fill  "$_top" "$_left" "$_width" " "
+    shellframe_fb_print "$_top" "$_left" "$_SHQL_WELCOME_FOOTER_HINTS" "$_gray"
 }
 
 # ── _shql_WELCOME_quit ────────────────────────────────────────────────────────

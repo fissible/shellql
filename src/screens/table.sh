@@ -350,9 +350,8 @@ _shql_TABLE_sidebar_render() {
     if [[ -n "${SHQL_THEME_SIDEBAR_BG:-}" ]]; then
         local _sr
         for (( _sr=0; _sr<_height; _sr++ )); do
-            printf '\033[%d;%dH%s%*s' "$(( _top + _sr ))" "$_left" "$SHQL_THEME_SIDEBAR_BG" "$_width" '' >/dev/tty
+            shellframe_fb_fill "$(( _top + _sr ))" "$_left" "$_width" " " "$SHQL_THEME_SIDEBAR_BG"
         done
-        printf '%s' "${SHQL_THEME_RESET:-$'\033[0m'}" >/dev/tty
     fi
 
     SHELLFRAME_LIST_BG="${SHQL_THEME_SIDEBAR_BG:-}"
@@ -360,8 +359,7 @@ _shql_TABLE_sidebar_render() {
     if [[ "${SHQL_THEME_SIDEBAR_BORDER:-}" == "none" ]]; then
         # No panel border — render "Relations" header then list directly below it
         local _hdr_color="${SHELLFRAME_GRAY:-}"
-        local _rst="${SHELLFRAME_RESET:-$'\033[0m'}"
-        printf '\033[%d;%dH%s%s%s%s' "$_top" "$(( _left + 1 ))" "${SHQL_THEME_SIDEBAR_BG:-}" "$_hdr_color" "Relations" "$_rst" >/dev/tty
+        shellframe_fb_print "$_top" "$(( _left + 1 ))" "Relations" "${SHQL_THEME_SIDEBAR_BG:-}${_hdr_color}"
         local _list_top=$(( _top + 1 ))
         local _list_h=$(( _height - 1 ))
         (( _list_h < 1 )) && _list_h=1
@@ -517,12 +515,7 @@ _shql_TABLE_tabbar_render() {
     local _gray="${SHELLFRAME_GRAY:-}" _bold="${SHELLFRAME_BOLD:-}"
 
     # Clear only the tabbar's portion of the row (not the sidebar's border)
-    if [[ -n "${SHQL_THEME_CONTENT_BG:-}" ]]; then
-        printf '\033[%d;%dH%s%*s' "$_top" "$_left" "$SHQL_THEME_CONTENT_BG" "$_width" '' >/dev/tty
-        printf '\033[%d;%dH' "$_top" "$_left" >/dev/tty
-    else
-        printf '\033[%d;%dH%*s' "$_top" "$_left" "$_width" '' >/dev/tty
-    fi
+    shellframe_fb_fill "$_top" "$_left" "$_width" " " "${SHQL_THEME_CONTENT_BG:-}"
 
     local _n=${#_SHQL_TABS_LABEL[@]}
     local _col=$_left
@@ -532,7 +525,7 @@ _shql_TABLE_tabbar_render() {
     local _i
     for (( _i=0; _i<_n; _i++ )); do
         if (( _i > 0 )); then
-            printf '\033[%d;%dH%s %s' "$_top" "$_col" "${SHQL_THEME_CONTENT_BG:-}" "${_rst}" >/dev/tty
+            shellframe_fb_fill "$_top" "$_col" 1 " " "${SHQL_THEME_CONTENT_BG:-}"
             (( _col++ ))
         fi
         local _label=" ${_SHQL_TABS_LABEL[$_i]} "
@@ -541,33 +534,28 @@ _shql_TABLE_tabbar_render() {
             _SHQL_TABBAR_ACTIVE_X1=$(( _col + ${#_label} ))
             # Active tab: content bg, focus color only on THIS tab when focused
             local _tab_bg="${SHQL_THEME_CONTENT_BG:-}"
+            local _focus_color=""
             if (( _SHQL_BROWSER_TABBAR_FOCUSED && ! _SHQL_BROWSER_TABBAR_ON_SQL )); then
-                local _focus_color="${SHQL_THEME_QUERY_PANEL_COLOR:-$_bold}"
-                printf '\033[%d;%dH%s%s%s%s' "$_top" "$_col" "$_tab_bg" "$_focus_color" "$_label" "$_rst" >/dev/tty
-            elif [[ -n "$_tab_bg" ]]; then
-                printf '\033[%d;%dH%s%s%s' "$_top" "$_col" "$_tab_bg" "$_label" "$_rst" >/dev/tty
-            else
-                printf '\033[%d;%dH%s' "$_top" "$_col" "$_label" >/dev/tty
+                _focus_color="${SHQL_THEME_QUERY_PANEL_COLOR:-$_bold}"
             fi
+            shellframe_fb_print "$_top" "$_col" "$_label" "${_tab_bg}${_focus_color}"
         else
             # Inactive tabs: always normal inactive styling (no focus color)
             local _itab_style="${SHQL_THEME_TAB_INACTIVE_BG:-${SHQL_THEME_TABBAR_BG:-$_inv}}"
-            printf '\033[%d;%dH%s%s%s' "$_top" "$_col" "$_itab_style" "$_label" "$_rst" >/dev/tty
+            shellframe_fb_print "$_top" "$_col" "$_label" "$_itab_style"
         fi
         _col=$(( _col + ${#_label} ))
     done
     # +SQL button — styled like inactive tabs
-    printf '\033[%d;%dH%s %s' "$_top" "$_col" "${SHQL_THEME_CONTENT_BG:-}" "${_rst}" >/dev/tty
+    shellframe_fb_fill "$_top" "$_col" 1 " " "${SHQL_THEME_CONTENT_BG:-}"
     (( _col += 1 ))  # 1-char gap after last tab
     local _sql_label=" +SQL "
     local _itab_style="${SHQL_THEME_TAB_INACTIVE_BG:-${SHQL_THEME_TABBAR_BG:-$_inv}}"
+    local _sql_focus_color=""
     if (( _SHQL_BROWSER_TABBAR_ON_SQL )); then
-        # Focused: purple text on inactive tab bg
-        local _focus_color="${SHQL_THEME_QUERY_PANEL_COLOR:-$_bold}"
-        printf '\033[%d;%dH%s%s%s%s' "$_top" "$_col" "$_itab_style" "$_focus_color" "$_sql_label" "$_rst" >/dev/tty
-    else
-        printf '\033[%d;%dH%s%s%s' "$_top" "$_col" "$_itab_style" "$_sql_label" "$_rst" >/dev/tty
+        _sql_focus_color="${SHQL_THEME_QUERY_PANEL_COLOR:-$_bold}"
     fi
+    shellframe_fb_print "$_top" "$_col" "$_sql_label" "${_itab_style}${_sql_focus_color}"
 }
 
 # ── _shql_TABLE_tabbar_on_key ────────────────────────────────────────────────
@@ -661,25 +649,21 @@ _shql_table_structure_render() {
     local _scroll_top
     shellframe_scroll_top "$_SHQL_TABLE_DDL_CTX" _scroll_top
     local _n=${#_SHQL_TABLE_DDL_LINES[@]}
-    local _rst="${SHELLFRAME_RESET:-}"
-    local _dim_on="" _dim_off=""
+    local _dim_on=""
     if (( ! _SHQL_TABLE_BODY_FOCUSED )); then
         _dim_on="${SHELLFRAME_DIM:-}"
-        _dim_off="$_rst"
     fi
-    printf '%s' "$_dim_on" >/dev/tty
     local _r
     for (( _r=0; _r<_height; _r++ )); do
         local _row=$(( _top + _r ))
         local _idx=$(( _scroll_top + _r ))
-        printf '\033[%d;%dH%*s' "$_row" "$_left" "$_width" '' >/dev/tty
+        shellframe_fb_fill "$_row" "$_left" "$_width" " " "$_dim_on"
         [[ $_idx -ge $_n ]] && continue
         local _line="${_SHQL_TABLE_DDL_LINES[$_idx]}"
         local _clipped
         _clipped=$(shellframe_str_clip_ellipsis "$_line" "$_line" "$_width")
-        printf '\033[%d;%dH%s' "$_row" "$_left" "$_clipped" >/dev/tty
+        shellframe_fb_print "$_row" "$_left" "$_clipped" "$_dim_on"
     done
-    printf '%s' "$_dim_off" >/dev/tty
 }
 
 _shql_table_structure_on_key() {
@@ -921,7 +905,7 @@ _shql_schema_tab_render() {
     local _r
     for (( _r=0; _r<_ih; _r++ )); do
         local _idx=$(( _scroll_top + _r ))
-        printf '\033[%d;%dH%*s' "$(( _it + _r ))" "$_il" "$_iw" '' >/dev/tty
+        shellframe_fb_fill "$(( _it + _r ))" "$_il" "$_iw" " "
         (( _idx >= _n_cols )) && continue
         local _entry; eval "_entry=\"\${${_arr_cols}[$_idx]}\""
         local _cname _ctype _cflags
@@ -933,7 +917,7 @@ _shql_schema_tab_render() {
             _plain=$(printf '%-12s %s' "$_cname" "$_ctype")
         fi
         local _clipped; _clipped=$(shellframe_str_clip_ellipsis "$_plain" "$_plain" "$_iw")
-        printf '\033[%d;%dH%s' "$(( _it + _r ))" "$_il" "$_clipped" >/dev/tty
+        shellframe_fb_print "$(( _it + _r ))" "$_il" "$_clipped"
     done
 
     # DDL pane
@@ -949,11 +933,11 @@ _shql_schema_tab_render() {
     _scroll_top=0; shellframe_scroll_top "${_ctx}_ddl" _scroll_top
     for (( _r=0; _r<_ih; _r++ )); do
         local _idx=$(( _scroll_top + _r ))
-        printf '\033[%d;%dH%*s' "$(( _it + _r ))" "$_il" "$_iw" '' >/dev/tty
+        shellframe_fb_fill "$(( _it + _r ))" "$_il" "$_iw" " "
         (( _idx >= _n_ddl )) && continue
         local _line; eval "_line=\"\${${_arr_ddl}[$_idx]}\""
         local _clipped; _clipped=$(shellframe_str_clip_ellipsis "$_line" "$_line" "$_iw")
-        printf '\033[%d;%dH%s' "$(( _it + _r ))" "$_il" "$_clipped" >/dev/tty
+        shellframe_fb_print "$(( _it + _r ))" "$_il" "$_clipped"
     done
 }
 
@@ -965,12 +949,11 @@ _shql_TABLE_content_render() {
     # Fill content area + padding row above with theme background
     if [[ -n "${SHQL_THEME_CONTENT_BG:-}" ]]; then
         # Padding row (1 row above content top)
-        printf '\033[%d;%dH%s%*s' "$(( _top - 1 ))" "$_left" "$SHQL_THEME_CONTENT_BG" "$_width" '' >/dev/tty
+        shellframe_fb_fill "$(( _top - 1 ))" "$_left" "$_width" " " "$SHQL_THEME_CONTENT_BG"
         local _r
         for (( _r=0; _r<_height; _r++ )); do
-            printf '\033[%d;%dH%s%*s' "$(( _top + _r ))" "$_left" "$SHQL_THEME_CONTENT_BG" "$_width" '' >/dev/tty
+            shellframe_fb_fill "$(( _top + _r ))" "$_left" "$_width" " " "$SHQL_THEME_CONTENT_BG"
         done
-        printf '%s' "${SHQL_THEME_RESET:-$'\033[0m'}" >/dev/tty
     fi
 
     local _type
@@ -1019,9 +1002,8 @@ _shql_TABLE_content_render() {
                 if [[ -n "$_surface_bg" ]] && (( _data_end < _top + _height )); then
                     local _sr
                     for (( _sr=_data_end; _sr < _top + _height; _sr++ )); do
-                        printf '\033[%d;%dH%s%*s' "$_sr" "$_left" "$_surface_bg" "$_width" '' >/dev/tty
+                        shellframe_fb_fill "$_sr" "$_left" "$_width" " " "$_surface_bg"
                     done
-                    printf '%s' "${SHQL_THEME_RESET:-$'\033[0m'}" >/dev/tty
                 fi
             fi
             ;;
@@ -1034,17 +1016,17 @@ _shql_TABLE_content_render() {
             ;;
         *)
             # Empty state
-            local _gray="${SHELLFRAME_GRAY:-}" _rst="${SHELLFRAME_RESET:-}"
+            local _gray="${SHELLFRAME_GRAY:-}"
             local _r
             for (( _r=0; _r<_height; _r++ )); do
-                printf '\033[%d;%dH%*s' "$(( _top + _r ))" "$_left" "$_width" '' >/dev/tty
+                shellframe_fb_fill "$(( _top + _r ))" "$_left" "$_width" " "
             done
             local _mid=$(( _top + _height / 2 ))
             local _hint="↑↓ select a table · Enter = Data · s = Schema · n = New query"
             local _hlen=${#_hint}
             local _hcol=$(( _left + (_width - _hlen) / 2 ))
             (( _hcol < _left )) && _hcol=$_left
-            printf '\033[%d;%dH%s%s%s' "$_mid" "$_hcol" "$_gray" "$_hint" "$_rst" >/dev/tty
+            shellframe_fb_print "$_mid" "$_hcol" "$_hint" "$_gray"
             ;;
     esac
 }
@@ -1261,15 +1243,15 @@ _shql_browser_footer_hint() {
 
 _shql_TABLE_footer_render() {
     local _top="$1" _left="$2" _width="$3" _height="${4:-2}"
-    local _gray="${SHELLFRAME_GRAY:-}" _rst="${SHELLFRAME_RESET:-}"
+    local _gray="${SHELLFRAME_GRAY:-}"
 
     # Row 1: Status bar — connection info (left) + query timing (right)
-    printf '\033[%d;%dH%*s' "$_top" "$_left" "$_width" '' >/dev/tty
+    shellframe_fb_fill "$_top" "$_left" "$_width" " "
     local _host="${SHQL_DB_HOST:-localhost}"
     local _db_file
     _db_file="$(basename "${SHQL_DB_PATH:-}" 2>/dev/null)"
     local _conn_info="${_host} // ${_db_file:-<none>}"
-    printf '\033[%d;%dH%s%s%s' "$_top" "$_left" "$_gray" "$_conn_info" "$_rst" >/dev/tty
+    shellframe_fb_print "$_top" "$_left" "$_conn_info" "$_gray"
     # Right side: time + query status
     local _time_str
     _time_str=$(date '+%l:%M %p' 2>/dev/null || date '+%H:%M')
@@ -1281,13 +1263,13 @@ _shql_TABLE_footer_render() {
     local _rlen=${#_right_info}
     local _rcol=$(( _left + _width - _rlen ))
     (( _rcol < _left )) && _rcol=$_left
-    printf '\033[%d;%dH%s%s%s' "$_top" "$_rcol" "$_gray" "$_right_info" "$_rst" >/dev/tty
+    shellframe_fb_print "$_top" "$_rcol" "$_right_info" "$_gray"
 
     # Row 2: Key hints
     local _hints_row=$(( _top + 1 ))
-    printf '\033[%d;%dH%*s' "$_hints_row" "$_left" "$_width" '' >/dev/tty
+    shellframe_fb_fill "$_hints_row" "$_left" "$_width" " "
     local _hint; _shql_browser_footer_hint _hint
-    printf '\033[%d;%dH%s%s%s' "$_hints_row" "$_left" "$_gray" "$_hint" "$_rst" >/dev/tty
+    shellframe_fb_print "$_hints_row" "$_left" "$_hint" "$_gray"
 }
 
 # ── _shql_TABLE_quit ──────────────────────────────────────────────────────────

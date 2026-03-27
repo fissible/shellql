@@ -204,7 +204,7 @@ _shql_SCHEMA_columns_render() {
     local _r
     for (( _r=0; _r<_ih; _r++ )); do
         local _row=$(( _it + _r ))
-        printf '\033[%d;%dH%*s' "$_row" "$_il" "$_iw" '' >/dev/tty
+        shellframe_fb_fill "$_row" "$_il" "$_iw" " "
         [[ $_r -ge $_n ]] && continue
         local _entry="${_SHQL_SCHEMA_COLUMNS[$_r]}"
         local _cname _ctype _cflags
@@ -217,9 +217,8 @@ _shql_SCHEMA_columns_render() {
         fi
         local _clipped
         _clipped=$(shellframe_str_clip_ellipsis "$_plain" "$_plain" "$_iw")
-        printf '\033[%d;%dH%s' "$_row" "$_il" "$_clipped" >/dev/tty
+        shellframe_fb_print "$_row" "$_il" "$_clipped"
     done
-    printf '\033[%d;%dH' "$(( _it + _ih - 1 ))" "$_il" >/dev/tty
 }
 
 # ── _shql_SCHEMA_detail_render ────────────────────────────────────────────────
@@ -256,28 +255,22 @@ _shql_SCHEMA_detail_render() {
     local _scroll_top
     shellframe_scroll_top "$_SHQL_SCHEMA_DDL_CTX" _scroll_top
     local _n=${#_SHQL_SCHEMA_DDL_LINES[@]}
-    local _rst="${SHELLFRAME_RESET:-}"
-    local _dim_on="" _dim_off=""
+    local _dim_on=""
     if (( ! _SHQL_SCHEMA_DETAIL_FOCUSED )); then
         _dim_on="${SHELLFRAME_DIM:-}"
-        _dim_off="$_rst"
     fi
-    printf '%s' "$_dim_on" >/dev/tty
 
     local _r
     for (( _r=0; _r<_ih; _r++ )); do
         local _row=$(( _it + _r ))
         local _idx=$(( _scroll_top + _r ))
-        printf '\033[%d;%dH%*s' "$_row" "$_il" "$_iw" '' >/dev/tty
+        shellframe_fb_fill "$_row" "$_il" "$_iw" " " "$_dim_on"
         [[ $_idx -ge $_n ]] && continue
         local _line="${_SHQL_SCHEMA_DDL_LINES[$_idx]}"
         local _clipped
         _clipped=$(shellframe_str_clip_ellipsis "$_line" "$_line" "$_iw")
-        printf '\033[%d;%dH%s' "$_row" "$_il" "$_clipped" >/dev/tty
+        shellframe_fb_print "$_row" "$_il" "$_clipped" "$_dim_on"
     done
-
-    printf '%s' "$_dim_off" >/dev/tty
-    printf '\033[%d;%dH' "$(( _it + _ih - 1 ))" "$_il" >/dev/tty
 }
 
 _shql_SCHEMA_detail_on_key() {
@@ -306,16 +299,16 @@ _shql_SCHEMA_detail_on_focus() {
 # ── _shql_SCHEMA_footer_render ────────────────────────────────────────────────
 
 _shql_SCHEMA_footer_render() {
-    local _top="$1" _left="$2"
-    local _gray="${SHELLFRAME_GRAY:-}" _rst="${SHELLFRAME_RESET:-}"
+    local _top="$1" _left="$2" _width="$3"
+    local _gray="${SHELLFRAME_GRAY:-}"
     local _hint
     if (( _SHQL_SCHEMA_DETAIL_FOCUSED )); then
         _hint="$_SHQL_SCHEMA_FOOTER_HINTS_DETAIL"
     else
         _hint="$_SHQL_SCHEMA_FOOTER_HINTS_SIDEBAR"
     fi
-    printf '\033[%d;%dH\033[2K' "$_top" "$_left" >/dev/tty
-    printf '\033[%d;%dH%s%s%s' "$_top" "$_left" "$_gray" "$_hint" "$_rst" >/dev/tty
+    shellframe_fb_fill  "$_top" "$_left" "$_width" " "
+    shellframe_fb_print "$_top" "$_left" "$_hint" "$_gray"
 }
 
 # ── _shql_SCHEMA_quit ─────────────────────────────────────────────────────────

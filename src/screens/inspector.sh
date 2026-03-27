@@ -160,19 +160,17 @@ _shql_inspector_on_key() {
 _shql_inspector_render() {
     local _top="$1" _left="$2" _width="$3" _height="$4"
 
-    # Draw panel border with content bg
+    # Draw panel border with content bg + accent color for border cells
     local _cbg="${SHQL_THEME_CONTENT_BG:-}"
-    local _rst="${SHELLFRAME_RESET:-$'\033[0m'}"
     local _focus_color="${SHQL_THEME_QUERY_PANEL_COLOR:-}"
-    [[ -n "$_cbg" ]] && printf '%s' "$_cbg" >/dev/tty
-    [[ -n "$_focus_color" ]] && printf '%s' "$_focus_color" >/dev/tty
+    SHELLFRAME_PANEL_CELL_ATTRS="${_cbg}${_focus_color}"
     SHELLFRAME_PANEL_STYLE="${SHQL_THEME_PANEL_STYLE_FOCUSED:-double}"
     local _table_name="${_SHQL_TABS_TABLE[$_SHQL_TAB_ACTIVE]:-}"
     SHELLFRAME_PANEL_TITLE="Record — ${_table_name}"
     SHELLFRAME_PANEL_TITLE_ALIGN="left"
     SHELLFRAME_PANEL_FOCUSED=1
     shellframe_panel_render "$_top" "$_left" "$_width" "$_height"
-    printf '%s' "$_rst" >/dev/tty
+    SHELLFRAME_PANEL_CELL_ATTRS=""
 
     local _it _il _iw _ih
     shellframe_panel_inner "$_top" "$_left" "$_width" "$_height" _it _il _iw _ih
@@ -189,9 +187,8 @@ _shql_inspector_render() {
     local _ibg="${SHQL_THEME_EDITOR_FOCUSED_BG:-$_cbg}"
     local _ir
     for (( _ir=0; _ir<_ih; _ir++ )); do
-        printf '\033[%d;%dH%s%*s' "$(( _it + _ir ))" "$_il" "$_ibg" "$_iw" '' >/dev/tty
+        shellframe_fb_fill "$(( _it + _ir ))" "$_il" "$_iw" " " "$_ibg"
     done
-    printf '%s' "$_rst" >/dev/tty
 
     # Nav bar — distinct bg for gradation (stripe color or cursor color)
     local _gray="${SHELLFRAME_GRAY:-}"
@@ -200,14 +197,16 @@ _shql_inspector_render() {
     _shql_inspector_nav_label _nav
     local _nav_clipped
     _nav_clipped=$(shellframe_str_clip_ellipsis "$_nav" "$_nav" "$_pw")
-    # Fill nav bar row with distinct bg
-    printf '\033[%d;%dH%s%*s' "$_pt" "$_il" "$_nav_bg" "$_iw" '' >/dev/tty
-    printf '\033[%d;%dH%s%s%s' "$_pt" "$_pl" "$_nav_bg" "$_nav_clipped" "$_rst" >/dev/tty
+    shellframe_fb_fill  "$_pt" "$_il" "$_iw" " " "$_nav_bg"
+    shellframe_fb_print "$_pt" "$_pl" "$_nav_clipped" "$_nav_bg"
 
-    # Separator line
+    # Separator line — ─ is 3-byte UTF-8; use shellframe_fb_put per cell
     local _sep_row=$(( _pt + 1 ))
-    printf '\033[%d;%dH%s%s%s' "$_sep_row" "$_il" "$_ibg" "$_gray" "$(printf '─%.0s' $(seq 1 $_iw))" >/dev/tty
-    printf '%s' "$_rst" >/dev/tty
+    local _si=0
+    while (( _si < _iw )); do
+        shellframe_fb_put "$_sep_row" "$(( _il + _si ))" "${_ibg}${_gray}─"
+        (( _si++ ))
+    done
 
     # Two-column key/value area starts 2 rows after padded top (nav + sep)
     local _kv_top=$(( _pt + 2 ))
@@ -226,9 +225,7 @@ _shql_inspector_render() {
     local _val_avail_r=$(( _pw - _col_w - 2 - _kw - 2 ))
     (( _val_avail_r < 1 )) && _val_avail_r=1
 
-    local _kc="${SHQL_THEME_KEY_COLOR:-}" _vc="${SHQL_THEME_VALUE_COLOR:-}"
-    # Reset that preserves inner bg (not black)
-    local _ibg_rst="${_rst}${_ibg}"
+    local _kc="${SHQL_THEME_KEY_COLOR:-}"
     local _n_pairs=${#_SHQL_INSPECTOR_PAIRS[@]}
     local _n_rows=$(( (_n_pairs + 1) / 2 ))
 
@@ -236,7 +233,7 @@ _shql_inspector_render() {
     local _scroll_top=0
     shellframe_scroll_top "$_SHQL_INSPECTOR_CTX" _scroll_top
 
-    local _r _logical_r _l_idx _r_idx _pair _key _val _val_clipped
+    local _r _logical_r _l_idx _r_idx _pair _key _val _val_clipped _key_padded
     for (( _r=0; _r<_kv_h; _r++ )); do
         _logical_r=$(( _scroll_top + _r ))
         [[ $_logical_r -ge $_n_rows ]] && continue
@@ -246,22 +243,25 @@ _shql_inspector_render() {
         if [[ $_l_idx -lt $_n_pairs ]]; then
             _pair="${_SHQL_INSPECTOR_PAIRS[$_l_idx]}"
             _key="${_pair%%	*}"; _val="${_pair#*	}"
+            printf -v _key_padded '%-*s' "$_kw" "$_key"
             _val_clipped=$(shellframe_str_clip_ellipsis "$_val" "$_val" "$_val_avail_l")
-            printf '\033[%d;%dH%s%s%-*s%s  %s%s%s' \
-                "$_row" "$_l_left" "$_ibg" "$_kc" "$_kw" "$_key" "$_ibg_rst" \
-                "$_ibg" "$_val_clipped" "$_ibg_rst" >/dev/tty
+            shellframe_fb_print "$_row" "$_l_left" "$_key_padded" "${_ibg}${_kc}"
+            shellframe_fb_fill  "$_row" "$(( _l_left + _kw ))" 2 " " "$_ibg"
+            shellframe_fb_print "$_row" "$(( _l_left + _kw + 2 ))" "$_val_clipped" "$_ibg"
         fi
 
-        printf '\033[%d;%dH%s│%s' "$_row" "$_divider_col" "$_gray" "$_ibg_rst" >/dev/tty
+        # │ divider — 3-byte UTF-8; use shellframe_fb_put
+        shellframe_fb_put "$_row" "$_divider_col" "${_gray}│"
 
         _r_idx=$(( _logical_r * 2 + 1 ))
         if [[ $_r_idx -lt $_n_pairs ]]; then
             _pair="${_SHQL_INSPECTOR_PAIRS[$_r_idx]}"
             _key="${_pair%%	*}"; _val="${_pair#*	}"
+            printf -v _key_padded '%-*s' "$_kw" "$_key"
             _val_clipped=$(shellframe_str_clip_ellipsis "$_val" "$_val" "$_val_avail_r")
-            printf '\033[%d;%dH%s%s%-*s%s  %s%s%s' \
-                "$_row" "$_r_left" "$_ibg" "$_kc" "$_kw" "$_key" "$_ibg_rst" \
-                "$_ibg" "$_val_clipped" "$_ibg_rst" >/dev/tty
+            shellframe_fb_print "$_row" "$_r_left" "$_key_padded" "${_ibg}${_kc}"
+            shellframe_fb_fill  "$_row" "$(( _r_left + _kw ))" 2 " " "$_ibg"
+            shellframe_fb_print "$_row" "$(( _r_left + _kw + 2 ))" "$_val_clipped" "$_ibg"
         fi
     done
 }

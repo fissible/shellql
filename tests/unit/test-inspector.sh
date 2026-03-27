@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellql/tests/unit/test-inspector.sh — Record inspector unit tests
 
-_SHQL_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+_SHQL_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 _SHELLFRAME_DIR="${SHELLFRAME_DIR:-${_SHQL_ROOT}/../shellframe}"
 
 source "$_SHELLFRAME_DIR/src/clip.sh"

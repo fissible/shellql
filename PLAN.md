@@ -271,7 +271,15 @@ Completed 2026-03-23 (ptyunit consumer migration):
 - `src/screens/header.sh`, `welcome.sh`, `table.sh`, `schema.sh`, `query.sh`, `inspector.sh` — all direct-write render functions converted to framebuffer API. Multi-byte UTF-8 box-drawing chars (`─`, `│`) use `shellframe_fb_put` in a loop.
 - 264/264 shellql unit assertions pass. 1233/1233 shellframe unit assertions pass.
 
+**Completed 2026-03-27 (Rendering bug fixes — mark_dirty + deferred editor write):**
+- All shellql key handlers that change visible state now call `shellframe_shell_mark_dirty` before `return 0` — fixes one-keypress rendering lag (inspector.sh, table.sh, query.sh)
+- Editor/results placeholder text now includes content background color (`${_cbg}`, `${_rbg}`) to prevent SGR-reset black backgrounds on cascade theme
+- shellframe `editor.sh`: deferred fd3 write prevents `shellframe_screen_flush` from erasing editor content when switching from data tabs (grid cells in PREV treated as erasures). Also removed subshell forks from `_shellframe_ed_line_segments` and `_shellframe_ed_vrow_count` (out_var pattern) for typing latency
+- New test file: `tests/unit/test-db-mock.sh`; expanded inspector/schema/theme/welcome test coverage
+- **371/371 shellql unit assertions pass. 1233/1233 shellframe unit assertions pass.**
+
 **Next task:** [shellql#12](https://github.com/fissible/shellql/issues/12)
 - **BLOCKED** on [shellframe#27](https://github.com/fissible/shellframe/issues/27) — Sheet navigation primitive (M effort in shellframe)
 - Design decision: `[o]` should use the sheet pattern rather than a modal, so shellframe#27 ships first
 - Flag for PM: shellframe#27 is M+ cross-repo work; needs scheduling before shellql#12 can proceed
+- **Follow-up**: user noted typing is still "a little slow" after subshell removal — may need further profiling

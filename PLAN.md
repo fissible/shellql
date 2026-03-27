@@ -265,6 +265,12 @@ Completed 2026-03-23 (ptyunit consumer migration):
 - `src/screens/table.sh` — moved "Relations" direct-write header inside the `"none"` border branch; it was firing unconditionally, causing the written text to bleed over the panel top-border on every frame after the first (framebuffer diff skipped re-emitting unchanged panel border cells)
 - `src/themes/uranium.sh` — added `SHQL_THEME_SIDEBAR_CURSOR_BG` (green bg + black text, matches header); without it the cursor fell back to reverse-video, making the bold `│` panel border visually merge into the highlight on the selected row while appearing prominently on non-selected rows
 
+**Completed 2026-03-26 (Phase 7F framebuffer migration — visual regression fix):**
+- Root cause: shellframe v0.3.0 introduced per-cell framebuffer diff rendering. All widget render functions must write cells via `shellframe_fb_print/fill/put`; `shellframe_screen_flush` emits `\033[0m${cell}` per changed cell only. Direct-write `printf >/dev/tty` bypasses this: (1) cascade-theme bg fills disappeared on the second frame because flush skipped unchanged cells; (2) tab switching caused flush to emit erasure spaces that overwrote directly-written new content.
+- `shellframe/src/panel.sh` — added `SHELLFRAME_PANEL_CELL_ATTRS` global; prepended to border cell attrs in `shellframe_panel_render`. Callers use this instead of the broken `printf '%s' "$_cbg" >/dev/tty` pre-render pattern.
+- `src/screens/header.sh`, `welcome.sh`, `table.sh`, `schema.sh`, `query.sh`, `inspector.sh` — all direct-write render functions converted to framebuffer API. Multi-byte UTF-8 box-drawing chars (`─`, `│`) use `shellframe_fb_put` in a loop.
+- 264/264 shellql unit assertions pass. 1233/1233 shellframe unit assertions pass.
+
 **Next task:** [shellql#12](https://github.com/fissible/shellql/issues/12)
 - **BLOCKED** on [shellframe#27](https://github.com/fissible/shellframe/issues/27) — Sheet navigation primitive (M effort in shellframe)
 - Design decision: `[o]` should use the sheet pattern rather than a modal, so shellframe#27 ships first

@@ -34,8 +34,8 @@ SHQL_THEME_CONTENT_BG=$'\033[48;5;236m'
 
 # ── Grid: alternating stripes + dim cursor ────────────────────────────────────
 SHQL_THEME_ROW_STRIPE_BG=$'\033[48;5;238m'
-SHQL_THEME_CURSOR_BG=$'\033[48;5;60m'     # 60 (#5f5f87) — muted slate purple
-SHQL_THEME_CURSOR_BOLD=$'\033[1m'
+SHQL_THEME_CURSOR_BG=$'\033[48;5;54m'     # 54 (#5f0087) — dark purple, close to header bg
+SHQL_THEME_CURSOR_BOLD=""
 
 # ── Sidebar cursor: blue ──────────────────────────────────────────────────────
 SHQL_THEME_SIDEBAR_CURSOR_BG=$'\033[48;5;25m\033[97m'   # dark blue bg + bright white text
@@ -45,10 +45,19 @@ SHQL_THEME_QUERY_PANEL_COLOR=$'\033[38;5;135m'   # bright purple border/title
 SHQL_THEME_EDITOR_FOCUSED_BG=$'\033[48;5;235m'   # 235 (#262626) — darker than content, lighter than sidebar
 
 # ── Grid header ───────────────────────────────────────────────────────────────
-SHQL_THEME_GRID_HEADER_COLOR=$'\033[38;5;74m'     # 74 (#5fafd7) — light blue, readable on dark bg
+SHQL_THEME_GRID_HEADER_COLOR=$'\033[38;5;140m'    # 140 (#af87d7) — muted purple, readable on dark bg
 SHQL_THEME_GRID_HEADER_BG=$'\033[48;5;237m'       # 237 (#3a3a3a) — shade lighter than content (236)
 SHQL_THEME_GRID_HEADER_BORDER=1                   # draw ─ border above header row
 
 # ── Tab bar ───────────────────────────────────────────────────────────────────
 SHQL_THEME_TAB_ACTIVE=""                          # uses CONTENT_BG (set at render time)
 SHQL_THEME_TAB_INACTIVE_BG=$'\033[48;5;238m\033[37m'  # medium gray bg + light gray text
+
+# ── Footer / status bar ───────────────────────────────────────────────────
+SHQL_THEME_FOOTER_BG=$'\033[48;5;234m'            # 234 — matches sidebar, frames the content
+
+# ── Tiles (welcome screen) ───────────────────────────────────────────────
+SHQL_THEME_TILE_BG=$'\033[48;5;236m'
+SHQL_THEME_TILE_BORDER=$'\033[38;5;242m'
+SHQL_THEME_TILE_SELECTED_BG=$'\033[48;5;54m'          # dark purple (matches cursor)
+SHQL_THEME_TILE_SELECTED_BORDER=$'\033[38;5;140m'     # muted purple

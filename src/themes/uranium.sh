@@ -10,3 +10,10 @@ SHQL_THEME_HEADER_BG=$'\033[1;38;2;0;0;0;48;2;80;186;42m'  # bold true-black on 
 SHQL_THEME_RESET=$'\033[0m'
 SHQL_THEME_TABBAR_BG=$'\033[1;38;2;0;0;0;100m'              # bold true-black on dark grey (inactive tabs)
 SHQL_THEME_SIDEBAR_CURSOR_BG=$'\033[48;2;80;186;42m\033[38;2;0;0;0m'  # green bg + black text (matches header)
+SHQL_THEME_FOOTER_BG=$'\033[100m'                                    # dark grey (matches tabbar)
+
+# ── Tiles (welcome screen) ───────────────────────────────────────────────
+SHQL_THEME_TILE_BG=$'\033[48;5;236m'
+SHQL_THEME_TILE_BORDER=$'\033[38;5;242m'
+SHQL_THEME_TILE_SELECTED_BG=$'\033[48;2;30;70;20m'    # dark green tint
+SHQL_THEME_TILE_SELECTED_BORDER=$'\033[38;2;80;186;42m' # uranium green

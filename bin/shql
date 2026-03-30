@@ -9,6 +9,11 @@
 
 set -uo pipefail
 
+# Crash diagnostic: set SHQL_DEBUG=1 and run with 2>/tmp/shql-crash.log
+# to capture the exact command that crashes.  ERR trap is installed inside
+# shellframe_shell when SHQL_DEBUG is set.
+export SHQL_DEBUG="${SHQL_DEBUG:-}"
+
 # ── Locate shellframe ─────────────────────────────────────────────────────────
 
 _SHQL_BIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

@@ -198,7 +198,7 @@ _shql_inspector_render() {
     local _nav
     _shql_inspector_nav_label _nav
     local _nav_clipped
-    _nav_clipped=$(shellframe_str_clip_ellipsis "$_nav" "$_nav" "$_pw")
+    shellframe_str_clip_ellipsis "$_nav" "$_nav" "$_pw" _nav_clipped
     shellframe_fb_fill  "$_pt" "$_il" "$_iw" " " "$_nav_bg"
     shellframe_fb_print "$_pt" "$_pl" "$_nav_clipped" "$_nav_bg"
 
@@ -246,7 +246,7 @@ _shql_inspector_render() {
             _pair="${_SHQL_INSPECTOR_PAIRS[$_l_idx]}"
             _key="${_pair%%	*}"; _val="${_pair#*	}"
             printf -v _key_padded '%-*s' "$_kw" "$_key"
-            _val_clipped=$(shellframe_str_clip_ellipsis "$_val" "$_val" "$_val_avail_l")
+            shellframe_str_clip_ellipsis "$_val" "$_val" "$_val_avail_l" _val_clipped
             shellframe_fb_print "$_row" "$_l_left" "$_key_padded" "${_ibg}${_kc}"
             shellframe_fb_fill  "$_row" "$(( _l_left + _kw ))" 2 " " "$_ibg"
             shellframe_fb_print "$_row" "$(( _l_left + _kw + 2 ))" "$_val_clipped" "$_ibg"
@@ -260,7 +260,7 @@ _shql_inspector_render() {
             _pair="${_SHQL_INSPECTOR_PAIRS[$_r_idx]}"
             _key="${_pair%%	*}"; _val="${_pair#*	}"
             printf -v _key_padded '%-*s' "$_kw" "$_key"
-            _val_clipped=$(shellframe_str_clip_ellipsis "$_val" "$_val" "$_val_avail_r")
+            shellframe_str_clip_ellipsis "$_val" "$_val" "$_val_avail_r" _val_clipped
             shellframe_fb_print "$_row" "$_r_left" "$_key_padded" "${_ibg}${_kc}"
             shellframe_fb_fill  "$_row" "$(( _r_left + _kw ))" 2 " " "$_ibg"
             shellframe_fb_print "$_row" "$(( _r_left + _kw + 2 ))" "$_val_clipped" "$_ibg"

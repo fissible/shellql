@@ -216,7 +216,7 @@ _shql_SCHEMA_columns_render() {
             _plain=$(printf '%-14s %s' "$_cname" "$_ctype")
         fi
         local _clipped
-        _clipped=$(shellframe_str_clip_ellipsis "$_plain" "$_plain" "$_iw")
+        shellframe_str_clip_ellipsis "$_plain" "$_plain" "$_iw" _clipped
         shellframe_fb_print "$_row" "$_il" "$_clipped"
     done
 }
@@ -268,7 +268,7 @@ _shql_SCHEMA_detail_render() {
         [[ $_idx -ge $_n ]] && continue
         local _line="${_SHQL_SCHEMA_DDL_LINES[$_idx]}"
         local _clipped
-        _clipped=$(shellframe_str_clip_ellipsis "$_line" "$_line" "$_iw")
+        shellframe_str_clip_ellipsis "$_line" "$_line" "$_iw" _clipped
         shellframe_fb_print "$_row" "$_il" "$_clipped" "$_dim_on"
     done
 }

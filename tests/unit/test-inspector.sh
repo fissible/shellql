@@ -4,6 +4,7 @@
 _SHQL_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 _SHELLFRAME_DIR="${SHELLFRAME_DIR:-${_SHQL_ROOT}/../shellframe}"
 
+source "$_SHQL_ROOT/src/screens/util.sh"
 source "$_SHELLFRAME_DIR/src/clip.sh"
 source "$_SHELLFRAME_DIR/src/draw.sh"
 source "$_SHELLFRAME_DIR/src/selection.sh"
@@ -210,6 +211,36 @@ assert_eq 1 $(( ${#_SF_FRAME_DIRTY[@]} > 0 )) "render: framebuffer has dirty cel
 
 ptyunit_test_begin "inspector_render: panel title contains 'Record'"
 assert_contains "$SHELLFRAME_PANEL_TITLE" "Record" "render: PANEL_TITLE set to Record..."
+
+# ── _shql_word_wrap unit tests ────────────────────────────────────────────────
+
+ptyunit_test_begin "word_wrap: short value fits on one line"
+_shql_word_wrap "Hello world" 20
+assert_eq "1" "${#_SHQL_WRAP_LINES[@]}" "short: single line produced"
+assert_eq "Hello world" "${_SHQL_WRAP_LINES[0]}" "short: text is unchanged"
+
+ptyunit_test_begin "word_wrap: wraps at word boundary not character boundary"
+_shql_word_wrap "The packaging was careful and nothing was damaged." 44
+assert_eq "2" "${#_SHQL_WRAP_LINES[@]}" "wrap: 2 lines"
+assert_eq "The packaging was careful and nothing was" "${_SHQL_WRAP_LINES[0]}" "wrap: first line breaks at word"
+assert_eq "damaged." "${_SHQL_WRAP_LINES[1]}" "wrap: second line is remainder"
+
+ptyunit_test_begin "word_wrap: long word breaks at character boundary"
+_shql_word_wrap "superlongwordthatexceedswidth" 10
+assert_eq "3" "${#_SHQL_WRAP_LINES[@]}" "long word: 3 character-broken lines"
+assert_eq "superlongw" "${_SHQL_WRAP_LINES[0]}" "long word: first chunk"
+assert_eq "ordthatexc" "${_SHQL_WRAP_LINES[1]}" "long word: second chunk"
+assert_eq "eedswidth" "${_SHQL_WRAP_LINES[2]}" "long word: third chunk"
+
+ptyunit_test_begin "word_wrap: empty value produces one empty line"
+_shql_word_wrap "" 20
+assert_eq "1" "${#_SHQL_WRAP_LINES[@]}" "empty: one line returned"
+assert_eq "" "${_SHQL_WRAP_LINES[0]}" "empty: line is empty string"
+
+ptyunit_test_begin "word_wrap: exact-width value fits on one line"
+_shql_word_wrap "Hello" 5
+assert_eq "1" "${#_SHQL_WRAP_LINES[@]}" "exact: one line"
+assert_eq "Hello" "${_SHQL_WRAP_LINES[0]}" "exact: text preserved"
 
 # ── Word-wrap: long values expand scroll total beyond pair count ──────────────
 

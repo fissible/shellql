@@ -386,17 +386,16 @@ _shql_query_detail_render() {
 
     local _n=${#_SHQL_QUERY_DETAIL_PAIRS[@]}
 
-    # Build display-row map: long values wrap across multiple rows.
-    local _dr_pair=() _dr_line=() _total_drows=0
-    local _i _j _drows _vlen _pair_i _val_i
+    # Build display-row map: word-wrap values; each wrapped line = one display row.
+    local _dr_pair=() _dr_text=() _dr_line=() _total_drows=0
+    local _i _j _pair_i _val_i
     for (( _i=0; _i<_n; _i++ )); do
         _pair_i="${_SHQL_QUERY_DETAIL_PAIRS[$_i]}"
         _val_i="${_pair_i#*	}"
-        _vlen=${#_val_i}
-        _drows=$(( (_vlen + _val_avail - 1) / _val_avail ))
-        (( _drows < 1 )) && _drows=1
-        for (( _j=0; _j<_drows; _j++ )); do
+        _shql_word_wrap "$_val_i" "$_val_avail"
+        for (( _j=0; _j<${#_SHQL_WRAP_LINES[@]}; _j++ )); do
             _dr_pair[$_total_drows]=$_i
+            _dr_text[$_total_drows]="${_SHQL_WRAP_LINES[$_j]}"
             _dr_line[$_total_drows]=$_j
             (( _total_drows++ ))
         done
@@ -408,18 +407,17 @@ _shql_query_detail_render() {
     local _scroll_top=0
     shellframe_scroll_top "$_SHQL_QUERY_DETAIL_CTX" _scroll_top
 
-    local _r _dr _pi _ldr _row _key_padded _val _val_chunk
+    local _r _dr _pi _ldr _row _key_padded _val_chunk
     for (( _r=0; _r<_kv_h; _r++ )); do
         _dr=$(( _scroll_top + _r ))
         (( _dr >= _total_drows )) && continue
         _row=$(( _kv_top + _r ))
         _pi=${_dr_pair[$_dr]}
         _ldr=${_dr_line[$_dr]}
-        _pair="${_SHQL_QUERY_DETAIL_PAIRS[$_pi]}"
-        _pkey="${_pair%%	*}"
-        _val="${_pair#*	}"
-        _val_chunk="${_val:$(( _ldr * _val_avail )):$_val_avail}"
+        _val_chunk="${_dr_text[$_dr]}"
         if (( _ldr == 0 )); then
+            _pair="${_SHQL_QUERY_DETAIL_PAIRS[$_pi]}"
+            _pkey="${_pair%%	*}"
             printf -v _key_padded '%-*s' "$_max_kw" "$_pkey"
         else
             printf -v _key_padded '%-*s' "$_max_kw" ""

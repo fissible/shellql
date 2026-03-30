@@ -58,7 +58,8 @@ fi
 source "$_SHQL_ROOT/src/theme.sh"
 shql_theme_load "${SHQL_THEME:-basic}"
 
-# screens (header.sh must come before welcome/table)
+# screens (util.sh first — shared helpers; header.sh before welcome/table)
+source "$_SHQL_ROOT/src/screens/util.sh"
 source "$_SHQL_ROOT/src/screens/header.sh"
 source "$_SHQL_ROOT/src/screens/welcome.sh"
 source "$_SHQL_ROOT/src/screens/table.sh"

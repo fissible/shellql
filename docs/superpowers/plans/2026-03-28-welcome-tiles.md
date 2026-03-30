@@ -1,29 +1,333 @@
+# Welcome Screen Tiles Implementation Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** Replace the flat-list welcome screen with a responsive grid of connection tiles showing metadata, with arrow-key + mouse navigation and context menus.
+
+**Architecture:** The welcome screen (`src/screens/welcome.sh`) is fully rewritten. Tile rendering is done directly with `shellframe_fb_put`/`shellframe_fb_fill` — no new shellframe widget. Metadata (table count, file size, relative date) is collected at init time. Context menus reuse the existing `shellframe_cmenu` widget. The form and delete-confirmation overlays are preserved as-is.
+
+**Tech Stack:** Bash 3.2+, shellframe framebuffer API, shellframe context-menu widget, `stat` for file size, `sqlite3` for table count.
+
+---
+
+## File Structure
+
+| File | Action | Responsibility |
+|------|--------|----------------|
+| `src/screens/welcome.sh` | Rewrite | Tile grid render, nav, mouse, context menu, metadata collection |
+| `src/themes/basic.sh` | Modify | Add 4 tile theme variables |
+| `src/themes/cascade.sh` | Modify | Add 4 tile theme variables |
+| `src/themes/uranium.sh` | Modify | Add 4 tile theme variables |
+| `tests/unit/test-welcome.sh` | Rewrite | Tests for metadata helpers, grid math, tile navigation |
+
+---
+
+### Task 1: Add Tile Theme Variables
+
+**Files:**
+- Modify: `src/themes/basic.sh`
+- Modify: `src/themes/cascade.sh`
+- Modify: `src/themes/uranium.sh`
+
+- [ ] **Step 1: Add tile variables to basic.sh**
+
+Append after the `SHQL_THEME_FOOTER_BG` line:
+
+```bash
+# ── Tiles (welcome screen) ───────────────────────────────────────────────
+SHQL_THEME_TILE_BG=$'\033[48;5;236m'                  # neutral dark gray
+SHQL_THEME_TILE_BORDER=$'\033[38;5;242m'              # medium gray borders
+SHQL_THEME_TILE_SELECTED_BG=$'\033[48;5;17m'          # dark navy blue
+SHQL_THEME_TILE_SELECTED_BORDER=$'\033[38;5;68m'      # steel blue border
+```
+
+- [ ] **Step 2: Add tile variables to cascade.sh**
+
+Append after `SHQL_THEME_FOOTER_BG`:
+
+```bash
+# ── Tiles (welcome screen) ───────────────────────────────────────────────
+SHQL_THEME_TILE_BG=$'\033[48;5;236m'
+SHQL_THEME_TILE_BORDER=$'\033[38;5;242m'
+SHQL_THEME_TILE_SELECTED_BG=$'\033[48;5;54m'          # dark purple (matches cursor)
+SHQL_THEME_TILE_SELECTED_BORDER=$'\033[38;5;140m'     # muted purple
+```
+
+- [ ] **Step 3: Add tile variables to uranium.sh**
+
+Append after `SHQL_THEME_FOOTER_BG`:
+
+```bash
+# ── Tiles (welcome screen) ───────────────────────────────────────────────
+SHQL_THEME_TILE_BG=$'\033[48;5;236m'
+SHQL_THEME_TILE_BORDER=$'\033[38;5;242m'
+SHQL_THEME_TILE_SELECTED_BG=$'\033[48;2;30;70;20m'    # dark green tint
+SHQL_THEME_TILE_SELECTED_BORDER=$'\033[38;2;80;186;42m' # uranium green
+```
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add src/themes/basic.sh src/themes/cascade.sh src/themes/uranium.sh
+git commit -m "feat(theme): add tile variables for welcome screen"
+```
+
+---
+
+### Task 2: Metadata Helper Functions
+
+**Files:**
+- Modify: `src/screens/welcome.sh` (add functions at top, before render)
+- Test: `tests/unit/test-welcome.sh`
+
+- [ ] **Step 1: Write tests for metadata helpers**
+
+Replace the entire contents of `tests/unit/test-welcome.sh` with:
+
+```bash
 #!/usr/bin/env bash
-# shellql/src/screens/welcome.sh — Welcome screen (connection tile grid)
-#
-# REQUIRES: shellframe sourced, src/state.sh sourced, src/connections.sh sourced.
-#
-# ── Layout ────────────────────────────────────────────────────────────────────
-#
-#   row 1        : header (title + key hints)
-#   rows 2..N-1  : tile grid — one tile per connection + "New Connection" tile
-#   row N        : footer (status bar)
-#
-# ── Overlays ──────────────────────────────────────────────────────────────────
-#
-#   form    — centered panel with Name + Path input fields (create / edit)
-#   confirm — modal dialog for delete confirmation
-#   cmenu   — context menu (right-click / shift-click)
-#
-# ── Usage ─────────────────────────────────────────────────────────────────────
-#
-#   source src/screens/welcome.sh
-#   shql_welcome_run
+# tests/unit/test-welcome.sh — Unit tests for welcome screen tile logic
 
-# ── Constants ─────────────────────────────────────────────────────────────────
+set -u
+TESTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+SHQL_ROOT="$(cd "$TESTS_DIR/.." && pwd)"
 
-_SHQL_WELCOME_FOOTER_HINTS="[↑↓←→] Navigate  [Enter] Open  [n] New  [e] Edit  [d] Delete  [q] Quit"
+source "$PTYUNIT_HOME/assert.sh"
 
+# ── Minimal shellframe stubs ─────────────────────────────────────────────────
+
+shellframe_sel_init()    { true; }
+shellframe_sel_set()     { true; }
+shellframe_sel_cursor()  { printf -v "$2" '%d' "${_MOCK_CURSOR:-0}"; }
+shellframe_scroll_init() { true; }
+shellframe_scroll_top()  { printf -v "$2" '%d' 0; }
+shellframe_list_init()   { true; }
+shellframe_cmenu_init()  { true; }
+shellframe_shell_focus_set() { true; }
+shellframe_shell_mark_dirty() { true; }
+shellframe_cur_init()    { true; }
+shellframe_cur_text()    { printf -v "$2" '%s' ""; }
+
+SHELLFRAME_BOLD='' SHELLFRAME_RESET='' SHELLFRAME_REVERSE='' SHELLFRAME_GRAY=''
+SHELLFRAME_KEY_UP=$'\033[A' SHELLFRAME_KEY_DOWN=$'\033[B'
+SHELLFRAME_KEY_LEFT=$'\033[D' SHELLFRAME_KEY_RIGHT=$'\033[C'
+SHELLFRAME_KEY_ENTER=$'\n' SHELLFRAME_KEY_ESC=$'\033'
+SHELLFRAME_KEY_HOME=$'\033[H' SHELLFRAME_KEY_END=$'\033[F'
+SHELLFRAME_KEY_TAB=$'\t' SHELLFRAME_KEY_SHIFT_TAB=$'\033[Z'
+SHELLFRAME_MOUSE_SHIFT=0 SHELLFRAME_MOUSE_CTRL=0 SHELLFRAME_MOUSE_BUTTON=0
+_SHQL_ROOT="$SHQL_ROOT"
+
+source "$SHQL_ROOT/src/theme.sh"
+shql_theme_load basic
+
+SHQL_MOCK=1
+source "$SHQL_ROOT/src/state.sh"
+source "$SHQL_ROOT/src/db_mock.sh"
+source "$SHQL_ROOT/src/screens/welcome.sh"
+
+# ── Test: _shql_welcome_human_size ───────────────────────────────────────────
+
+ptyunit_test_begin "human_size: bytes"
+assert_eq "512 B" "$(_shql_welcome_human_size 512)"
+
+ptyunit_test_begin "human_size: kilobytes"
+assert_eq "48 KB" "$(_shql_welcome_human_size 49152)"
+
+ptyunit_test_begin "human_size: megabytes"
+assert_eq "2.1 MB" "$(_shql_welcome_human_size 2202009)"
+
+ptyunit_test_begin "human_size: gigabytes"
+assert_eq "1.5 GB" "$(_shql_welcome_human_size 1610612736)"
+
+ptyunit_test_begin "human_size: zero"
+assert_eq "0 B" "$(_shql_welcome_human_size 0)"
+
+# ── Test: _shql_welcome_relative_date ────────────────────────────────────────
+
+ptyunit_test_begin "relative_date: empty string returns empty"
+assert_eq "" "$(_shql_welcome_relative_date "")"
+
+# ── Test: _shql_welcome_tile_cols ────────────────────────────────────────────
+
+ptyunit_test_begin "tile_cols: 80 cols → 3"
+assert_eq "3" "$(_shql_welcome_tile_cols 80)"
+
+ptyunit_test_begin "tile_cols: 120 cols → 4"
+assert_eq "4" "$(_shql_welcome_tile_cols 120)"
+
+ptyunit_test_begin "tile_cols: 200 cols → 4 (capped)"
+assert_eq "4" "$(_shql_welcome_tile_cols 200)"
+
+ptyunit_test_begin "tile_cols: 50 cols → 1 (minimum)"
+assert_eq "1" "$(_shql_welcome_tile_cols 50)"
+
+ptyunit_test_begin "tile_cols: 52 cols → 2"
+assert_eq "2" "$(_shql_welcome_tile_cols 52)"
+
+# ── Test: _shql_welcome_shorten_path ─────────────────────────────────────────
+
+ptyunit_test_begin "shorten_path: replaces HOME with ~"
+_result=$(_shql_welcome_shorten_path "$HOME/projects/app.db")
+assert_eq "~/projects/app.db" "$_result"
+
+ptyunit_test_begin "shorten_path: truncates long paths"
+_long="$HOME/very/deeply/nested/directory/structure/database.db"
+_result=$(_shql_welcome_shorten_path "$_long" 20)
+# Should end with …/database.db and be ≤ 20 chars
+assert_le "${#_result}" 20
+
+# ── Test: tile cursor navigation ─────────────────────────────────────────────
+
+ptyunit_test_begin "cursor nav: right wraps to next row"
+_SHQL_WELCOME_CURSOR=2
+_SHQL_WELCOME_TILE_COLS=3
+_SHQL_WELCOME_TILE_COUNT=6
+_shql_welcome_cursor_move right
+assert_eq "3" "$_SHQL_WELCOME_CURSOR"
+
+ptyunit_test_begin "cursor nav: right at end of row wraps"
+_SHQL_WELCOME_CURSOR=2
+_SHQL_WELCOME_TILE_COLS=3
+_SHQL_WELCOME_TILE_COUNT=9
+_shql_welcome_cursor_move right
+assert_eq "3" "$_SHQL_WELCOME_CURSOR"
+
+ptyunit_test_begin "cursor nav: down moves by column count"
+_SHQL_WELCOME_CURSOR=1
+_SHQL_WELCOME_TILE_COLS=3
+_SHQL_WELCOME_TILE_COUNT=9
+_shql_welcome_cursor_move down
+assert_eq "4" "$_SHQL_WELCOME_CURSOR"
+
+ptyunit_test_begin "cursor nav: down clamps to last tile"
+_SHQL_WELCOME_CURSOR=4
+_SHQL_WELCOME_TILE_COLS=3
+_SHQL_WELCOME_TILE_COUNT=6
+_shql_welcome_cursor_move down
+assert_eq "5" "$_SHQL_WELCOME_CURSOR"
+
+ptyunit_test_begin "cursor nav: up moves by column count"
+_SHQL_WELCOME_CURSOR=4
+_SHQL_WELCOME_TILE_COLS=3
+_SHQL_WELCOME_TILE_COUNT=9
+_shql_welcome_cursor_move up
+assert_eq "1" "$_SHQL_WELCOME_CURSOR"
+
+ptyunit_test_begin "cursor nav: up at row 0 is no-op"
+_SHQL_WELCOME_CURSOR=1
+_SHQL_WELCOME_TILE_COLS=3
+_SHQL_WELCOME_TILE_COUNT=9
+_shql_welcome_cursor_move up
+assert_eq "1" "$_SHQL_WELCOME_CURSOR"
+
+ptyunit_test_begin "cursor nav: left wraps to prev row"
+_SHQL_WELCOME_CURSOR=3
+_SHQL_WELCOME_TILE_COLS=3
+_SHQL_WELCOME_TILE_COUNT=9
+_shql_welcome_cursor_move left
+assert_eq "2" "$_SHQL_WELCOME_CURSOR"
+
+ptyunit_test_begin "cursor nav: left at 0 is no-op"
+_SHQL_WELCOME_CURSOR=0
+_SHQL_WELCOME_TILE_COLS=3
+_SHQL_WELCOME_TILE_COUNT=9
+_shql_welcome_cursor_move left
+assert_eq "0" "$_SHQL_WELCOME_CURSOR"
+
+ptyunit_test_begin "cursor nav: home jumps to 0"
+_SHQL_WELCOME_CURSOR=5
+_SHQL_WELCOME_TILE_COLS=3
+_SHQL_WELCOME_TILE_COUNT=9
+_shql_welcome_cursor_move home
+assert_eq "0" "$_SHQL_WELCOME_CURSOR"
+
+ptyunit_test_begin "cursor nav: end jumps to last"
+_SHQL_WELCOME_CURSOR=0
+_SHQL_WELCOME_TILE_COLS=3
+_SHQL_WELCOME_TILE_COUNT=9
+_shql_welcome_cursor_move end
+assert_eq "8" "$_SHQL_WELCOME_CURSOR"
+
+# ── Test: _shql_welcome_hit_tile ─────────────────────────────────────────────
+
+ptyunit_test_begin "hit_tile: click on first tile"
+_SHQL_WELCOME_TILE_COLS=3
+_SHQL_WELCOME_TILE_COUNT=6
+_SHQL_WELCOME_GRID_TOP=3
+_SHQL_WELCOME_GRID_LEFT=1
+_SHQL_WELCOME_TILE_W=26
+_SHQL_WELCOME_TILE_H=6
+_SHQL_WELCOME_SCROLL_TOP=0
+local _hit
+_shql_welcome_hit_tile 4 5 _hit
+assert_eq "0" "$_hit"
+
+ptyunit_test_begin "hit_tile: click in gap returns -1"
+_shql_welcome_hit_tile 4 27 _hit
+assert_eq "-1" "$_hit"
+
+# ── Test: init populates data ────────────────────────────────────────────────
+
+ptyunit_test_begin "_shql_welcome_init: populates SHQL_RECENT_NAMES"
+SHQL_RECENT_NAMES=()
+_shql_welcome_init
+assert_gt "${#SHQL_RECENT_NAMES[@]}" 0
+
+ptyunit_test_begin "_shql_welcome_init: sets tile count (connections + new)"
+assert_gt "$_SHQL_WELCOME_TILE_COUNT" "${#SHQL_RECENT_NAMES[@]}"
+
+# ── Test: quit ───────────────────────────────────────────────────────────────
+
+ptyunit_test_begin "quit: sets _SHELLFRAME_SHELL_NEXT=__QUIT__"
+_SHELLFRAME_SHELL_NEXT=""
+_shql_WELCOME_quit
+assert_eq "__QUIT__" "$_SHELLFRAME_SHELL_NEXT"
+
+# ── Render tests (require shellframe framebuffer) ────────────────────────────
+
+_SHELLFRAME_DIR="${SHELLFRAME_DIR:-${SHQL_ROOT}/../shellframe}"
+source "$_SHELLFRAME_DIR/src/screen.sh"
+source "$SHQL_ROOT/src/screens/header.sh"
+
+# Helper: extract stripped text from a framebuffer row
+_fb_row_text() {
+    local _row="$1" _out="" _i _cols="${_SF_FRAME_COLS:-80}"
+    for (( _i=0; _i<_cols; _i++ )); do
+        local _idx=$(( (_row-1)*_cols + _i ))
+        _out+="${_SF_FRAME_CURR[${_idx}]:-}"
+    done
+    printf '%s' "$_out" | sed $'s/\033\\[[0-9;]*[A-Za-z]//g' | tr -d $'\033'
+}
+
+ptyunit_test_begin "header_render: row contains 'ShellQL'"
+shellframe_fb_frame_start 30 80
+SHQL_DRIVER="" SHQL_DB_PATH="" SHQL_DB_HOST="" SHQL_DB_NAME=""
+_shql_WELCOME_header_render 1 1 80
+_text=$(_fb_row_text 1)
+assert_contains "$_text" "ShellQL"
+
+ptyunit_test_begin "footer_render: row contains 'Navigate'"
+shellframe_fb_frame_start 30 80
+_shql_WELCOME_footer_render 30 1 80
+_text=$(_fb_row_text 30)
+assert_contains "$_text" "Navigate"
+
+ptyunit_test_begin "footer_render: row contains 'Quit'"
+assert_contains "$_text" "Quit"
+
+ptyunit_test_summary
+```
+
+- [ ] **Step 2: Run tests to verify they fail**
+
+Run: `cd /Users/allenmccabe/lib/fissible/shellql && bash tests/run.sh --unit`
+Expected: FAIL — functions `_shql_welcome_human_size`, `_shql_welcome_tile_cols`, etc. not yet defined.
+
+- [ ] **Step 3: Implement metadata helpers in welcome.sh**
+
+Add these functions after the constants section (after line 37 `_SHQL_WELCOME_ITEMS=()`), replacing that line and the `_shql_welcome_format_items` function. These are pure utility functions used by the tile renderer:
+
+```bash
 # ── Tile grid state ──────────────────────────────────────────────────────────
 
 _SHQL_WELCOME_CURSOR=0           # index of selected tile (0-based)
@@ -44,17 +348,6 @@ _SHQL_WELCOME_META_LAST=()       # relative date string
 _SHQL_WELCOME_CMENU_ACTIVE=0
 _SHQL_WELCOME_CMENU_PREV_FOCUS=""
 
-# ── Form overlay state ────────────────────────────────────────────────────────
-
-_SHQL_WELCOME_FORM_ACTIVE=0
-_SHQL_WELCOME_FORM_MODE=""         # "create" | "edit"
-_SHQL_WELCOME_FORM_FIELD=0         # 0=name, 1=path
-_SHQL_WELCOME_FORM_EDIT_ID=""      # connection id (edit mode)
-
-# ── Delete confirmation state ─────────────────────────────────────────────────
-
-_SHQL_WELCOME_DELETE_ACTIVE=0
-
 # ── _shql_welcome_human_size ─────────────────────────────────────────────────
 # Convert bytes to human-readable string: "48 KB", "2.1 MB", "1.5 GB"
 
@@ -67,15 +360,13 @@ _shql_welcome_human_size() {
     elif (( _bytes < 1048576 )); then
         printf '%d KB' $(( _bytes / 1024 )); return
     elif (( _bytes < 1073741824 )); then
-        local _scaled=$(( _bytes * 10 / 1048576 ))
-        local _whole=$(( _scaled / 10 ))
-        local _frac=$(( _scaled % 10 ))
-        printf '%d.%d MB' "$_whole" "$_frac"; return
+        local _mb=$(( _bytes / 1048576 ))
+        local _frac=$(( (_bytes % 1048576) * 10 / 1048576 ))
+        printf '%d.%d MB' "$_mb" "$_frac"; return
     else
-        local _scaled=$(( _bytes / 1073741824 * 10 + _bytes % 1073741824 * 10 / 1073741824 ))
-        local _whole=$(( _scaled / 10 ))
-        local _frac=$(( _scaled % 10 ))
-        printf '%d.%d GB' "$_whole" "$_frac"; return
+        local _gb=$(( _bytes / 1073741824 ))
+        local _frac=$(( (_bytes % 1073741824) * 10 / 1073741824 ))
+        printf '%d.%d GB' "$_gb" "$_frac"; return
     fi
 }
 
@@ -147,7 +438,33 @@ _shql_welcome_shorten_path() {
     fi
     printf '%s' "$_path"
 }
+```
 
+- [ ] **Step 4: Run tests to verify helpers pass**
+
+Run: `cd /Users/allenmccabe/lib/fissible/shellql && bash tests/run.sh --unit`
+Expected: Helper tests pass. Navigation and hit_tile tests still fail (functions not yet defined).
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add src/screens/welcome.sh tests/unit/test-welcome.sh
+git commit -m "feat(welcome): add metadata helpers — human_size, relative_date, tile_cols, shorten_path"
+```
+
+---
+
+### Task 3: Tile Cursor Navigation
+
+**Files:**
+- Modify: `src/screens/welcome.sh`
+- Test: `tests/unit/test-welcome.sh` (tests already written in Task 2)
+
+- [ ] **Step 1: Implement cursor movement**
+
+Add after the metadata helpers in `welcome.sh`:
+
+```bash
 # ── _shql_welcome_cursor_move ────────────────────────────────────────────────
 # Move tile cursor in direction: up, down, left, right, home, end.
 
@@ -226,9 +543,32 @@ _shql_welcome_hit_tile() {
         printf -v "$_out_var" '%d' -1
     fi
 }
+```
 
-# ── _shql_WELCOME_render ──────────────────────────────────────────────────────
+- [ ] **Step 2: Run tests**
 
+Run: `cd /Users/allenmccabe/lib/fissible/shellql && bash tests/run.sh --unit`
+Expected: All navigation and hit_tile tests pass.
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add src/screens/welcome.sh
+git commit -m "feat(welcome): add tile cursor navigation and hit-tile detection"
+```
+
+---
+
+### Task 4: Tile Rendering
+
+**Files:**
+- Modify: `src/screens/welcome.sh` — rewrite render, footer, empty-state functions
+
+- [ ] **Step 1: Rewrite `_shql_WELCOME_render` (screen layout)**
+
+Replace the existing `_shql_WELCOME_render` function:
+
+```bash
 _shql_WELCOME_render() {
     local _rows _cols
     _shellframe_shell_terminal_size _rows _cols
@@ -260,15 +600,13 @@ _shql_WELCOME_render() {
         shellframe_shell_region cmenu 1 1 "$_cols" "$_rows" focus
     fi
 }
+```
 
-# ── _shql_WELCOME_header_render ───────────────────────────────────────────────
+- [ ] **Step 2: Implement `_shql_WELCOME_tiles_render`**
 
-_shql_WELCOME_header_render() {
-    _shql_header_render "$1" "$2" "$3" "ShellQL"
-}
+This is the main tile grid renderer. Add it after the render function:
 
-# ── _shql_WELCOME_tiles_render ───────────────────────────────────────────────
-
+```bash
 _shql_WELCOME_tiles_render() {
     local _top="$1" _left="$2" _width="$3" _height="$4"
 
@@ -280,16 +618,15 @@ _shql_WELCOME_tiles_render() {
 
     # Section label
     local _gray="${SHELLFRAME_GRAY:-}"
-    local _cbg="${SHQL_THEME_CONTENT_BG:-}"
-    shellframe_fb_fill "$_top" "$_left" "$_width" " " "$_cbg"
-    shellframe_fb_print "$_top" "$(( _left + 1 ))" "Recent Connections" "${_cbg}${_gray}"
+    shellframe_fb_fill "$_top" "$_left" "$_width" " " ""
+    shellframe_fb_print "$_top" "$(( _left + 1 ))" "Recent Connections" "$_gray"
 
     # Tile area background
     local _grid_top=$(( _top + 1 ))
     local _grid_h=$(( _height - 1 ))
     local _r
     for (( _r=0; _r<_grid_h; _r++ )); do
-        shellframe_fb_fill "$(( _grid_top + _r ))" "$_left" "$_width" " " "$_cbg"
+        shellframe_fb_fill "$(( _grid_top + _r ))" "$_left" "$_width" " " ""
     done
 
     local _n="$_SHQL_WELCOME_TILE_COUNT"
@@ -323,9 +660,11 @@ _shql_WELCOME_tiles_render() {
         fi
     done
 }
+```
 
-# ── _shql_welcome_render_conn_tile ───────────────────────────────────────────
+- [ ] **Step 3: Implement `_shql_welcome_render_conn_tile`**
 
+```bash
 _shql_welcome_render_conn_tile() {
     local _ty="$1" _tx="$2" _tw="$3" _th="$4" _idx="$5" _sel="$6" _iw="$7"
     local _gray="${SHELLFRAME_GRAY:-$'\033[2m'}"
@@ -361,8 +700,8 @@ _shql_welcome_render_conn_tile() {
     local _path
     _path=$(_shql_welcome_shorten_path "${SHQL_RECENT_DETAILS[$_idx]}" "$_iw")
     local _meta="${_SHQL_WELCOME_META_TABLES[$_idx]:-?} tables · ${_SHQL_WELCOME_META_SIZE[$_idx]:-?}"
-    local _last="${_SHQL_WELCOME_META_LAST[$_idx]:-—}"
-    local _icon="${SHQL_THEME_TABLE_ICON:-}"
+    local _last="${_SHQL_WELCOME_META_LAST[$_idx]:-}"
+    local _icon="${SHQL_THEME_TABLE_ICON:-🗄 }"
 
     # Line 1: icon + name
     local _name_display="${_icon}${_name}"
@@ -385,9 +724,7 @@ _shql_welcome_render_conn_tile() {
     shellframe_fb_put "$(( _ty + 5 ))" "$(( _tx + _tw - 2 ))" "${_border}${_bg}${_br}"
 }
 
-# ── _shql_welcome_tile_row ───────────────────────────────────────────────────
 # Render one content row inside a tile: │ text padded │
-
 _shql_welcome_tile_row() {
     local _row="$1" _tx="$2" _tw="$3" _v="$4" _bg="$5" _border="$6"
     local _text="$7" _style="$8" _iw="$9"
@@ -407,9 +744,11 @@ _shql_welcome_tile_row() {
     done
     shellframe_fb_put "$_row" "$(( _tx + _tw - 2 ))" "${_border}${_bg}${_v}"
 }
+```
 
-# ── _shql_welcome_render_new_tile ────────────────────────────────────────────
+- [ ] **Step 4: Implement `_shql_welcome_render_new_tile`**
 
+```bash
 _shql_welcome_render_new_tile() {
     local _ty="$1" _tx="$2" _tw="$3" _th="$4" _sel="$5"
     local _gray="${SHELLFRAME_GRAY:-$'\033[2m'}"
@@ -460,26 +799,46 @@ _shql_welcome_render_new_tile() {
     shellframe_fb_print "$(( _ty + _th - 1 ))" "$(( _tx + 1 ))" "$_hline" "${_border}${_bg}"
     shellframe_fb_put "$(( _ty + _th - 1 ))" "$(( _tx + _tw - 2 ))" "${_border}${_bg}${_br}"
 }
+```
 
-# ── _shql_WELCOME_footer_render ───────────────────────────────────────────────
+- [ ] **Step 5: Rewrite footer render**
 
+Replace the existing `_shql_WELCOME_footer_render`:
+
+```bash
 _shql_WELCOME_footer_render() {
     local _top="$1" _left="$2" _width="$3"
     local _bg="${SHQL_THEME_FOOTER_BG:-}"
     shellframe_fb_fill "$_top" "$_left" "$_width" " " "$_bg"
-    shellframe_fb_print "$_top" "$_left" " $_SHQL_WELCOME_FOOTER_HINTS" "$_bg"
+    local _hints="[↑↓←→] Navigate  [Enter] Open  [n] New  [e] Edit  [d] Delete  [q] Quit"
+    shellframe_fb_print "$_top" "$_left" " $_hints" "$_bg"
 }
+```
 
-# ── _shql_WELCOME_quit ────────────────────────────────────────────────────────
+- [ ] **Step 6: Run render tests**
 
-_shql_WELCOME_quit() {
-    _SHELLFRAME_SHELL_NEXT="__QUIT__"
-}
+Run: `cd /Users/allenmccabe/lib/fissible/shellql && bash tests/run.sh --unit`
+Expected: All tests pass.
 
-# ══════════════════════════════════════════════════════════════════════════════
-# Keyboard + Mouse handlers — tile grid
-# ══════════════════════════════════════════════════════════════════════════════
+- [ ] **Step 7: Commit**
 
+```bash
+git add src/screens/welcome.sh
+git commit -m "feat(welcome): tile grid rendering with box-drawn borders"
+```
+
+---
+
+### Task 5: Keyboard + Mouse Handlers
+
+**Files:**
+- Modify: `src/screens/welcome.sh` — add/replace on_key, on_mouse, on_focus, action handlers
+
+- [ ] **Step 1: Implement `_shql_WELCOME_tiles_on_key`**
+
+Replace the old `_shql_WELCOME_list_on_key` and related functions with:
+
+```bash
 _shql_WELCOME_tiles_on_key() {
     local _key="$1"
     local _k_up="${SHELLFRAME_KEY_UP:-$'\033[A'}"
@@ -509,7 +868,8 @@ _shql_WELCOME_tiles_on_key() {
         _shql_welcome_cursor_move end
         shellframe_shell_mark_dirty; return 0
     elif [[ "$_key" == "$_k_enter" ]]; then
-        return 2  # signal shell loop to call _action and check screen transition
+        _shql_WELCOME_tiles_action
+        return 0
     fi
 
     case "$_key" in
@@ -535,14 +895,13 @@ _shql_WELCOME_tiles_action() {
         return 0
     fi
 
-    # Open connection
+    # Open connection — same logic as old _shql_WELCOME_list_action
     local _src="${SHQL_RECENT_SOURCES[$_c]:-local}"
     local _ref="${SHQL_RECENT_REFS[$_c]:-}"
     if (( ${SHQL_MOCK:-0} )); then
         SHQL_DB_PATH="${SHQL_RECENT_DETAILS[$_c]:-mock.db}"
     elif [ "$_src" = "local" ]; then
         local _db="${_SHQL_CONN_DB:-$SHQL_DATA_DIR/shellql.db}"
-        # _ref comes from our own shellql.db connection store — trusted input.
         SHQL_DB_PATH=$("${_SHQL_SQLITE3:-sqlite3}" "$_db" \
             "SELECT path FROM connections WHERE id='${_ref//\'/\'\'}'")
         shql_conn_touch "$_ref"
@@ -552,9 +911,11 @@ _shql_WELCOME_tiles_action() {
     shql_browser_init
     _SHELLFRAME_SHELL_NEXT="TABLE"
 }
+```
 
-# ── _shql_WELCOME_tiles_on_mouse ─────────────────────────────────────────────
+- [ ] **Step 2: Implement `_shql_WELCOME_tiles_on_mouse`**
 
+```bash
 _shql_WELCOME_tiles_on_mouse() {
     local _button="$1" _action="$2" _mrow="$3" _mcol="$4"
     local _rtop="$5" _rleft="$6" _rwidth="$7" _rheight="$8"
@@ -601,11 +962,25 @@ _shql_WELCOME_tiles_on_mouse() {
     shellframe_shell_mark_dirty
     return 0
 }
+```
 
-# ══════════════════════════════════════════════════════════════════════════════
-# Context menu
-# ══════════════════════════════════════════════════════════════════════════════
+- [ ] **Step 3: Commit**
 
+```bash
+git add src/screens/welcome.sh
+git commit -m "feat(welcome): keyboard and mouse handlers for tile grid"
+```
+
+---
+
+### Task 6: Context Menu + Metadata Init
+
+**Files:**
+- Modify: `src/screens/welcome.sh` — context menu wiring, metadata collection, init rewrite
+
+- [ ] **Step 1: Implement context menu functions**
+
+```bash
 _shql_welcome_cmenu_open() {
     local _idx="$1" _arow="$2" _acol="$3"
     SHELLFRAME_CMENU_ITEMS=("Open" "Edit" "Delete" "Copy Path")
@@ -662,6 +1037,7 @@ _shql_WELCOME_cmenu_on_mouse() {
     local _rc=$?
     if (( _rc == 1 )); then
         # Click outside menu — dismiss
+        local _result="$SHELLFRAME_CMENU_RESULT"
         _shql_welcome_cmenu_dismiss
         return 0
     fi
@@ -691,247 +1067,11 @@ _shql_welcome_copy_path() {
         printf '%s' "$_path" | xclip -selection clipboard
     fi
 }
+```
 
-# ══════════════════════════════════════════════════════════════════════════════
-# Form overlay — create / edit connection
-# ══════════════════════════════════════════════════════════════════════════════
+- [ ] **Step 2: Implement metadata collection in `_shql_welcome_collect_meta`**
 
-_shql_welcome_form_open() {
-    local _mode="$1"
-    _SHQL_WELCOME_FORM_MODE="$_mode"
-    _SHQL_WELCOME_FORM_FIELD=0
-    _SHQL_WELCOME_FORM_ACTIVE=1
-
-    if [[ "$_mode" == "edit" ]]; then
-        local _cursor="$_SHQL_WELCOME_CURSOR"
-        local _n=${#SHQL_RECENT_NAMES[@]}
-        (( _n == 0 || _cursor >= _n )) && { _SHQL_WELCOME_FORM_ACTIVE=0; return 0; }
-        _SHQL_WELCOME_FORM_EDIT_ID="${SHQL_RECENT_REFS[$_cursor]}"
-        shellframe_cur_init "welcome_name" "${SHQL_RECENT_NAMES[$_cursor]}"
-        shellframe_cur_init "welcome_path" "${SHQL_RECENT_DETAILS[$_cursor]}"
-    else
-        _SHQL_WELCOME_FORM_EDIT_ID=""
-        shellframe_cur_init "welcome_name" ""
-        shellframe_cur_init "welcome_path" ""
-    fi
-
-    shellframe_shell_focus_set "form"
-    shellframe_shell_mark_dirty
-}
-
-_shql_welcome_form_close() {
-    _SHQL_WELCOME_FORM_ACTIVE=0
-    shellframe_shell_focus_set "tiles"
-    shellframe_shell_mark_dirty
-}
-
-_shql_welcome_form_save() {
-    local _name _path
-    shellframe_cur_text "welcome_name" _name
-    shellframe_cur_text "welcome_path" _path
-
-    # Validate: name is required
-    [[ -z "$_name" ]] && return 0
-
-    if [[ "$_SHQL_WELCOME_FORM_MODE" == "edit" ]]; then
-        shql_conn_update "$_SHQL_WELCOME_FORM_EDIT_ID" "$_name" "$_path" || return 0
-    else
-        shql_conn_create "$_name" "$_path" || return 0
-    fi
-
-    # Reload list and close form
-    _shql_welcome_reload
-    _shql_welcome_form_close
-}
-
-# ── _shql_WELCOME_form_render ─────────────────────────────────────────────────
-
-_shql_WELCOME_form_render() {
-    local _top=$1 _left=$2 _width=$3 _height=$4
-
-    # Panel dimensions: 54 wide × 7 tall
-    local _pw=54 _ph=7
-    (( _pw > _width - 4 )) && _pw=$(( _width - 4 ))
-
-    local _ptop=$(( _top + (_height - _ph) / 2 ))
-    local _pleft=$(( _left + (_width - _pw) / 2 ))
-
-    local _title="New Connection"
-    [[ "$_SHQL_WELCOME_FORM_MODE" == "edit" ]] && _title="Edit Connection"
-
-    SHELLFRAME_PANEL_STYLE="${SHQL_THEME_PANEL_STYLE_FOCUSED:-double}"
-    SHELLFRAME_PANEL_TITLE="$_title"
-    shellframe_panel_render "$_ptop" "$_pleft" "$_pw" "$_ph"
-
-    local _it _il _iw _ih
-    shellframe_panel_inner "$_ptop" "$_pleft" "$_pw" "$_ph" _it _il _iw _ih
-
-    local _label_w=7   # " Name: " / " Path: "
-    local _field_l=$(( _il + _label_w ))
-    local _field_w=$(( _iw - _label_w ))
-    (( _field_w < 5 )) && _field_w=5
-
-    # Row 0: blank
-    shellframe_fb_fill "$_it" "$_il" "$_iw" " " ""
-
-    # Row 1: Name field
-    local _nr=$(( _it + 1 ))
-    shellframe_fb_fill "$_nr" "$_il" "$_iw" " " ""
-    local _name_style=""
-    (( _SHQL_WELCOME_FORM_FIELD == 0 )) && _name_style="${SHELLFRAME_BOLD:-$'\033[1m'}"
-    shellframe_fb_print "$_nr" "$_il" " Name: " "$_name_style"
-    SHELLFRAME_FIELD_CTX="welcome_name"
-    SHELLFRAME_FIELD_FOCUSED=$(( _SHQL_WELCOME_FORM_FIELD == 0 ))
-    SHELLFRAME_FIELD_PLACEHOLDER="Connection name"
-    shellframe_field_render "$_nr" "$_field_l" "$_field_w" 1
-
-    # Row 2: Path field
-    local _pr=$(( _it + 2 ))
-    shellframe_fb_fill "$_pr" "$_il" "$_iw" " " ""
-    local _path_style=""
-    (( _SHQL_WELCOME_FORM_FIELD == 1 )) && _path_style="${SHELLFRAME_BOLD:-$'\033[1m'}"
-    shellframe_fb_print "$_pr" "$_il" " Path: " "$_path_style"
-    SHELLFRAME_FIELD_CTX="welcome_path"
-    SHELLFRAME_FIELD_FOCUSED=$(( _SHQL_WELCOME_FORM_FIELD == 1 ))
-    SHELLFRAME_FIELD_PLACEHOLDER="/path/to/database.sqlite"
-    shellframe_field_render "$_pr" "$_field_l" "$_field_w" 1
-
-    # Row 3: blank
-    shellframe_fb_fill "$(( _it + 3 ))" "$_il" "$_iw" " " ""
-
-    # Row 4: hints
-    shellframe_fb_fill "$(( _it + 4 ))" "$_il" "$_iw" " " ""
-    shellframe_fb_print "$(( _it + 4 ))" "$_il" \
-        " [Tab] Switch  [Enter] Save  [Esc] Cancel" "${SHELLFRAME_GRAY:-}"
-}
-
-# ── _shql_WELCOME_form_on_key ─────────────────────────────────────────────────
-
-_shql_WELCOME_form_on_key() {
-    local _key="$1"
-
-    # Tab / Shift-Tab: switch between name and path fields
-    if [[ "$_key" == "$SHELLFRAME_KEY_TAB" ]] || \
-       [[ "$_key" == "$SHELLFRAME_KEY_SHIFT_TAB" ]]; then
-        _SHQL_WELCOME_FORM_FIELD=$(( 1 - _SHQL_WELCOME_FORM_FIELD ))
-        shellframe_shell_mark_dirty
-        return 0
-    fi
-
-    # Esc: cancel form
-    if [[ "$_key" == "$SHELLFRAME_KEY_ESC" ]]; then
-        _shql_welcome_form_close
-        return 0
-    fi
-
-    # Enter: save
-    if [[ "$_key" == "$SHELLFRAME_KEY_ENTER" ]]; then
-        _shql_welcome_form_save
-        return 0
-    fi
-
-    # Delegate to active input field
-    if (( _SHQL_WELCOME_FORM_FIELD == 0 )); then
-        SHELLFRAME_FIELD_CTX="welcome_name"
-    else
-        SHELLFRAME_FIELD_CTX="welcome_path"
-    fi
-    shellframe_field_on_key "$_key"
-    local _rc=$?
-    # field returns 2 on Enter — already handled above
-    (( _rc == 2 )) && return 0
-    return "$_rc"
-}
-
-_shql_WELCOME_form_on_focus() {
-    : # form always owns focus when active
-}
-
-# ══════════════════════════════════════════════════════════════════════════════
-# Delete confirmation — modal overlay
-# ══════════════════════════════════════════════════════════════════════════════
-
-_shql_welcome_delete_open() {
-    local _n=${#SHQL_RECENT_NAMES[@]}
-    (( _n == 0 )) && return 0
-
-    local _cursor="$_SHQL_WELCOME_CURSOR"
-    (( _cursor < 0 || _cursor >= _n )) && return 0
-
-    local _name="${SHQL_RECENT_NAMES[$_cursor]}"
-    SHELLFRAME_MODAL_TITLE="Delete Connection"
-    SHELLFRAME_MODAL_MESSAGE="Remove \"${_name}\" from saved connections?"$'\n'$'\n'"The database file will not be deleted."
-    SHELLFRAME_MODAL_BUTTONS=("Delete" "Cancel")
-    SHELLFRAME_MODAL_ACTIVE_BTN=1   # default to Cancel
-    SHELLFRAME_MODAL_STYLE="${SHQL_THEME_PANEL_STYLE_FOCUSED:-double}"
-    SHELLFRAME_MODAL_INPUT=0
-    shellframe_modal_init
-
-    _SHQL_WELCOME_DELETE_ACTIVE=1
-    shellframe_shell_focus_set "confirm"
-    shellframe_shell_mark_dirty
-}
-
-_shql_welcome_delete_close() {
-    _SHQL_WELCOME_DELETE_ACTIVE=0
-    shellframe_shell_focus_set "tiles"
-    shellframe_shell_mark_dirty
-}
-
-_shql_WELCOME_confirm_render() {
-    SHELLFRAME_MODAL_FOCUSED=1
-    shellframe_modal_render "$@"
-}
-
-_shql_WELCOME_confirm_on_key() {
-    shellframe_modal_on_key "$1"
-    local _rc=$?
-    if (( _rc == 2 )); then
-        if (( SHELLFRAME_MODAL_RESULT == 0 )); then
-            # "Delete" button confirmed
-            local _cursor="$_SHQL_WELCOME_CURSOR"
-            local _ref="${SHQL_RECENT_REFS[$_cursor]:-}"
-            if [[ -n "$_ref" ]]; then
-                shql_conn_delete "$_ref"
-                _shql_welcome_reload
-            fi
-        fi
-        _shql_welcome_delete_close
-        return 0
-    fi
-    # Ensure redraw after button navigation (Left/Right/Tab)
-    (( _rc == 0 )) && shellframe_shell_mark_dirty
-    return "$_rc"
-}
-
-_shql_WELCOME_confirm_on_mouse() {
-    shellframe_modal_on_mouse "$@"
-    local _rc=$?
-    if (( _rc == 2 )); then
-        if (( SHELLFRAME_MODAL_RESULT == 0 )); then
-            # "Delete" button confirmed
-            local _cursor="$_SHQL_WELCOME_CURSOR"
-            local _ref="${SHQL_RECENT_REFS[$_cursor]:-}"
-            if [[ -n "$_ref" ]]; then
-                shql_conn_delete "$_ref"
-                _shql_welcome_reload
-            fi
-        fi
-        _shql_welcome_delete_close
-        return 0
-    fi
-    (( _rc == 0 )) && shellframe_shell_mark_dirty
-    return 0
-}
-
-_shql_WELCOME_confirm_on_focus() {
-    SHELLFRAME_MODAL_FOCUSED="${1:-0}"
-}
-
-# ══════════════════════════════════════════════════════════════════════════════
-# Metadata collection
-# ══════════════════════════════════════════════════════════════════════════════
-
+```bash
 _shql_welcome_collect_meta() {
     _SHQL_WELCOME_META_SIZE=()
     _SHQL_WELCOME_META_TABLES=()
@@ -966,18 +1106,18 @@ _shql_welcome_collect_meta() {
 
         # Last opened (relative date)
         local _last=""
-        # last_accessed data not directly exposed as timestamp yet.
+        # last_accessed data is in SHQL_RECENT arrays but not directly exposed as timestamp.
+        # For now use empty — will be populated when we add timestamp to load_recent.
         _SHQL_WELCOME_META_LAST+=("$_last")
     done
 }
+```
 
-# ══════════════════════════════════════════════════════════════════════════════
-# Init / reload / run
-# ══════════════════════════════════════════════════════════════════════════════
+- [ ] **Step 3: Rewrite `_shql_welcome_reload` and `_shql_welcome_init`**
 
-# ── _shql_welcome_reload ─────────────────────────────────────────────────────
-# Refresh connection data and tile state after a CRUD operation.
+Replace the existing functions:
 
+```bash
 _shql_welcome_reload() {
     if (( ${SHQL_MOCK:-0} )); then
         shql_mock_load_recent
@@ -992,23 +1132,211 @@ _shql_welcome_reload() {
     (( _SHQL_WELCOME_CURSOR < 0 )) && _SHQL_WELCOME_CURSOR=0
 }
 
-# ── _shql_welcome_init ───────────────────────────────────────────────────────
-# Load recent connections and initialise tile state.
-# Called by shql_welcome_run (welcome mode) and by open/table/query-tui dispatch
-# blocks in bin/shql so WELCOME is ready when the user navigates back from SCHEMA.
-
 _shql_welcome_init() {
     _SHQL_WELCOME_CURSOR=0
     _SHQL_WELCOME_SCROLL_TOP=0
     _SHQL_WELCOME_CMENU_ACTIVE=0
     _shql_welcome_reload
 }
+```
 
-# ── shql_welcome_run ──────────────────────────────────────────────────────────
+- [ ] **Step 4: Update form/delete to use cursor instead of list selection**
 
-shql_welcome_run() {
-    _shql_welcome_init
-    shellframe_shell "_shql" "WELCOME"
+Update `_shql_welcome_form_open` to use `_SHQL_WELCOME_CURSOR` instead of `shellframe_sel_cursor`:
 
-    # Caller can read SHQL_DB_PATH to know which file was selected (may be empty)
+```bash
+_shql_welcome_form_open() {
+    local _mode="$1"
+    _SHQL_WELCOME_FORM_MODE="$_mode"
+    _SHQL_WELCOME_FORM_FIELD=0
+    _SHQL_WELCOME_FORM_ACTIVE=1
+
+    if [[ "$_mode" == "edit" ]]; then
+        local _cursor="$_SHQL_WELCOME_CURSOR"
+        local _n=${#SHQL_RECENT_NAMES[@]}
+        (( _n == 0 || _cursor >= _n )) && { _SHQL_WELCOME_FORM_ACTIVE=0; return 0; }
+        _SHQL_WELCOME_FORM_EDIT_ID="${SHQL_RECENT_REFS[$_cursor]}"
+        shellframe_cur_init "welcome_name" "${SHQL_RECENT_NAMES[$_cursor]}"
+        shellframe_cur_init "welcome_path" "${SHQL_RECENT_DETAILS[$_cursor]}"
+    else
+        _SHQL_WELCOME_FORM_EDIT_ID=""
+        shellframe_cur_init "welcome_name" ""
+        shellframe_cur_init "welcome_path" ""
+    fi
+
+    shellframe_shell_focus_set "form"
+    shellframe_shell_mark_dirty
 }
+```
+
+Update `_shql_welcome_form_close` to set focus to "tiles" instead of "list":
+
+```bash
+_shql_welcome_form_close() {
+    _SHQL_WELCOME_FORM_ACTIVE=0
+    shellframe_shell_focus_set "tiles"
+    shellframe_shell_mark_dirty
+}
+```
+
+Update `_shql_welcome_delete_open` to use `_SHQL_WELCOME_CURSOR`:
+
+```bash
+_shql_welcome_delete_open() {
+    local _n=${#SHQL_RECENT_NAMES[@]}
+    (( _n == 0 )) && return 0
+
+    local _cursor="$_SHQL_WELCOME_CURSOR"
+    (( _cursor < 0 || _cursor >= _n )) && return 0
+
+    local _name="${SHQL_RECENT_NAMES[$_cursor]}"
+    SHELLFRAME_MODAL_TITLE="Delete Connection"
+    SHELLFRAME_MODAL_MESSAGE="Remove \"${_name}\" from saved connections?"$'\n'$'\n'"The database file will not be deleted."
+    SHELLFRAME_MODAL_BUTTONS=("Delete" "Cancel")
+    SHELLFRAME_MODAL_ACTIVE_BTN=1
+    SHELLFRAME_MODAL_STYLE="${SHQL_THEME_PANEL_STYLE_FOCUSED:-double}"
+    SHELLFRAME_MODAL_INPUT=0
+    shellframe_modal_init
+
+    _SHQL_WELCOME_DELETE_ACTIVE=1
+    shellframe_shell_focus_set "confirm"
+    shellframe_shell_mark_dirty
+}
+```
+
+Update `_shql_welcome_delete_close` to use "tiles":
+
+```bash
+_shql_welcome_delete_close() {
+    _SHQL_WELCOME_DELETE_ACTIVE=0
+    shellframe_shell_focus_set "tiles"
+    shellframe_shell_mark_dirty
+}
+```
+
+Update delete confirm handler to use cursor:
+
+```bash
+_shql_WELCOME_confirm_on_key() {
+    shellframe_modal_on_key "$1"
+    local _rc=$?
+    if (( _rc == 2 )); then
+        if (( SHELLFRAME_MODAL_RESULT == 0 )); then
+            local _cursor="$_SHQL_WELCOME_CURSOR"
+            local _ref="${SHQL_RECENT_REFS[$_cursor]:-}"
+            if [[ -n "$_ref" ]]; then
+                shql_conn_delete "$_ref"
+                _shql_welcome_reload
+            fi
+        fi
+        _shql_welcome_delete_close
+        return 0
+    fi
+    (( _rc == 0 )) && shellframe_shell_mark_dirty
+    return "$_rc"
+}
+```
+
+- [ ] **Step 5: Remove old list-based functions**
+
+Delete these functions that are no longer needed:
+- `_shql_welcome_format_items`
+- `_shql_WELCOME_list_render`
+- `_shql_WELCOME_list_on_key`
+- `_shql_WELCOME_list_on_focus`
+- `_shql_WELCOME_list_action`
+- `_shql_WELCOME_empty_render`
+- `_shql_WELCOME_empty_on_key`
+- `_shql_WELCOME_empty_on_focus`
+
+Also remove the `_SHQL_LIST_CTX` and `_SHQL_WELCOME_ITEMS` globals.
+
+- [ ] **Step 6: Run all tests**
+
+Run: `cd /Users/allenmccabe/lib/fissible/shellql && bash tests/run.sh --unit`
+Expected: All tests pass.
+
+Run: `cd /Users/allenmccabe/lib/fissible/shellframe && bash tests/run.sh --unit`
+Expected: All shellframe tests pass.
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add src/screens/welcome.sh tests/unit/test-welcome.sh
+git commit -m "feat(welcome): context menu, metadata, keyboard/mouse handlers"
+```
+
+---
+
+### Task 7: Manual Smoke Test
+
+- [ ] **Step 1: Test with real database**
+
+```bash
+cd /Users/allenmccabe/lib/fissible/shellql
+bin/shql ~/Desktop/rosewood_and_vine.db
+```
+
+Press `q` to return to welcome screen. Verify:
+- Tiles render with box borders
+- Selected tile has blue background + double border
+- Arrow keys navigate between tiles
+- Enter opens a connection
+- "New Connection" tile is last, with dashed border
+- Click opens, Shift+click opens context menu
+- Context menu items work: Open, Edit, Delete, Copy Path
+
+- [ ] **Step 2: Test with mock data**
+
+```bash
+SHQL_MOCK=1 bin/shql
+```
+
+Verify 5 mock connections render as tiles + 1 "New" tile.
+
+- [ ] **Step 3: Test empty state**
+
+Remove all connections or use a fresh data dir:
+
+```bash
+SHQL_DATA_DIR=/tmp/shql-test-empty bin/shql
+```
+
+Verify centered "No saved databases" message with "New Connection" tile.
+
+- [ ] **Step 4: Test narrow terminal**
+
+Resize terminal to ~50 columns. Verify tiles reflow to fewer columns.
+
+- [ ] **Step 5: Commit any fixes**
+
+```bash
+git add -A
+git commit -m "fix(welcome): smoke test adjustments"
+```
+
+---
+
+### Task 8: Final Cleanup
+
+- [ ] **Step 1: Run full test suite**
+
+```bash
+cd /Users/allenmccabe/lib/fissible/shellframe && bash tests/run.sh
+cd /Users/allenmccabe/lib/fissible/shellql && bash tests/run.sh
+```
+
+Expected: All tests pass.
+
+- [ ] **Step 2: Run Docker matrix (if available)**
+
+```bash
+cd /Users/allenmccabe/lib/fissible/shellframe && bash tests/docker/run-matrix.sh
+```
+
+- [ ] **Step 3: Final commit if needed**
+
+```bash
+git add -A
+git commit -m "chore(welcome): tile refactor cleanup"
+```

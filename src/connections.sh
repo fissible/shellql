@@ -4,6 +4,10 @@
 # Provides:
 #   shql_conn_init          — create/verify shellql.db schema
 #   shql_conn_push          — upsert connection + update last_accessed
+#   shql_conn_create        — create connection with explicit name + path
+#   shql_conn_update        — update name and/or path by id
+#   shql_conn_delete        — delete connection by id
+#   shql_conn_touch         — update last_accessed timestamp by id
 #   shql_conn_list          — print aggregate connection list (local + sigil)
 #   shql_conn_load_recent   — populate SHQL_RECENT_* arrays
 #   shql_conn_migrate       — one-time migration from legacy 'recent' flat file
@@ -157,6 +161,125 @@ _shql_conn_push_inner() {
 
 shql_conn_push() {
     _shql_conn_push_inner "$@" 2>/dev/null
+    return 0
+}
+
+# ── shql_conn_create ───────────────────────────────────────────────────────
+# Create a new SQLite connection with an explicit name and path.
+# Unlike shql_conn_push, the name is caller-supplied (not auto-derived).
+# Returns 0 on success, 1 on error (duplicate name, db not writable).
+# Usage: shql_conn_create <name> <path>
+
+shql_conn_create() {
+    local _name="$1" _path="$2"
+    local _db="${_SHQL_CONN_DB:-$SHQL_DATA_DIR/shellql.db}"
+    [ -w "$_db" ] || return 1
+
+    local _en="${_name//\'/\'\'}"
+    local _ep="${_path//\'/\'\'}"
+    local _sq="${_SHQL_SQLITE3:-sqlite3}"
+
+    # Check for duplicate name
+    local _dup
+    _dup=$("$_sq" "$_db" "SELECT id FROM connections WHERE name='$_en'" 2>/dev/null)
+    if [ -n "$_dup" ]; then
+        printf 'error: connection name already exists: %s\n' "$_name" >&2
+        return 1
+    fi
+
+    local _id
+    _id=$(_shql_conn_uuid)
+    "$_sq" "$_db" \
+        "INSERT INTO connections (id,driver,name,path) VALUES ('$_id','sqlite','$_en','$_ep')" \
+        2>/dev/null || return 1
+
+    local _now
+    _now=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+    "$_sq" "$_db" \
+        "INSERT OR REPLACE INTO last_accessed (source,ref_id,last_used)
+         VALUES ('local','$_id','$_now')" 2>/dev/null
+}
+
+# ── shql_conn_update ──────────────────────────────────────────────────────
+# Update the name and/or path of an existing connection by id.
+# Returns 0 on success, 1 on error (id not found, duplicate name).
+# Usage: shql_conn_update <id> <name> <path>
+
+shql_conn_update() {
+    local _id="$1" _name="$2" _path="$3"
+    local _db="${_SHQL_CONN_DB:-$SHQL_DATA_DIR/shellql.db}"
+    [ -w "$_db" ] || return 1
+
+    local _eid="${_id//\'/\'\'}"
+    local _en="${_name//\'/\'\'}"
+    local _ep="${_path//\'/\'\'}"
+    local _sq="${_SHQL_SQLITE3:-sqlite3}"
+
+    # Verify id exists
+    local _exists
+    _exists=$("$_sq" "$_db" "SELECT id FROM connections WHERE id='$_eid'" 2>/dev/null)
+    if [ -z "$_exists" ]; then
+        printf 'error: connection not found: %s\n' "$_id" >&2
+        return 1
+    fi
+
+    # Check for name collision with a different record
+    local _dup
+    _dup=$("$_sq" "$_db" \
+        "SELECT id FROM connections WHERE name='$_en' AND id != '$_eid'" 2>/dev/null)
+    if [ -n "$_dup" ]; then
+        printf 'error: connection name already exists: %s\n' "$_name" >&2
+        return 1
+    fi
+
+    "$_sq" "$_db" \
+        "UPDATE connections SET name='$_en', path='$_ep' WHERE id='$_eid'" \
+        2>/dev/null || return 1
+}
+
+# ── shql_conn_delete ──────────────────────────────────────────────────────
+# Delete a connection by id. Removes from both connections and last_accessed.
+# Returns 0 on success, 1 on error (id not found).
+# Usage: shql_conn_delete <id>
+
+shql_conn_delete() {
+    local _id="$1"
+    local _db="${_SHQL_CONN_DB:-$SHQL_DATA_DIR/shellql.db}"
+    [ -w "$_db" ] || return 1
+
+    local _eid="${_id//\'/\'\'}"
+    local _sq="${_SHQL_SQLITE3:-sqlite3}"
+
+    # Verify id exists
+    local _exists
+    _exists=$("$_sq" "$_db" "SELECT id FROM connections WHERE id='$_eid'" 2>/dev/null)
+    if [ -z "$_exists" ]; then
+        printf 'error: connection not found: %s\n' "$_id" >&2
+        return 1
+    fi
+
+    "$_sq" "$_db" "
+        DELETE FROM last_accessed WHERE source='local' AND ref_id='$_eid';
+        DELETE FROM connections WHERE id='$_eid';
+    " 2>/dev/null || return 1
+}
+
+# ── shql_conn_touch ───────────────────────────────────────────────────────
+# Update last_accessed timestamp for a connection without modifying other fields.
+# Unlike shql_conn_push, this preserves user-set names.
+# Usage: shql_conn_touch <id>
+
+shql_conn_touch() {
+    local _id="$1"
+    local _db="${_SHQL_CONN_DB:-$SHQL_DATA_DIR/shellql.db}"
+    [ -w "$_db" ] || return 0
+
+    local _eid="${_id//\'/\'\'}"
+    local _now
+    _now=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+    "${_SHQL_SQLITE3:-sqlite3}" "$_db" \
+        "INSERT OR REPLACE INTO last_accessed (source,ref_id,last_used)
+         VALUES ('local','$_eid','$_now')" 2>/dev/null
     return 0
 }
 

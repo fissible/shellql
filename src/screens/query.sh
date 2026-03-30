@@ -16,6 +16,17 @@ _SHQL_QUERY_EDITOR_ACTIVE=0             # 0 = button state; 1 = typing state
 _SHQL_QUERY_ERROR=""                    # non-empty = error message to display
 _SHQL_QUERY_LAST_SQL=""                 # SQL that produced current results (for re-run on tab switch)
 _SHQL_QUERY_PLACEHOLDER="No results yet"
+_SHQL_QUERY_DETAIL_ACTIVE=0            # 0 = grid; 1 = row detail panel open
+_SHQL_QUERY_DETAIL_PAIRS=()            # "key<TAB>value" pairs for the detail view
+_SHQL_QUERY_DETAIL_CTX="qdetail_scroll" # scroll context for the detail panel
+_SHQL_QUERY_DETAIL_ROW_IDX=0           # which results row is being viewed
+_SHQL_QUERY_DETAIL_TOTAL_ROWS=0        # total rows in the results grid
+
+# Cached editor viewport position (set during render, used for fast-path typing)
+_SHQL_QUERY_EDITOR_CACHE_TOP=0
+_SHQL_QUERY_EDITOR_CACHE_LEFT=0
+_SHQL_QUERY_EDITOR_CACHE_WIDTH=0
+_SHQL_QUERY_EDITOR_CACHE_HEIGHT=0
 
 # ── _shql_query_init ──────────────────────────────────────────────────────────
 # Called from shql_table_init. Sets state to initial values only.
@@ -29,6 +40,8 @@ _shql_query_init() {
     _SHQL_QUERY_EDITOR_ACTIVE=0
     _SHQL_QUERY_ERROR=""
     _SHQL_QUERY_LAST_SQL=""
+    _SHQL_QUERY_DETAIL_ACTIVE=0
+    _SHQL_QUERY_DETAIL_PAIRS=()
 }
 
 # ── _shql_query_init_ctx ──────────────────────────────────────────────────────
@@ -38,10 +51,11 @@ _shql_query_init_ctx() {
     printf -v "_SHQL_QUERY_CTX_INITIALIZED_${_ctx}"   '%d' 0
     printf -v "_SHQL_QUERY_CTX_FOCUSED_PANE_${_ctx}"  '%s' "editor"
     printf -v "_SHQL_QUERY_CTX_STATUS_${_ctx}"         '%s' ""
-    printf -v "_SHQL_QUERY_CTX_EDITOR_ACTIVE_${_ctx}" '%d' 0
+    printf -v "_SHQL_QUERY_CTX_EDITOR_ACTIVE_${_ctx}" '%d' 1
     printf -v "_SHQL_QUERY_CTX_HAS_RESULTS_${_ctx}"   '%d' 0
     printf -v "_SHQL_QUERY_CTX_ERROR_${_ctx}"          '%s' ""
     printf -v "_SHQL_QUERY_CTX_LAST_SQL_${_ctx}"       '%s' ""
+    printf -v "_SHQL_QUERY_CTX_DETAIL_ACTIVE_${_ctx}" '%d' 0
 }
 
 # ── _shql_query_render_ctx ────────────────────────────────────────────────────
@@ -64,6 +78,7 @@ _shql_query_render_ctx() {
     local _ini_var="_SHQL_QUERY_CTX_INITIALIZED_${_ctx}"
     local _err_var="_SHQL_QUERY_CTX_ERROR_${_ctx}"
     local _lsql_var="_SHQL_QUERY_CTX_LAST_SQL_${_ctx}"
+    local _da_var="_SHQL_QUERY_CTX_DETAIL_ACTIVE_${_ctx}"
     _SHQL_QUERY_FOCUSED_PANE="${!_fp_var:-editor}"
     _SHQL_QUERY_EDITOR_ACTIVE="${!_ea_var:-0}"
     _SHQL_QUERY_HAS_RESULTS="${!_hr_var:-0}"
@@ -71,6 +86,7 @@ _shql_query_render_ctx() {
     _SHQL_QUERY_INITIALIZED="${!_ini_var:-0}"
     _SHQL_QUERY_ERROR="${!_err_var:-}"
     _SHQL_QUERY_LAST_SQL="${!_lsql_var:-}"
+    _SHQL_QUERY_DETAIL_ACTIVE="${!_da_var:-0}"
 
     # Re-run query if another tab stole the grid globals
     if (( _SHQL_QUERY_HAS_RESULTS )) && [[ "$_SHQL_BROWSER_GRID_OWNER_CTX" != "${_ctx}_results" ]] && [[ -n "$_SHQL_QUERY_LAST_SQL" ]]; then
@@ -87,6 +103,7 @@ _shql_query_render_ctx() {
     printf -v "_SHQL_QUERY_CTX_ERROR_${_ctx}"          '%s' "$_SHQL_QUERY_ERROR"
     printf -v "_SHQL_QUERY_CTX_LAST_SQL_${_ctx}"       '%s' "$_SHQL_QUERY_LAST_SQL"
     printf -v "_SHQL_QUERY_CTX_INITIALIZED_${_ctx}"   '%d' "$_SHQL_QUERY_INITIALIZED"
+    printf -v "_SHQL_QUERY_CTX_DETAIL_ACTIVE_${_ctx}" '%d' "$_SHQL_QUERY_DETAIL_ACTIVE"
 }
 
 # ── _shql_query_run ───────────────────────────────────────────────────────────
@@ -205,6 +222,189 @@ _shql_query_footer_hint() {
     fi
 }
 
+# ── _shql_query_detail_open ───────────────────────────────────────────────────
+# Build key/value pairs from the current grid cursor row and activate the
+# detail panel.  Works with any result set that has GRID_HEADERS.
+
+_shql_query_detail_open() {
+    local _nrows="${SHELLFRAME_GRID_ROWS:-0}"
+    (( _nrows == 0 )) && return 0
+
+    local _cursor=0
+    shellframe_sel_cursor "$_SHQL_QUERY_GRID_CTX" _cursor 2>/dev/null || true
+
+    _SHQL_QUERY_DETAIL_ROW_IDX=$_cursor
+    _SHQL_QUERY_DETAIL_TOTAL_ROWS=$_nrows
+
+    local _ncols="${SHELLFRAME_GRID_COLS:-0}"
+    _SHQL_QUERY_DETAIL_PAIRS=()
+    local _c _idx _key _val
+    for (( _c=0; _c<_ncols; _c++ )); do
+        _key="${SHELLFRAME_GRID_HEADERS[$_c]:-col$_c}"
+        _idx=$(( _cursor * _ncols + _c ))
+        _val="${SHELLFRAME_GRID_DATA[$_idx]:-}"
+        [[ -z "$_val" ]] && _val="(null)"
+        _SHQL_QUERY_DETAIL_PAIRS+=("${_key}"$'\t'"${_val}")
+    done
+
+    local _n=${#_SHQL_QUERY_DETAIL_PAIRS[@]}
+    shellframe_scroll_init "$_SHQL_QUERY_DETAIL_CTX" "$_n" 1 10 1
+    _SHQL_QUERY_DETAIL_ACTIVE=1
+}
+
+# ── _shql_query_detail_step ─────────────────────────────────────────────────
+# Move to the next (+1) or previous (-1) row in the results grid.
+_shql_query_detail_step() {
+    local _delta="$1"
+    local _total="${_SHQL_QUERY_DETAIL_TOTAL_ROWS:-0}"
+    (( _total == 0 )) && return 0
+
+    local _new=$(( _SHQL_QUERY_DETAIL_ROW_IDX + _delta ))
+    (( _new < 0 )) && _new=$(( _total - 1 ))
+    (( _new >= _total )) && _new=0
+    _SHQL_QUERY_DETAIL_ROW_IDX=$_new
+
+    # Reload pairs from the grid data
+    local _ncols="${SHELLFRAME_GRID_COLS:-0}"
+    _SHQL_QUERY_DETAIL_PAIRS=()
+    local _c _idx _key _val
+    for (( _c=0; _c<_ncols; _c++ )); do
+        _key="${SHELLFRAME_GRID_HEADERS[$_c]:-col$_c}"
+        _idx=$(( _new * _ncols + _c ))
+        _val="${SHELLFRAME_GRID_DATA[$_idx]:-}"
+        [[ -z "$_val" ]] && _val="(null)"
+        _SHQL_QUERY_DETAIL_PAIRS+=("${_key}"$'\t'"${_val}")
+    done
+
+    local _n=${#_SHQL_QUERY_DETAIL_PAIRS[@]}
+    shellframe_scroll_init "$_SHQL_QUERY_DETAIL_CTX" "$_n" 1 10 1
+}
+
+# ── _shql_query_detail_on_key ────────────────────────────────────────────────
+
+_shql_query_detail_on_key() {
+    local _key="$1"
+    local _k_up="${SHELLFRAME_KEY_UP:-$'\033[A'}"
+    local _k_down="${SHELLFRAME_KEY_DOWN:-$'\033[B'}"
+    local _k_pgup="${SHELLFRAME_KEY_PAGE_UP:-$'\033[5~'}"
+    local _k_pgdn="${SHELLFRAME_KEY_PAGE_DOWN:-$'\033[6~'}"
+    local _k_left="${SHELLFRAME_KEY_LEFT:-$'\033[D'}"
+    local _k_right="${SHELLFRAME_KEY_RIGHT:-$'\033[C'}"
+
+    case "$_key" in
+        "$_k_right") _shql_query_detail_step 1;  shellframe_shell_mark_dirty; return 0 ;;
+        "$_k_left")  _shql_query_detail_step -1; shellframe_shell_mark_dirty; return 0 ;;
+        "$_k_up")
+            local _st=0; shellframe_scroll_top "$_SHQL_QUERY_DETAIL_CTX" _st 2>/dev/null || true
+            if (( _st == 0 )); then
+                _SHQL_QUERY_DETAIL_ACTIVE=0
+                shellframe_shell_mark_dirty
+            else
+                shellframe_scroll_move "$_SHQL_QUERY_DETAIL_CTX" up
+            fi
+            return 0 ;;
+        "$_k_down") shellframe_scroll_move "$_SHQL_QUERY_DETAIL_CTX" down;      return 0 ;;
+        "$_k_pgup") shellframe_scroll_move "$_SHQL_QUERY_DETAIL_CTX" page_up;   return 0 ;;
+        "$_k_pgdn") shellframe_scroll_move "$_SHQL_QUERY_DETAIL_CTX" page_down; return 0 ;;
+        $'\033'|$'\r'|$'\n'|q)
+            _SHQL_QUERY_DETAIL_ACTIVE=0
+            shellframe_shell_mark_dirty
+            return 0 ;;
+    esac
+    return 1
+}
+
+# ── _shql_query_detail_render ────────────────────────────────────────────────
+# Render a key-value detail view for a query result row, similar to the table
+# inspector but without schema metadata or row stepping.
+
+_shql_query_detail_render() {
+    local _top="$1" _left="$2" _width="$3" _height="$4"
+
+    local _cbg="${SHQL_THEME_CONTENT_BG:-}"
+    local _focus_color="${SHQL_THEME_QUERY_PANEL_COLOR:-}"
+    SHELLFRAME_PANEL_CELL_ATTRS="${_cbg}${_focus_color}"
+    SHELLFRAME_PANEL_STYLE="${SHQL_THEME_PANEL_STYLE_FOCUSED:-double}"
+    SHELLFRAME_PANEL_TITLE="Row Detail"
+    SHELLFRAME_PANEL_TITLE_ALIGN="left"
+    SHELLFRAME_PANEL_FOCUSED=1
+    shellframe_panel_render "$_top" "$_left" "$_width" "$_height"
+    SHELLFRAME_PANEL_CELL_ATTRS=""
+
+    local _it _il _iw _ih
+    shellframe_panel_inner "$_top" "$_left" "$_width" "$_height" _it _il _iw _ih
+
+    # Clear inner area
+    local _ibg="${SHQL_THEME_EDITOR_FOCUSED_BG:-$_cbg}"
+    local _ir
+    for (( _ir=0; _ir<_ih; _ir++ )); do
+        shellframe_fb_fill "$(( _it + _ir ))" "$_il" "$_iw" " " "$_ibg"
+    done
+
+    # Nav bar — row counter with ←→ navigation
+    local _gray="${SHELLFRAME_GRAY:-}"
+    local _nav_bg="${SHQL_THEME_ROW_STRIPE_BG:-$_cbg}"
+    local _n_row=$(( _SHQL_QUERY_DETAIL_ROW_IDX + 1 ))
+    local _n_total="$_SHQL_QUERY_DETAIL_TOTAL_ROWS"
+    local _first_val=""
+    if [[ ${#_SHQL_QUERY_DETAIL_PAIRS[@]} -gt 0 ]]; then
+        _first_val="${_SHQL_QUERY_DETAIL_PAIRS[0]#*	}"
+    fi
+    local _nav_label
+    printf -v _nav_label '← %s  (%d/%d) →' "$_first_val" "$_n_row" "$_n_total"
+    local _nav_clipped
+    shellframe_str_clip_ellipsis "$_nav_label" "$_nav_label" "$(( _iw - 2 ))" _nav_clipped
+    shellframe_fb_fill  "$_it" "$_il" "$_iw" " " "$_nav_bg"
+    shellframe_fb_print "$_it" "$(( _il + 1 ))" "$_nav_clipped" "$_nav_bg"
+
+    # Separator line
+    local _sep_row=$(( _it + 1 ))
+    local _si=0
+    while (( _si < _iw )); do
+        shellframe_fb_put "$_sep_row" "$(( _il + _si ))" "${_ibg}${_gray}─"
+        (( _si++ ))
+    done
+
+    # Adjust content area below nav + separator
+    local _kv_top=$(( _it + 2 ))
+    local _kv_h=$(( _ih - 2 ))
+    (( _kv_h < 1 )) && _kv_h=1
+
+    # Compute key column width: max key length, bounded [8, 20]
+    local _max_kw=0 _pair _pkey _klen
+    for _pair in "${_SHQL_QUERY_DETAIL_PAIRS[@]+"${_SHQL_QUERY_DETAIL_PAIRS[@]}"}"; do
+        _pkey="${_pair%%	*}"
+        _klen=${#_pkey}
+        (( _klen > _max_kw )) && _max_kw=$_klen
+    done
+    (( _max_kw < 8  )) && _max_kw=8
+    (( _max_kw > 20 )) && _max_kw=20
+
+    local _kc="${SHQL_THEME_KEY_COLOR:-}"
+    local _val_avail=$(( _iw - _max_kw - 3 ))  # key + "  " gap
+    (( _val_avail < 1 )) && _val_avail=1
+
+    local _n=${#_SHQL_QUERY_DETAIL_PAIRS[@]}
+    shellframe_scroll_resize "$_SHQL_QUERY_DETAIL_CTX" "$_kv_h" 1
+    local _scroll_top=0
+    shellframe_scroll_top "$_SHQL_QUERY_DETAIL_CTX" _scroll_top
+
+    local _r _idx _row _key_padded _val _val_clipped
+    for (( _r=0; _r<_kv_h; _r++ )); do
+        _idx=$(( _scroll_top + _r ))
+        (( _idx >= _n )) && continue
+        _row=$(( _kv_top + _r ))
+        _pair="${_SHQL_QUERY_DETAIL_PAIRS[$_idx]}"
+        _pkey="${_pair%%	*}"
+        _val="${_pair#*	}"
+        printf -v _key_padded '%-*s' "$_max_kw" "$_pkey"
+        shellframe_str_clip_ellipsis "$_val" "$_val" "$_val_avail" _val_clipped
+        shellframe_fb_print "$_row" "$(( _il + 1 ))" "$_key_padded" "${_ibg}${_kc}"
+        shellframe_fb_fill  "$_row" "$(( _il + 1 + _max_kw ))" 2 " " "$_ibg"
+        shellframe_fb_print "$_row" "$(( _il + 1 + _max_kw + 2 ))" "$_val_clipped" "$_ibg"
+    done
+}
+
 # ── _shql_query_on_key ────────────────────────────────────────────────────────
 # Key handler for the Query tab. Called from _shql_TABLE_body_on_key when
 # SHELLFRAME_TABBAR_ACTIVE == _SHQL_TABLE_TAB_QUERY.
@@ -212,6 +412,13 @@ _shql_query_footer_hint() {
 
 _shql_query_on_key() {
     local _key="$1"
+
+    # Route to detail panel when active
+    if (( _SHQL_QUERY_DETAIL_ACTIVE )); then
+        _shql_query_detail_on_key "$_key"
+        return $?
+    fi
+
     local _k_tab=$'\t'
     local _k_shift_tab=$'\033[Z'
     local _k_escape=$'\033'
@@ -273,6 +480,20 @@ _shql_query_on_key() {
             return 0
         fi
         if (( _rc == 0 )); then
+            # Fast-path: re-render editor directly to fd3, skip full draw cycle.
+            # The editor already called mark_dirty — suppress it so the shell
+            # event loop doesn't trigger an expensive full-screen redraw.
+            if (( _SHQL_QUERY_EDITOR_CACHE_WIDTH > 0 )); then
+                SHELLFRAME_EDITOR_FOCUSED=1
+                SHELLFRAME_EDITOR_BG="${SHQL_THEME_EDITOR_FOCUSED_BG:-}"
+                SHELLFRAME_EDITOR_DIRECT_RENDER=1
+                shellframe_editor_render "$_SHQL_QUERY_EDITOR_CACHE_TOP" \
+                    "$_SHQL_QUERY_EDITOR_CACHE_LEFT" \
+                    "$_SHQL_QUERY_EDITOR_CACHE_WIDTH" \
+                    "$_SHQL_QUERY_EDITOR_CACHE_HEIGHT"
+                SHELLFRAME_EDITOR_DIRECT_RENDER=0
+                _SHELLFRAME_SHELL_DIRTY=0
+            fi
             return 0
         fi
         # rc=1: editor did not handle it — check query-level bindings
@@ -323,7 +544,14 @@ _shql_query_on_key() {
     fi
     SHELLFRAME_GRID_CTX="$_SHQL_QUERY_GRID_CTX"
     shellframe_grid_on_key "$_key"
-    return $?
+    local _rc=$?
+    # Enter on grid row → open detail panel
+    if (( _rc == 2 )); then
+        _shql_query_detail_open
+        shellframe_shell_mark_dirty
+        return 0
+    fi
+    return $_rc
 }
 
 # ── _shql_query_render ────────────────────────────────────────────────────────
@@ -381,16 +609,24 @@ _shql_query_render() {
     local _it _il _iw _ih
     shellframe_panel_inner "$_top" "$_left" "$_width" "$_editor_rows" _it _il _iw _ih
 
+    # Cache editor position for fast-path typing render
+    _SHQL_QUERY_EDITOR_CACHE_TOP="$_it"
+    _SHQL_QUERY_EDITOR_CACHE_LEFT="$_il"
+    _SHQL_QUERY_EDITOR_CACHE_WIDTH="$_iw"
+    _SHQL_QUERY_EDITOR_CACHE_HEIGHT="$_ih"
+
     # Render editor content inside panel
     SHELLFRAME_EDITOR_CTX="$_SHQL_QUERY_EDITOR_CTX"
     if (( _editor_pane_focused && _SHQL_QUERY_EDITOR_ACTIVE )); then
         SHELLFRAME_EDITOR_FOCUSED=1
         # Typing mode: dark gray bg (between sidebar and content)
         SHELLFRAME_EDITOR_BG="${SHQL_THEME_EDITOR_FOCUSED_BG:-}"
+        SHELLFRAME_EDITOR_FG=""
     else
         SHELLFRAME_EDITOR_FOCUSED=0
-        # Not typing: disabled look — content bg (lighter gray)
+        # Not typing: disabled look — content bg + dim text
         SHELLFRAME_EDITOR_BG="${_cbg}"
+        SHELLFRAME_EDITOR_FG=$'\033[38;5;245m'   # muted gray — visually "disabled"
     fi
     shellframe_editor_render "$_it" "$_il" "$_iw" "$_ih"
 
@@ -405,6 +641,11 @@ _shql_query_render() {
             local _ph_col=$(( _il + (_iw - _ph_len) / 2 ))
             (( _ph_col < _il )) && _ph_col=$_il
             shellframe_fb_print "$_mid" "$_ph_col" "$_ph_text" "${_cbg}${_gray}"
+            # Also append to deferred buf — the editor's deferred content would
+            # otherwise overwrite these cells when it's flushed after screen_flush.
+            local _ph_esc
+            printf -v _ph_esc '\033[%d;%dH%s%s' "$_mid" "$_ph_col" "${_cbg}${_gray}" "$_ph_text"
+            _SHELLFRAME_EDITOR_DEFERRED_BUF+="$_ph_esc"
         fi
     fi
 
@@ -413,7 +654,11 @@ _shql_query_render() {
     (( _content_focused )) && [[ "$_SHQL_QUERY_FOCUSED_PANE" == "results" ]] && _results_pane_focused=1
 
     local _results_panel_style
-    if (( _results_pane_focused )); then
+    if (( _SHQL_QUERY_DETAIL_ACTIVE )); then
+        # Detail panel is open — results demoted to unfocused single border
+        _results_panel_style="${SHQL_THEME_PANEL_STYLE:-single}"
+        _results_pane_focused=0
+    elif (( _results_pane_focused )); then
         _results_panel_style="${SHQL_THEME_PANEL_STYLE_FOCUSED:-double}"
     else
         _results_panel_style="${SHQL_THEME_PANEL_STYLE:-single}"
@@ -478,14 +723,53 @@ _shql_query_render() {
             local _draw_row=$(( _detail_top + _line_num ))
             (( _draw_row >= _rit + _rih - 1 )) && break
             local _eclipped
-            _eclipped=$(shellframe_str_clip_ellipsis "$_err_line" "$_err_line" "$(( _riw - 4 ))")
+            shellframe_str_clip_ellipsis "$_err_line" "$_err_line" "$(( _riw - 4 ))" _eclipped
             shellframe_fb_print "$_draw_row" "$(( _ril + 2 ))" "$_eclipped" "${_rbg}${_err_dim}"
             (( _line_num++ ))
         done <<< "$_SHQL_QUERY_ERROR"
-    elif (( _SHQL_QUERY_HAS_RESULTS )); then
+    elif (( _SHQL_QUERY_DETAIL_ACTIVE )); then
+        # Show grid header rows above the detail panel (like data tab inspector)
+        SHELLFRAME_GRID_FOCUSED=0
+        SHELLFRAME_GRID_BG="${SHQL_THEME_CONTENT_BG:-}"
+        SHELLFRAME_GRID_STRIPE_BG="${SHQL_THEME_ROW_STRIPE_BG:-}"
+        SHELLFRAME_GRID_HEADER_STYLE="${SHQL_THEME_GRID_HEADER_COLOR:-}"
+        SHELLFRAME_GRID_HEADER_BG="${SHQL_THEME_GRID_HEADER_BG:-}"
+        SHELLFRAME_GRID_CURSOR_STYLE=""
         _shql_grid_fill_width "$_riw"
-        shellframe_grid_render "$_rit" "$_ril" "$_riw" "$_rih"
+        shellframe_grid_render "$_rit" "$_ril" "$_riw" 3
         _shql_grid_restore_last
+        local _det_top=$(( _rit + 3 ))
+        local _det_h=$(( _rih - 3 ))
+        (( _det_h < 3 )) && _det_h=3
+        _shql_query_detail_render "$_det_top" "$_ril" "$_riw" "$_det_h"
+    elif (( _SHQL_QUERY_HAS_RESULTS )); then
+        # Reserve 1 column for scrollbar when there's enough space
+        local _qgrid_w="$_riw"
+        local _qsb_col=0
+        if (( _riw > 10 && _rih > 3 )); then
+            _qgrid_w=$(( _riw - 1 ))
+            _qsb_col=$(( _ril + _qgrid_w ))
+        fi
+        _shql_grid_fill_width "$_qgrid_w"
+        shellframe_grid_render "$_rit" "$_ril" "$_qgrid_w" "$_rih"
+        _shql_grid_restore_last
+        # Scrollbar in rightmost column (data rows start 2 below _rit)
+        if (( _qsb_col > 0 )); then
+            local _qsb_top=$(( _rit + 2 ))
+            local _qsb_h=$(( _rih - 2 ))
+            SHELLFRAME_SCROLLBAR_STYLE="${SHQL_THEME_CONTENT_BG:-}${SHELLFRAME_GRAY:-$'\033[2m'}"
+            SHELLFRAME_SCROLLBAR_THUMB_STYLE="${SHQL_THEME_CONTENT_BG:-}"
+            if ! shellframe_scrollbar_render "${SHELLFRAME_GRID_CTX:-grid}" \
+                    "$_qsb_col" "$_qsb_top" "$_qsb_h"; then
+                local _qsb_r
+                for (( _qsb_r=0; _qsb_r<_qsb_h; _qsb_r++ )); do
+                    shellframe_fb_put "$(( _qsb_top + _qsb_r ))" "$_qsb_col" "${SHQL_THEME_CONTENT_BG:-} "
+                done
+            fi
+            # Header rows in scrollbar column
+            shellframe_fb_put "$_rit" "$_qsb_col" "${SHQL_THEME_GRID_HEADER_BG:-} "
+            shellframe_fb_put "$(( _rit + 1 ))" "$_qsb_col" "${SHQL_THEME_CONTENT_BG:-} "
+        fi
     else
         # Empty state — centered placeholder (darker bg like editor)
         local _rbg="${SHQL_THEME_EDITOR_FOCUSED_BG:-${SHQL_THEME_CONTENT_BG:-}}"

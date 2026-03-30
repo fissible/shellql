@@ -60,6 +60,13 @@ _SHQL_BROWSER_CONTENT_FOCUSED=0
 _SHQL_BROWSER_CONTENT_FOCUS="data"  # "data" | "schema_cols" | "schema_ddl" | "query_editor" | "query_results"
 _SHQL_BROWSER_QUERY_STATUS=""       # "Query returned N rows in Xms" (set by _shql_query_run)
 
+# ── Context menu overlay state ──────────────────────────────────────────────
+
+_SHQL_CMENU_ACTIVE=0           # 1 when a context menu is showing
+_SHQL_CMENU_SOURCE=""          # "sidebar" | "tabbar" | "content"
+_SHQL_CMENU_SOURCE_IDX=-1     # index of the clicked item (tab index, sidebar row, grid row)
+_SHQL_CMENU_PREV_FOCUS=""     # region that had focus before the menu opened
+
 # ── TTY for stderr passthrough ────────────────────────────────────────────────
 # Use /dev/tty when available (interactive terminal); fall back to /dev/null in
 # test environments where no controlling terminal exists.
@@ -278,11 +285,12 @@ _shql_tab_close() {
 _shql_tab_fits() {
     local _avail="$1" _out_var="$2"
     local _n=${#_SHQL_TABS_LABEL[@]}
-    local _used=5   # "+SQL " = 5 chars minimum
+    local _used=7   # 1 gap + " +SQL " = 7 chars
     local _i
     for (( _i=0; _i<_n; _i++ )); do
         local _llen=${#_SHQL_TABS_LABEL[$_i]}
-        _used=$(( _used + _llen + 2 + 1 ))  # label + 2 padding + 1 separator
+        _used=$(( _used + _llen + 4 ))  # " label " (llen+2) + "x " (2) = llen+4
+        (( _i > 0 )) && (( _used++ ))   # 1-char separator between tabs
     done
     if (( _used <= _avail )); then
         printf -v "$_out_var" '%d' 1
@@ -300,6 +308,7 @@ shql_browser_init() {
     _SHQL_BROWSER_TABBAR_FOCUSED=0
     _SHQL_BROWSER_CONTENT_FOCUSED=0
     _SHQL_BROWSER_CONTENT_FOCUS="data"
+    _SHQL_CMENU_ACTIVE=0
     _SHQL_BROWSER_GRID_OWNER_CTX=""
     _SHQL_BROWSER_OBJECT_TYPES=()
     _SHQL_BROWSER_SIDEBAR_ITEMS=()
@@ -316,11 +325,23 @@ shql_browser_init() {
         fi
         _SHQL_BROWSER_SIDEBAR_ITEMS+=("${_icon}${_obj_name}")
     done < <(shql_db_list_objects "$SHQL_DB_PATH" 2>/dev/null)
+    # Append "+ New table" action item at end of sidebar list
+    _SHQL_BROWSER_SIDEBAR_ITEMS+=("+ New table")
+
     SHELLFRAME_LIST_CTX="$_SHQL_BROWSER_SIDEBAR_CTX"
     SHELLFRAME_LIST_ITEMS=("${_SHQL_BROWSER_SIDEBAR_ITEMS[@]+"${_SHQL_BROWSER_SIDEBAR_ITEMS[@]}"}")
     shellframe_list_init "$_SHQL_BROWSER_SIDEBAR_CTX"
-    # Sidebar starts focused
-    shellframe_shell_focus_set "sidebar"
+
+    # Empty database: auto-open a query tab so the user lands somewhere useful
+    if (( ${#_SHQL_BROWSER_TABLES[@]} == 0 )); then
+        _shql_tab_open "" "query"
+        _SHQL_BROWSER_TABBAR_FOCUSED=0
+        _SHQL_BROWSER_CONTENT_FOCUSED=1
+        _SHQL_BROWSER_SIDEBAR_FOCUSED=0
+        shellframe_shell_focus_set "content"
+    else
+        shellframe_shell_focus_set "sidebar"
+    fi
 }
 
 # ── _shql_browser_sidebar_width ───────────────────────────────────────────────
@@ -357,16 +378,29 @@ _shql_TABLE_sidebar_render() {
     SHELLFRAME_LIST_BG="${SHQL_THEME_SIDEBAR_BG:-}"
 
     if [[ "${SHQL_THEME_SIDEBAR_BORDER:-}" == "none" ]]; then
-        # No panel border — render "Relations" header then list directly below it
-        local _hdr_color="${SHELLFRAME_GRAY:-}"
-        shellframe_fb_print "$_top" "$(( _left + 1 ))" "Relations" "${SHQL_THEME_SIDEBAR_BG:-}${_hdr_color}"
-        local _list_top=$(( _top + 1 ))
-        local _list_h=$(( _height - 1 ))
-        (( _list_h < 1 )) && _list_h=1
+        # No panel border — use list title slot for the "Relations" header
+        SHELLFRAME_LIST_TITLE="Relations"
+        SHELLFRAME_LIST_TITLE_STYLE="${SHQL_THEME_SIDEBAR_BG:-}${SHELLFRAME_GRAY:-}"
         SHELLFRAME_LIST_CTX="$_SHQL_BROWSER_SIDEBAR_CTX"
         SHELLFRAME_LIST_ITEMS=("${_SHQL_BROWSER_SIDEBAR_ITEMS[@]+"${_SHQL_BROWSER_SIDEBAR_ITEMS[@]}"}")
         SHELLFRAME_LIST_FOCUSED=$_SHQL_BROWSER_SIDEBAR_FOCUSED
-        shellframe_list_render "$_list_top" "$_left" "$_width" "$_list_h"
+        # Reserve rightmost column for scrollbar
+        shellframe_list_render "$_top" "$_left" "$(( _width - 1 ))" "$_height"
+        SHELLFRAME_LIST_TITLE=""
+        # Scrollbar in rightmost column (skip title row)
+        local _sb_col=$(( _left + _width - 1 ))
+        local _sb_top=$(( _top + 1 ))
+        local _sb_h=$(( _height - 1 ))
+        SHELLFRAME_SCROLLBAR_STYLE="${SHQL_THEME_SIDEBAR_BG:-}${SHELLFRAME_GRAY:-$'\033[2m'}"
+        SHELLFRAME_SCROLLBAR_THUMB_STYLE="${SHQL_THEME_SIDEBAR_BG:-}"
+        if ! shellframe_scrollbar_render "$_SHQL_BROWSER_SIDEBAR_CTX" \
+                "$_sb_col" "$_sb_top" "$_sb_h"; then
+            # Content fits — fill the column with sidebar bg
+            local _sb_r
+            for (( _sb_r=0; _sb_r<_sb_h; _sb_r++ )); do
+                shellframe_fb_put "$(( _sb_top + _sb_r ))" "$_sb_col" "${SHQL_THEME_SIDEBAR_BG:-} "
+            done
+        fi
     else
         SHELLFRAME_PANEL_STYLE="${SHQL_THEME_PANEL_STYLE:-single}"
         SHELLFRAME_PANEL_TITLE="Relations"
@@ -380,7 +414,13 @@ _shql_TABLE_sidebar_render() {
         SHELLFRAME_LIST_CTX="$_SHQL_BROWSER_SIDEBAR_CTX"
         SHELLFRAME_LIST_ITEMS=("${_SHQL_BROWSER_SIDEBAR_ITEMS[@]+"${_SHQL_BROWSER_SIDEBAR_ITEMS[@]}"}")
         SHELLFRAME_LIST_FOCUSED=$_SHQL_BROWSER_SIDEBAR_FOCUSED
-        shellframe_list_render "$_it" "$_il" "$_iw" "$_ih"
+        # Reserve rightmost inner column for scrollbar
+        shellframe_list_render "$_it" "$_il" "$(( _iw - 1 ))" "$_ih"
+        local _sb_col=$(( _il + _iw - 1 ))
+        SHELLFRAME_SCROLLBAR_STYLE="${SHELLFRAME_GRAY:-$'\033[2m'}"
+        SHELLFRAME_SCROLLBAR_THUMB_STYLE=""
+        shellframe_scrollbar_render "$_SHQL_BROWSER_SIDEBAR_CTX" \
+            "$_sb_col" "$_it" "$_ih" || true
     fi
 }
 
@@ -416,11 +456,73 @@ _shql_TABLE_sidebar_on_focus() {
     SHELLFRAME_LIST_FOCUSED=$_SHQL_BROWSER_SIDEBAR_FOCUSED
 }
 
+# ── _shql_TABLE_sidebar_on_mouse ─────────────────────────────────────────────
+
+_shql_TABLE_sidebar_on_mouse() {
+    local _button="$1" _action="$2" _mrow="$3" _mcol="$4"
+    local _rtop="$5" _rleft="$6" _rwidth="$7" _rheight="$8"
+    [[ "$_action" != "press" ]] && return 1
+
+    # Right-click or Shift+click → context menu
+    if (( _button == 2 || (_button == 0 && ${SHELLFRAME_MOUSE_SHIFT:-0}) )); then
+        # Determine which sidebar item was right-clicked
+        local _items_top=$(( _rtop + 1 ))  # +1 for "Relations" title row
+        local _scroll_top=0
+        shellframe_scroll_top "$_SHQL_BROWSER_SIDEBAR_CTX" _scroll_top 2>/dev/null || true
+        local _item_idx=$(( _scroll_top + _mrow - _items_top ))
+        local _n=${#_SHQL_BROWSER_SIDEBAR_ITEMS[@]}
+        if (( _item_idx >= 0 && _item_idx < _n && _item_idx < ${#_SHQL_BROWSER_TABLES[@]} )); then
+            shellframe_sel_set "$_SHQL_BROWSER_SIDEBAR_CTX" "$_item_idx"
+            _shql_cmenu_open "sidebar" "$_item_idx" "$_mrow" "$_mcol" \
+                "Open Data" "Open Schema" "New Query"
+        fi
+        return 0
+    fi
+
+    # Remember current cursor before delegating so we can detect re-click
+    local _prev_cursor=0
+    shellframe_sel_cursor "$_SHQL_BROWSER_SIDEBAR_CTX" _prev_cursor 2>/dev/null || true
+
+    # Set title so list_on_mouse knows to offset for the header row
+    SHELLFRAME_LIST_TITLE="Relations"
+    SHELLFRAME_LIST_CTX="$_SHQL_BROWSER_SIDEBAR_CTX"
+    SHELLFRAME_LIST_ITEMS=("${_SHQL_BROWSER_SIDEBAR_ITEMS[@]+"${_SHQL_BROWSER_SIDEBAR_ITEMS[@]}"}")
+    shellframe_list_on_mouse "$_button" "$_action" "$_mrow" "$_mcol" \
+        "$_rtop" "$_rleft" "$_rwidth" "$_rheight"
+    local _rc=$?
+    SHELLFRAME_LIST_TITLE=""
+
+    # If the click landed on the already-selected row, execute default action
+    if (( _rc == 0 && _button <= 2 )); then
+        local _new_cursor=0
+        shellframe_sel_cursor "$_SHQL_BROWSER_SIDEBAR_CTX" _new_cursor 2>/dev/null || true
+        if (( _new_cursor == _prev_cursor )); then
+            _shql_TABLE_sidebar_action
+        fi
+    fi
+    return $_rc
+}
+
 # ── _shql_TABLE_sidebar_action / sidebar_action_schema ────────────────────────
 
 _shql_TABLE_sidebar_action() {
     local _cursor=0
     shellframe_sel_cursor "$_SHQL_BROWSER_SIDEBAR_CTX" _cursor 2>/dev/null || true
+
+    # "+ New table" button (last sidebar item, beyond _SHQL_BROWSER_TABLES)
+    local _ntables=${#_SHQL_BROWSER_TABLES[@]}
+    if (( _cursor >= _ntables )); then
+        local _rows2 _cols2; _shellframe_shell_terminal_size _rows2 _cols2
+        local _sbw2; _shql_browser_sidebar_width "$_cols2" _sbw2
+        local _fits2=1; _shql_tab_fits $(( _cols2 - _sbw2 )) _fits2
+        if (( _fits2 )); then
+            _shql_tab_open "" "query"
+            # TODO: pre-fill editor with CREATE TABLE template
+            shellframe_shell_focus_set "content"
+        fi
+        return 0
+    fi
+
     local _table="${_SHQL_BROWSER_TABLES[$_cursor]:-}"
     [[ -z "$_table" ]] && return 0
 
@@ -432,7 +534,6 @@ _shql_TABLE_sidebar_action() {
     local _fits=1
     _shql_tab_fits "$_bar_w" _fits
     if (( ! _fits )); then
-        # Flash footer — capacity exceeded
         _SHQL_BROWSER_FLASH_MSG="Tab bar full — close a tab first (w)"
         return 0
     fi
@@ -443,6 +544,8 @@ _shql_TABLE_sidebar_action() {
 _shql_TABLE_sidebar_action_schema() {
     local _cursor=0
     shellframe_sel_cursor "$_SHQL_BROWSER_SIDEBAR_CTX" _cursor 2>/dev/null || true
+    # Skip for "+ New table" button
+    (( _cursor >= ${#_SHQL_BROWSER_TABLES[@]} )) && return 0
     local _table="${_SHQL_BROWSER_TABLES[$_cursor]:-}"
     [[ -z "$_table" ]] && return 0
     _shql_tab_open "$_table" "schema"
@@ -495,6 +598,11 @@ _shql_TABLE_render() {
     shellframe_shell_region tabbar   "$_body_top"   "$_right_left" "$_right_w"  1             focus
     shellframe_shell_region content  "$_content_top" "$_right_left" "$_right_w" "$_content_h" "$_content_focus"
     shellframe_shell_region footer   "$_footer_top" 1              "$_cols"      2             nofocus
+
+    # Context menu overlay — registered last so it wins hit-testing
+    if (( _SHQL_CMENU_ACTIVE )); then
+        shellframe_shell_region cmenu 1 1 "$_cols" "$_rows" focus
+    fi
 }
 
 # ── _shql_TABLE_header_render ─────────────────────────────────────────────────
@@ -520,43 +628,68 @@ _shql_TABLE_tabbar_render() {
 
     local _n=${#_SHQL_TABS_LABEL[@]}
     local _col=$_left
+    local _remaining=$_width
     # Track active tab pixel range for the content border gap
     _SHQL_TABBAR_ACTIVE_X0=-1
     _SHQL_TABBAR_ACTIVE_X1=-1
+
+    # Reserve space for +SQL button (7 = 1 gap + " +SQL " 6 chars)
+    local _sql_reserve=7
     local _i
     for (( _i=0; _i<_n; _i++ )); do
+        (( _remaining <= _sql_reserve )) && break
         if (( _i > 0 )); then
             shellframe_fb_fill "$_top" "$_col" 1 " " "${SHQL_THEME_CONTENT_BG:-}"
             (( _col++ ))
+            (( _remaining-- ))
         fi
         local _label=" ${_SHQL_TABS_LABEL[$_i]} "
+        local _tab_w=$(( ${#_label} + 2 ))   # +2 for "x "
+        # Clip if tab doesn't fit (leave room for +SQL)
+        if (( _tab_w > _remaining - _sql_reserve )); then
+            local _avail=$(( _remaining - _sql_reserve ))
+            if (( _avail >= 5 )); then
+                # Truncate label with ellipsis, keep "x "
+                local _lclip=$(( _avail - 4 ))  # " " + label + " " + "x " = 4 overhead
+                local _clipped
+                shellframe_str_clip_ellipsis "${_SHQL_TABS_LABEL[$_i]}" "${_SHQL_TABS_LABEL[$_i]}" "$_lclip" _clipped
+                _label=" ${_clipped} "
+                _tab_w=$(( ${#_label} + 2 ))
+            else
+                break   # Not enough room even for a clipped tab
+            fi
+        fi
         if (( _i == _SHQL_TAB_ACTIVE )); then
             _SHQL_TABBAR_ACTIVE_X0=$_col
-            _SHQL_TABBAR_ACTIVE_X1=$(( _col + ${#_label} ))
-            # Active tab: content bg, focus color only on THIS tab when focused
+            _SHQL_TABBAR_ACTIVE_X1=$(( _col + _tab_w ))
             local _tab_bg="${SHQL_THEME_CONTENT_BG:-}"
             local _focus_color=""
             if (( _SHQL_BROWSER_TABBAR_FOCUSED && ! _SHQL_BROWSER_TABBAR_ON_SQL )); then
                 _focus_color="${SHQL_THEME_QUERY_PANEL_COLOR:-$_bold}"
             fi
             shellframe_fb_print "$_top" "$_col" "$_label" "${_tab_bg}${_focus_color}"
+            shellframe_fb_print "$_top" "$(( _col + ${#_label} ))" "x " "${_tab_bg}${_gray}"
         else
-            # Inactive tabs: always normal inactive styling (no focus color)
             local _itab_style="${SHQL_THEME_TAB_INACTIVE_BG:-${SHQL_THEME_TABBAR_BG:-$_inv}}"
             shellframe_fb_print "$_top" "$_col" "$_label" "$_itab_style"
+            shellframe_fb_print "$_top" "$(( _col + ${#_label} ))" "x " "${_itab_style}${_gray}"
         fi
-        _col=$(( _col + ${#_label} ))
+        (( _col += _tab_w ))
+        (( _remaining -= _tab_w ))
     done
     # +SQL button — styled like inactive tabs
-    shellframe_fb_fill "$_top" "$_col" 1 " " "${SHQL_THEME_CONTENT_BG:-}"
-    (( _col += 1 ))  # 1-char gap after last tab
-    local _sql_label=" +SQL "
-    local _itab_style="${SHQL_THEME_TAB_INACTIVE_BG:-${SHQL_THEME_TABBAR_BG:-$_inv}}"
-    local _sql_focus_color=""
-    if (( _SHQL_BROWSER_TABBAR_ON_SQL )); then
-        _sql_focus_color="${SHQL_THEME_QUERY_PANEL_COLOR:-$_bold}"
+    if (( _remaining >= _sql_reserve )); then
+        shellframe_fb_fill "$_top" "$_col" 1 " " "${SHQL_THEME_CONTENT_BG:-}"
+        (( _col += 1 ))
+        (( _remaining -= 1 ))
+        local _sql_label=" +SQL "
+        local _itab_style="${SHQL_THEME_TAB_INACTIVE_BG:-${SHQL_THEME_TABBAR_BG:-$_inv}}"
+        local _sql_focus_color=""
+        if (( _SHQL_BROWSER_TABBAR_ON_SQL )); then
+            _sql_focus_color="${SHQL_THEME_QUERY_PANEL_COLOR:-$_bold}"
+        fi
+        shellframe_fb_print "$_top" "$_col" "$_sql_label" "${_itab_style}${_sql_focus_color}"
     fi
-    shellframe_fb_print "$_top" "$_col" "$_sql_label" "${_itab_style}${_sql_focus_color}"
 }
 
 # ── _shql_TABLE_tabbar_on_key ────────────────────────────────────────────────
@@ -648,6 +781,86 @@ _shql_TABLE_tabbar_on_focus() {
     fi
 }
 
+# ── _shql_TABLE_tabbar_on_mouse ──────────────────────────────────────────────
+
+_shql_TABLE_tabbar_on_mouse() {
+    local _button="$1" _action="$2" _mrow="$3" _mcol="$4"
+    local _rtop="$5" _rleft="$6" _rwidth="$7" _rheight="$8"
+    [[ "$_action" != "press" ]] && return 1
+
+    # Walk the tab labels to find which tab was clicked (mirrors render logic)
+    local _n=${#_SHQL_TABS_LABEL[@]}
+    local _col=$_rleft
+    local _i _hit_tab=-1 _hit_close=0
+    for (( _i=0; _i<_n; _i++ )); do
+        if (( _i > 0 )); then (( _col++ )); fi   # separator
+        local _label=" ${_SHQL_TABS_LABEL[$_i]} "
+        local _lw=${#_label}
+        local _close_x=$(( _col + _lw ))    # "x" is at _close_x, " " at _close_x+1
+        if (( _mcol >= _col && _mcol < _col + _lw )); then
+            _hit_tab="$_i"
+            break
+        elif (( _mcol == _close_x )); then
+            # Click on the "x" close button
+            _hit_tab="$_i"
+            _hit_close=1
+            break
+        fi
+        _col=$(( _col + _lw + 2 ))   # +2 for "x "
+    done
+
+    # Right-click or Shift+click on a tab → context menu
+    if (( (_button == 2 || (_button == 0 && ${SHELLFRAME_MOUSE_SHIFT:-0})) && _hit_tab >= 0 )); then
+        _shql_tab_activate "$_hit_tab"
+        _shql_cmenu_open "tabbar" "$_hit_tab" "$_mrow" "$_mcol" \
+            "Close Tab" "New Query"
+        return 0
+    fi
+
+    (( _button > 2 )) && return 1
+
+    # Close button click → close tab
+    if (( _hit_close && _hit_tab >= 0 )); then
+        _shql_tab_activate "$_hit_tab"
+        _shql_tab_close
+        shellframe_shell_mark_dirty
+        return 0
+    fi
+
+    if (( _hit_tab >= 0 )); then
+        _SHQL_BROWSER_TABBAR_ON_SQL=0
+        _shql_tab_activate "$_hit_tab"
+        shellframe_shell_mark_dirty
+        return 0
+    fi
+
+    # Check +SQL button (1-char gap after last tab, then " +SQL ")
+    # Recompute _col to the end of all tabs (the for loop may have broken early)
+    _col=$_rleft
+    for (( _i=0; _i<_n; _i++ )); do
+        if (( _i > 0 )); then (( _col++ )); fi
+        _col=$(( _col + ${#_SHQL_TABS_LABEL[$_i]} + 4 ))   # " label " + "x "
+    done
+    (( _col++ ))  # gap
+    local _sql_label=" +SQL "
+    local _sw=${#_sql_label}
+    if (( _mcol >= _col && _mcol < _col + _sw )); then
+        _SHQL_BROWSER_TABBAR_ON_SQL=0
+        local _fits=1
+        local _rows _cols; _shellframe_shell_terminal_size _rows _cols
+        local _sidebar_w; _shql_browser_sidebar_width "$_cols" _sidebar_w
+        _shql_tab_fits $(( _cols - _sidebar_w )) _fits
+        if (( _fits )); then
+            _shql_tab_open "" "query"
+            shellframe_shell_focus_set "content"
+        fi
+        shellframe_shell_mark_dirty
+        return 0
+    fi
+
+    return 1
+}
+
 # ── _shql_table_structure_render / on_key ─────────────────────────────────────
 
 _shql_table_structure_render() {
@@ -668,7 +881,7 @@ _shql_table_structure_render() {
         [[ $_idx -ge $_n ]] && continue
         local _line="${_SHQL_TABLE_DDL_LINES[$_idx]}"
         local _clipped
-        _clipped=$(shellframe_str_clip_ellipsis "$_line" "$_line" "$_width")
+        shellframe_str_clip_ellipsis "$_line" "$_line" "$_width" _clipped
         shellframe_fb_print "$_row" "$_left" "$_clipped" "$_dim_on"
     done
 }
@@ -923,7 +1136,7 @@ _shql_schema_tab_render() {
         else
             _plain=$(printf '%-12s %s' "$_cname" "$_ctype")
         fi
-        local _clipped; _clipped=$(shellframe_str_clip_ellipsis "$_plain" "$_plain" "$_iw")
+        local _clipped; shellframe_str_clip_ellipsis "$_plain" "$_plain" "$_iw" _clipped
         shellframe_fb_print "$(( _it + _r ))" "$_il" "$_clipped"
     done
 
@@ -943,7 +1156,7 @@ _shql_schema_tab_render() {
         shellframe_fb_fill "$(( _it + _r ))" "$_il" "$_iw" " "
         (( _idx >= _n_ddl )) && continue
         local _line; eval "_line=\"\${${_arr_ddl}[$_idx]}\""
-        local _clipped; _clipped=$(shellframe_str_clip_ellipsis "$_line" "$_line" "$_iw")
+        local _clipped; shellframe_str_clip_ellipsis "$_line" "$_line" "$_iw" _clipped
         shellframe_fb_print "$(( _it + _r ))" "$_il" "$_clipped"
     done
 }
@@ -1000,9 +1213,33 @@ _shql_TABLE_content_render() {
                 else
                     SHELLFRAME_GRID_CURSOR_STYLE=""
                 fi
-                _shql_grid_fill_width "$_width"
-                shellframe_grid_render "$_top" "$_left" "$_width" "$_height"
+                # Reserve 1 column for scrollbar when there's enough space
+                local _grid_w="$_width"
+                local _sb_col=0
+                if (( _width > 10 && _height > 3 )); then
+                    _grid_w=$(( _width - 1 ))
+                    _sb_col=$(( _left + _grid_w ))
+                fi
+                _shql_grid_fill_width "$_grid_w"
+                shellframe_grid_render "$_top" "$_left" "$_grid_w" "$_height"
                 _shql_grid_restore_last
+                # Scrollbar in rightmost column (data rows start 2 below _top)
+                if (( _sb_col > 0 )); then
+                    local _sb_top=$(( _top + 2 ))
+                    local _sb_h=$(( _height - 2 ))
+                    SHELLFRAME_SCROLLBAR_STYLE="${SHQL_THEME_CONTENT_BG:-}${SHELLFRAME_GRAY:-$'\033[2m'}"
+                    SHELLFRAME_SCROLLBAR_THUMB_STYLE="${SHQL_THEME_CONTENT_BG:-}"
+                    if ! shellframe_scrollbar_render "${SHELLFRAME_GRID_CTX:-grid}" \
+                            "$_sb_col" "$_sb_top" "$_sb_h"; then
+                        local _sb_r
+                        for (( _sb_r=0; _sb_r<_sb_h; _sb_r++ )); do
+                            shellframe_fb_put "$(( _sb_top + _sb_r ))" "$_sb_col" "${SHQL_THEME_CONTENT_BG:-} "
+                        done
+                    fi
+                    # Header rows in scrollbar column
+                    shellframe_fb_put "$_top" "$_sb_col" "${SHQL_THEME_GRID_HEADER_BG:-} "
+                    shellframe_fb_put "$(( _top + 1 ))" "$_sb_col" "${SHQL_THEME_CONTENT_BG:-} "
+                fi
                 # Dark surface below last data row
                 local _data_end=$(( _top + 2 + SHELLFRAME_GRID_ROWS ))
                 local _surface_bg="${SHQL_THEME_EDITOR_FOCUSED_BG:-${SHQL_THEME_CONTENT_BG:-}}"
@@ -1024,9 +1261,10 @@ _shql_TABLE_content_render() {
         *)
             # Empty state
             local _gray="${SHELLFRAME_GRAY:-}"
+            local _cbg="${SHQL_THEME_CONTENT_BG:-}"
             local _r
             for (( _r=0; _r<_height; _r++ )); do
-                shellframe_fb_fill "$(( _top + _r ))" "$_left" "$_width" " "
+                shellframe_fb_fill "$(( _top + _r ))" "$_left" "$_width" " " "$_cbg"
             done
             local _mid=$(( _top + _height / 2 ))
             local _hint="↑↓ select a table · Enter = Data · s = Schema · n = New query"
@@ -1116,6 +1354,167 @@ _shql_TABLE_content_on_key() {
 _shql_TABLE_content_on_focus() {
     _SHQL_BROWSER_CONTENT_FOCUSED="${1:-0}"
     SHELLFRAME_GRID_FOCUSED=$_SHQL_BROWSER_CONTENT_FOCUSED
+    # Losing focus deactivates editor mode for any active query tab
+    if (( ! _SHQL_BROWSER_CONTENT_FOCUSED && _SHQL_TAB_ACTIVE >= 0 )); then
+        local _type; _shql_content_type _type
+        if [[ "$_type" == "query" ]]; then
+            local _ctx="${_SHQL_TABS_CTX[$_SHQL_TAB_ACTIVE]}"
+            printf -v "_SHQL_QUERY_CTX_EDITOR_ACTIVE_${_ctx}" '%d' 0
+        fi
+    fi
+}
+
+# ── _shql_TABLE_content_on_mouse ─────────────────────────────────────────────
+
+_shql_TABLE_content_on_mouse() {
+    local _button="$1" _action="$2" _mrow="$3" _mcol="$4"
+    local _rtop="$5" _rleft="$6" _rwidth="$7" _rheight="$8"
+    (( _SHQL_TAB_ACTIVE < 0 )) && return 1
+
+    # Click (press only) while inspector is active → dismiss it.
+    # Ignore release events — a single physical click generates both press and
+    # release; without this guard the release from the click that OPENED the
+    # inspector would immediately dismiss it.
+    if (( _SHQL_INSPECTOR_ACTIVE )) && [[ "$_action" == "press" ]]; then
+        _SHQL_INSPECTOR_ACTIVE=0
+        shellframe_shell_mark_dirty
+        return 0
+    fi
+    # Swallow release events while inspector is still active (from the opening click)
+    if (( _SHQL_INSPECTOR_ACTIVE )); then
+        return 0
+    fi
+
+    local _type
+    _shql_content_type _type
+
+    case "$_type" in
+        data)
+            local _ctx="${_SHQL_TABS_CTX[$_SHQL_TAB_ACTIVE]}"
+            SHELLFRAME_GRID_CTX="${_ctx}_grid"
+
+            # Right-click or Shift+click on data grid → context menu
+            if (( _button == 2 || (_button == 0 && ${SHELLFRAME_MOUSE_SHIFT:-0}) )); then
+                _shql_cmenu_open "content" 0 "$_mrow" "$_mcol" "Inspect Row"
+                return 0
+            fi
+
+            # Remember cursor before click
+            local _prev_cursor=0
+            shellframe_sel_cursor "${_ctx}_grid" _prev_cursor 2>/dev/null || true
+
+            shellframe_grid_on_mouse "$_button" "$_action" "$_mrow" "$_mcol" \
+                "$_rtop" "$_rleft" "$_rwidth" "$_rheight"
+            local _rc=$?
+
+            # Click on already-selected data row → open inspector
+            if (( _rc == 0 && _button <= 2 )); then
+                local _new_cursor=0
+                shellframe_sel_cursor "${_ctx}_grid" _new_cursor 2>/dev/null || true
+                if (( _new_cursor == _prev_cursor )); then
+                    _shql_inspector_open
+                    shellframe_shell_mark_dirty
+                fi
+            fi
+            return $_rc
+            ;;
+        query)
+            # Query sub-panes: editor (30% top) and results (70% bottom)
+            local _editor_rows=$(( _rheight * 30 / 100 ))
+            (( _editor_rows < 5 )) && _editor_rows=5
+            local _results_top=$(( _rtop + _editor_rows ))
+
+            # Click (press) while detail panel is active → dismiss it
+            local _ctx="${_SHQL_TABS_CTX[$_SHQL_TAB_ACTIVE]}"
+            local _da_var="_SHQL_QUERY_CTX_DETAIL_ACTIVE_${_ctx}"
+            if [[ "${!_da_var:-0}" == "1" ]] && [[ "$_action" == "press" ]]; then
+                printf -v "_SHQL_QUERY_CTX_DETAIL_ACTIVE_${_ctx}" '%d' 0
+                _SHQL_QUERY_DETAIL_ACTIVE=0
+                shellframe_shell_mark_dirty
+                return 0
+            fi
+            # Swallow release while detail still active
+            if [[ "${!_da_var:-0}" == "1" ]]; then
+                return 0
+            fi
+
+            # Right-click or Shift+click in results pane → context menu
+            if (( (_button == 2 || (_button == 0 && ${SHELLFRAME_MOUSE_SHIFT:-0})) && _mrow >= _results_top )); then
+                _shql_cmenu_open "content" 0 "$_mrow" "$_mcol" "View Details"
+                return 0
+            fi
+
+            if (( _mrow < _results_top )); then
+                # Click in editor pane
+                local _fp_var="_SHQL_QUERY_CTX_FOCUSED_PANE_${_ctx}"
+                local _ea_var="_SHQL_QUERY_CTX_EDITOR_ACTIVE_${_ctx}"
+                if [[ "${!_fp_var:-}" == "editor" ]] && [[ "$_action" == "press" ]]; then
+                    # Already focused on editor — activate edit mode + position cursor
+                    printf -v "_SHQL_QUERY_CTX_EDITOR_ACTIVE_${_ctx}" '%d' 1
+                    # Compute editor inner bounds (same split as render)
+                    SHELLFRAME_PANEL_STYLE="${SHQL_THEME_PANEL_STYLE:-single}"
+                    local _eit=0 _eil=0 _eiw=0 _eih=0
+                    shellframe_panel_inner "$_rtop" "$_rleft" "$_rwidth" "$_editor_rows" \
+                        _eit _eil _eiw _eih
+                    SHELLFRAME_EDITOR_CTX="${_ctx}_editor"
+                    shellframe_editor_on_mouse "$_button" "$_action" "$_mrow" "$_mcol" \
+                        "$_eit" "$_eil" "$_eiw" "$_eih"
+                else
+                    printf -v "_SHQL_QUERY_CTX_FOCUSED_PANE_${_ctx}" '%s' "editor"
+                fi
+                shellframe_shell_mark_dirty
+                return 0
+            else
+                # Click in results pane — deactivate editor mode, set focus to results
+                printf -v "_SHQL_QUERY_CTX_EDITOR_ACTIVE_${_ctx}" '%d' 0
+                printf -v "_SHQL_QUERY_CTX_FOCUSED_PANE_${_ctx}" '%s' "results"
+                SHELLFRAME_GRID_CTX="${_ctx}_results"
+
+                # Remember cursor before click for re-click detection
+                local _prev_cursor=0
+                shellframe_sel_cursor "${_ctx}_results" _prev_cursor 2>/dev/null || true
+
+                # Compute panel inner bounds (grid is rendered inside a framed panel)
+                local _rh=$(( _rheight - _editor_rows ))
+                SHELLFRAME_PANEL_STYLE="${SHQL_THEME_PANEL_STYLE:-single}"
+                local _rit=0 _ril=0 _riw=0 _rih=0
+                shellframe_panel_inner "$_results_top" "$_rleft" "$_rwidth" "$_rh" \
+                    _rit _ril _riw _rih
+                shellframe_grid_on_mouse "$_button" "$_action" "$_mrow" "$_mcol" \
+                    "$_rit" "$_ril" "$_riw" "$_rih"
+                local _grc=$?
+
+                # Re-click on same row → open detail panel
+                if (( _grc == 0 && _button <= 2 )); then
+                    local _new_cursor=0
+                    shellframe_sel_cursor "${_ctx}_results" _new_cursor 2>/dev/null || true
+                    if (( _new_cursor == _prev_cursor )); then
+                        _SHQL_QUERY_GRID_CTX="${_ctx}_results"
+                        _shql_query_detail_open
+                        # Persist to per-ctx so the next render sees it
+                        printf -v "_SHQL_QUERY_CTX_DETAIL_ACTIVE_${_ctx}" '%d' 1
+                    fi
+                fi
+                shellframe_shell_mark_dirty
+                return 0
+            fi
+            ;;
+        schema)
+            # Schema sub-panes: columns (40% left) and DDL (60% right)
+            local _cols_w=$(( _rwidth * 4 / 10 ))
+            (( _cols_w < 15 )) && _cols_w=15
+            local _ddl_left=$(( _rleft + _cols_w ))
+
+            if (( _mcol < _ddl_left )); then
+                _SHQL_BROWSER_CONTENT_FOCUS="schema_cols"
+            else
+                _SHQL_BROWSER_CONTENT_FOCUS="schema_ddl"
+            fi
+            shellframe_shell_mark_dirty
+            return 0
+            ;;
+    esac
+    return 1
 }
 
 _shql_TABLE_content_action() {
@@ -1184,12 +1583,14 @@ _shql_query_on_key_ctx() {
     local _st="_SHQL_QUERY_CTX_STATUS_${_ctx}"
     local _er="_SHQL_QUERY_CTX_ERROR_${_ctx}"
     local _ls="_SHQL_QUERY_CTX_LAST_SQL_${_ctx}"
+    local _da="_SHQL_QUERY_CTX_DETAIL_ACTIVE_${_ctx}"
     _SHQL_QUERY_FOCUSED_PANE="${!_fp:-editor}"
     _SHQL_QUERY_EDITOR_ACTIVE="${!_ea:-0}"
     _SHQL_QUERY_HAS_RESULTS="${!_hr:-0}"
     _SHQL_QUERY_STATUS="${!_st:-}"
     _SHQL_QUERY_ERROR="${!_er:-}"
     _SHQL_QUERY_LAST_SQL="${!_ls:-}"
+    _SHQL_QUERY_DETAIL_ACTIVE="${!_da:-0}"
     _shql_query_on_key "$_key"
     local _rc=$?
     printf -v "_SHQL_QUERY_CTX_FOCUSED_PANE_${_ctx}"  '%s' "$_SHQL_QUERY_FOCUSED_PANE"
@@ -1198,6 +1599,7 @@ _shql_query_on_key_ctx() {
     printf -v "_SHQL_QUERY_CTX_STATUS_${_ctx}"         '%s' "$_SHQL_QUERY_STATUS"
     printf -v "_SHQL_QUERY_CTX_ERROR_${_ctx}"          '%s' "$_SHQL_QUERY_ERROR"
     printf -v "_SHQL_QUERY_CTX_LAST_SQL_${_ctx}"       '%s' "$_SHQL_QUERY_LAST_SQL"
+    printf -v "_SHQL_QUERY_CTX_DETAIL_ACTIVE_${_ctx}" '%d' "$_SHQL_QUERY_DETAIL_ACTIVE"
     return $_rc
 }
 
@@ -1254,23 +1656,167 @@ _shql_browser_footer_hint() {
     fi
 }
 
+# ── Context menu helpers ─────────────────────────────────────────────────────
+
+# Open a context menu at (anchor_row, anchor_col) with the given items.
+# Sets _SHQL_CMENU_ACTIVE=1, saves source and previous focus.
+_shql_cmenu_open() {
+    local _source="$1" _idx="$2" _arow="$3" _acol="$4"
+    shift 4
+    # Remaining args are menu item labels
+    SHELLFRAME_CMENU_ITEMS=("$@")
+    SHELLFRAME_CMENU_ANCHOR_ROW="$_arow"
+    SHELLFRAME_CMENU_ANCHOR_COL="$_acol"
+    SHELLFRAME_CMENU_CTX="shql_cmenu"
+    SHELLFRAME_CMENU_FOCUSED=1
+    SHELLFRAME_CMENU_STYLE="single"
+    SHELLFRAME_CMENU_BG=""
+    SHELLFRAME_CMENU_RESULT=-1
+    shellframe_cmenu_init "shql_cmenu"
+    _SHQL_CMENU_ACTIVE=1
+    _SHQL_CMENU_SOURCE="$_source"
+    _SHQL_CMENU_SOURCE_IDX="$_idx"
+    _SHQL_CMENU_PREV_FOCUS="$_source"
+    shellframe_shell_focus_set "cmenu"
+    shellframe_shell_mark_dirty
+}
+
+# Dismiss the context menu and restore previous focus.
+_shql_cmenu_dismiss() {
+    _SHQL_CMENU_ACTIVE=0
+    shellframe_shell_focus_set "$_SHQL_CMENU_PREV_FOCUS"
+    shellframe_shell_mark_dirty
+}
+
+# Dispatch the selected context menu action based on source and result index.
+_shql_cmenu_dispatch() {
+    local _result="$SHELLFRAME_CMENU_RESULT"
+    local _source="$_SHQL_CMENU_SOURCE"
+    local _idx="$_SHQL_CMENU_SOURCE_IDX"
+
+    _shql_cmenu_dismiss
+
+    # Dismissed without selection
+    (( _result < 0 )) && return 0
+
+    case "$_source" in
+        sidebar)
+            # 0=Open Data, 1=Open Schema, 2=New Query
+            case "$_result" in
+                0) shellframe_sel_set "$_SHQL_BROWSER_SIDEBAR_CTX" "$_idx"
+                   _shql_TABLE_sidebar_action ;;
+                1) shellframe_sel_set "$_SHQL_BROWSER_SIDEBAR_CTX" "$_idx"
+                   _shql_TABLE_sidebar_action_schema ;;
+                2) local _fits=1
+                   local _rows _cols; _shellframe_shell_terminal_size _rows _cols
+                   local _sidebar_w; _shql_browser_sidebar_width "$_cols" _sidebar_w
+                   _shql_tab_fits $(( _cols - _sidebar_w )) _fits
+                   if (( _fits )); then
+                       _shql_tab_open "" "query"
+                       shellframe_shell_focus_set "content"
+                   fi ;;
+            esac ;;
+        tabbar)
+            # 0=Close Tab, 1=New Query
+            case "$_result" in
+                0) _shql_tab_close ;;
+                1) local _fits=1
+                   local _rows _cols; _shellframe_shell_terminal_size _rows _cols
+                   local _sidebar_w; _shql_browser_sidebar_width "$_cols" _sidebar_w
+                   _shql_tab_fits $(( _cols - _sidebar_w )) _fits
+                   if (( _fits )); then
+                       _shql_tab_open "" "query"
+                       shellframe_shell_focus_set "content"
+                   fi ;;
+            esac ;;
+        content)
+            local _type; _shql_content_type _type
+            case "$_type" in
+                data)
+                    # 0=Inspect Row
+                    if (( _result == 0 )); then
+                        _shql_inspector_open
+                    fi ;;
+                query)
+                    # 0=View Details
+                    if (( _result == 0 )); then
+                        _shql_query_detail_open
+                    fi ;;
+            esac ;;
+    esac
+    shellframe_shell_mark_dirty
+}
+
+# ── _shql_TABLE_cmenu_render ────────────────────────────────────────────────
+
+_shql_TABLE_cmenu_render() {
+    local _top="$1" _left="$2" _width="$3" _height="$4"
+    SHELLFRAME_CMENU_CTX="shql_cmenu"
+    SHELLFRAME_CMENU_FOCUSED=1
+    shellframe_cmenu_render "$_top" "$_left" "$_width" "$_height"
+}
+
+# ── _shql_TABLE_cmenu_on_key ───────────────────────────────────────────────
+
+_shql_TABLE_cmenu_on_key() {
+    local _key="$1"
+    SHELLFRAME_CMENU_CTX="shql_cmenu"
+    shellframe_cmenu_on_key "$_key"
+    local _rc=$?
+    if (( _rc == 2 )); then
+        _shql_cmenu_dispatch
+        return 0
+    fi
+    return "$_rc"
+}
+
+# ── _shql_TABLE_cmenu_on_mouse ─────────────────────────────────────────────
+
+_shql_TABLE_cmenu_on_mouse() {
+    local _button="$1" _action="$2" _mrow="$3" _mcol="$4"
+    local _rtop="$5" _rleft="$6" _rwidth="$7" _rheight="$8"
+    SHELLFRAME_CMENU_CTX="shql_cmenu"
+    shellframe_cmenu_on_mouse "$_button" "$_action" "$_mrow" "$_mcol" \
+        "$_rtop" "$_rleft" "$_rwidth" "$_rheight"
+    local _rc=$?
+    if (( _rc == 2 )); then
+        _shql_cmenu_dispatch
+        return 0
+    fi
+    return "$_rc"
+}
+
+# ── _shql_TABLE_cmenu_on_focus ─────────────────────────────────────────────
+
+_shql_TABLE_cmenu_on_focus() {
+    SHELLFRAME_CMENU_FOCUSED="${1:-0}"
+}
+
 # ── _shql_TABLE_footer_render ─────────────────────────────────────────────────
 
 _shql_TABLE_footer_render() {
     local _top="$1" _left="$2" _width="$3" _height="${4:-2}"
     local _gray="${SHELLFRAME_GRAY:-}"
+    local _fbg="${SHQL_THEME_FOOTER_BG:-}"
 
     # Row 1: Status bar — connection info (left) + query timing (right)
-    shellframe_fb_fill "$_top" "$_left" "$_width" " "
+    shellframe_fb_fill "$_top" "$_left" "$_width" " " "$_fbg"
     local _host="${SHQL_DB_HOST:-localhost}"
-    local _db_file
-    _db_file="$(basename "${SHQL_DB_PATH:-}" 2>/dev/null)"
+    local _db_file="${SHQL_DB_PATH##*/}"
     local _conn_info="${_host} // ${_db_file:-<none>}"
-    shellframe_fb_print "$_top" "$_left" "$_conn_info" "$_gray"
-    # Right side: time + query status
-    local _time_str
-    _time_str=$(date '+%l:%M %p' 2>/dev/null || date '+%H:%M')
-    _time_str="${_time_str# }"  # trim leading space from %l
+    shellframe_fb_print "$_top" "$_left" "$_conn_info" "${_fbg}${_gray}"
+    # Right side: time + query status (cached — refresh at most once per second)
+    local _now="${EPOCHSECONDS:-}"
+    if [[ -z "$_now" || "$_now" != "${_SHQL_FOOTER_TIME_EPOCH:-}" ]]; then
+        _SHQL_FOOTER_TIME_EPOCH="$_now"
+        if printf -v _SHQL_FOOTER_TIME_CACHE '%(%l:%M %p)T' -1 2>/dev/null; then
+            _SHQL_FOOTER_TIME_CACHE="${_SHQL_FOOTER_TIME_CACHE# }"
+        else
+            _SHQL_FOOTER_TIME_CACHE=$(date '+%l:%M %p' 2>/dev/null || date '+%H:%M')
+            _SHQL_FOOTER_TIME_CACHE="${_SHQL_FOOTER_TIME_CACHE# }"
+        fi
+    fi
+    local _time_str="$_SHQL_FOOTER_TIME_CACHE"
     local _right_info="$_time_str"
     if [[ -n "${_SHQL_BROWSER_QUERY_STATUS:-}" ]]; then
         _right_info="${_time_str}  —  ${_SHQL_BROWSER_QUERY_STATUS}"
@@ -1278,13 +1824,41 @@ _shql_TABLE_footer_render() {
     local _rlen=${#_right_info}
     local _rcol=$(( _left + _width - _rlen ))
     (( _rcol < _left )) && _rcol=$_left
-    shellframe_fb_print "$_top" "$_rcol" "$_right_info" "$_gray"
+    shellframe_fb_print "$_top" "$_rcol" "$_right_info" "${_fbg}${_gray}"
+
+    # Center: row count (for data/query content), centered over the content area
+    if (( _SHQL_TAB_ACTIVE >= 0 )) && ! (( _SHQL_BROWSER_SIDEBAR_FOCUSED || _SHQL_BROWSER_TABBAR_FOCUSED )); then
+        local _type; _shql_content_type _type
+        if [[ "$_type" == "data" || "$_type" == "query" ]]; then
+            local _nrows="${SHELLFRAME_GRID_ROWS:-0}"
+            if (( _nrows > 0 )); then
+                local _scroll_top=0
+                shellframe_scroll_top "${SHELLFRAME_GRID_CTX:-grid}" _scroll_top
+                local _sidebar_w; _shql_browser_sidebar_width "$_width" _sidebar_w
+                local _content_left=$(( _left + _sidebar_w ))
+                local _content_w=$(( _width - _sidebar_w ))
+                local _term_rows _term_cols
+                _shellframe_shell_terminal_size _term_rows _term_cols
+                local _vrows=$(( _term_rows - 4 - 2 ))
+                (( _vrows < 1 )) && _vrows=1
+                local _first=$(( _scroll_top + 1 ))
+                local _last=$(( _scroll_top + _vrows ))
+                (( _last > _nrows )) && _last=$_nrows
+                local _row_info
+                printf -v _row_info 'Rows %d–%d of %d' "$_first" "$_last" "$_nrows"
+                local _ri_len=${#_row_info}
+                local _ri_col=$(( _content_left + (_content_w - _ri_len) / 2 ))
+                (( _ri_col < _content_left )) && _ri_col=$_content_left
+                shellframe_fb_print "$_top" "$_ri_col" "$_row_info" "${_fbg}${_gray}"
+            fi
+        fi
+    fi
 
     # Row 2: Key hints
     local _hints_row=$(( _top + 1 ))
-    shellframe_fb_fill "$_hints_row" "$_left" "$_width" " "
+    shellframe_fb_fill "$_hints_row" "$_left" "$_width" " " "$_fbg"
     local _hint; _shql_browser_footer_hint _hint
-    shellframe_fb_print "$_hints_row" "$_left" "$_hint" "$_gray"
+    shellframe_fb_print "$_hints_row" "$_left" "$_hint" "${_fbg}${_gray}"
 }
 
 # ── _shql_TABLE_quit ──────────────────────────────────────────────────────────

@@ -211,4 +211,35 @@ assert_eq 1 $(( ${#_SF_FRAME_DIRTY[@]} > 0 )) "render: framebuffer has dirty cel
 ptyunit_test_begin "inspector_render: panel title contains 'Record'"
 assert_contains "$SHELLFRAME_PANEL_TITLE" "Record" "render: PANEL_TITLE set to Record..."
 
+# ── Word-wrap: long values expand scroll total beyond pair count ──────────────
+
+ptyunit_test_begin "inspector_render: short values — scroll total equals pair count"
+SHELLFRAME_GRID_HEADERS=("id" "name")
+SHELLFRAME_GRID_COLS=2
+SHELLFRAME_GRID_ROWS=1
+SHELLFRAME_GRID_DATA=("1" "Alice")
+SHELLFRAME_GRID_CTX="test_grid"
+shellframe_sel_init "test_grid" 1
+shellframe_sel_move "test_grid" home
+_shql_inspector_open
+shellframe_fb_frame_start 40 80
+_shql_inspector_render 1 1 60 30
+_rows_var="_SHELLFRAME_SCROLL_${_SHQL_INSPECTOR_CTX}_ROWS"
+assert_eq "2" "${!_rows_var}" "render: 2 short-value pairs → scroll total is 2"
+
+ptyunit_test_begin "inspector_render: long value wraps — scroll total exceeds pair count"
+SHELLFRAME_GRID_HEADERS=("id" "notes")
+SHELLFRAME_GRID_COLS=2
+SHELLFRAME_GRID_ROWS=1
+# notes value is 120 chars — will need multiple display rows in a 60-wide panel
+SHELLFRAME_GRID_DATA=("1" "$(printf '%0.s-' {1..120})")
+SHELLFRAME_GRID_CTX="test_grid"
+shellframe_sel_init "test_grid" 1
+shellframe_sel_move "test_grid" home
+_shql_inspector_open
+shellframe_fb_frame_start 40 80
+_shql_inspector_render 1 1 60 30
+_rows_var="_SHELLFRAME_SCROLL_${_SHQL_INSPECTOR_CTX}_ROWS"
+assert_eq 1 $(( ${!_rows_var} > 2 )) "render: 120-char notes → scroll total > 2 (wraps)"
+
 ptyunit_test_summary

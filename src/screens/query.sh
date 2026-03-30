@@ -385,23 +385,48 @@ _shql_query_detail_render() {
     (( _val_avail < 1 )) && _val_avail=1
 
     local _n=${#_SHQL_QUERY_DETAIL_PAIRS[@]}
+
+    # Build display-row map: long values wrap across multiple rows.
+    local _dr_pair=() _dr_line=() _total_drows=0
+    local _i _j _drows _vlen _pair_i _val_i
+    for (( _i=0; _i<_n; _i++ )); do
+        _pair_i="${_SHQL_QUERY_DETAIL_PAIRS[$_i]}"
+        _val_i="${_pair_i#*	}"
+        _vlen=${#_val_i}
+        _drows=$(( (_vlen + _val_avail - 1) / _val_avail ))
+        (( _drows < 1 )) && _drows=1
+        for (( _j=0; _j<_drows; _j++ )); do
+            _dr_pair[$_total_drows]=$_i
+            _dr_line[$_total_drows]=$_j
+            (( _total_drows++ ))
+        done
+    done
+
+    # Update scroll total without resetting position, then re-clamp
+    printf -v "_SHELLFRAME_SCROLL_${_SHQL_QUERY_DETAIL_CTX}_ROWS" '%d' "$_total_drows"
     shellframe_scroll_resize "$_SHQL_QUERY_DETAIL_CTX" "$_kv_h" 1
     local _scroll_top=0
     shellframe_scroll_top "$_SHQL_QUERY_DETAIL_CTX" _scroll_top
 
-    local _r _idx _row _key_padded _val _val_clipped
+    local _r _dr _pi _ldr _row _key_padded _val _val_chunk
     for (( _r=0; _r<_kv_h; _r++ )); do
-        _idx=$(( _scroll_top + _r ))
-        (( _idx >= _n )) && continue
+        _dr=$(( _scroll_top + _r ))
+        (( _dr >= _total_drows )) && continue
         _row=$(( _kv_top + _r ))
-        _pair="${_SHQL_QUERY_DETAIL_PAIRS[$_idx]}"
+        _pi=${_dr_pair[$_dr]}
+        _ldr=${_dr_line[$_dr]}
+        _pair="${_SHQL_QUERY_DETAIL_PAIRS[$_pi]}"
         _pkey="${_pair%%	*}"
         _val="${_pair#*	}"
-        printf -v _key_padded '%-*s' "$_max_kw" "$_pkey"
-        shellframe_str_clip_ellipsis "$_val" "$_val" "$_val_avail" _val_clipped
+        _val_chunk="${_val:$(( _ldr * _val_avail )):$_val_avail}"
+        if (( _ldr == 0 )); then
+            printf -v _key_padded '%-*s' "$_max_kw" "$_pkey"
+        else
+            printf -v _key_padded '%-*s' "$_max_kw" ""
+        fi
         shellframe_fb_print "$_row" "$(( _il + 1 ))" "$_key_padded" "${_ibg}${_kc}"
         shellframe_fb_fill  "$_row" "$(( _il + 1 + _max_kw ))" 2 " " "$_ibg"
-        shellframe_fb_print "$_row" "$(( _il + 1 + _max_kw + 2 ))" "$_val_clipped" "$_ibg"
+        shellframe_fb_print "$_row" "$(( _il + 1 + _max_kw + 2 ))" "$_val_chunk" "$_ibg"
     done
 }
 

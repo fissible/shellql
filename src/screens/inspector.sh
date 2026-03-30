@@ -51,8 +51,7 @@ _shql_inspector_open() {
     done
 
     local _n=${#_SHQL_INSPECTOR_PAIRS[@]}
-    local _scroll_n=$(( (_n + 1) / 2 ))
-    shellframe_scroll_init "$_SHQL_INSPECTOR_CTX" "$_scroll_n" 1 10 1
+    shellframe_scroll_init "$_SHQL_INSPECTOR_CTX" "$_n" 1 10 1
     _SHQL_INSPECTOR_ACTIVE=1
 }
 
@@ -84,8 +83,7 @@ _shql_inspector_step() {
 
     # Reset scroll to top for the new record
     local _n=${#_SHQL_INSPECTOR_PAIRS[@]}
-    local _scroll_n=$(( (_n + 1) / 2 ))
-    shellframe_scroll_init "$_SHQL_INSPECTOR_CTX" "$_scroll_n" 1 10 1
+    shellframe_scroll_init "$_SHQL_INSPECTOR_CTX" "$_n" 1 10 1
 }
 
 # ── _shql_inspector_key_width ─────────────────────────────────────────────────
@@ -210,60 +208,59 @@ _shql_inspector_render() {
         (( _si++ ))
     done
 
-    # Two-column key/value area starts 2 rows after padded top (nav + sep)
+    # Single-column key/value area starts 2 rows after padded top (nav + sep)
     local _kv_top=$(( _pt + 2 ))
     local _kv_h=$(( _ph - 2 ))
     (( _kv_h < 1 )) && _kv_h=1
 
-    # Column layout
-    local _col_w=$(( (_pw - 1) / 2 ))
-    (( _col_w < 1 )) && _col_w=1
-    local _divider_col=$(( _pl + _col_w ))
     local _kw; _shql_inspector_key_width _kw
-    local _l_left=$(( _pl + 1 ))
-    local _val_avail_l=$(( _col_w - 1 - _kw - 2 ))
-    (( _val_avail_l < 1 )) && _val_avail_l=1
-    local _r_left=$(( _divider_col + 2 ))
-    local _val_avail_r=$(( _pw - _col_w - 2 - _kw - 2 ))
-    (( _val_avail_r < 1 )) && _val_avail_r=1
+    local _val_avail=$(( _pw - _kw - 2 ))
+    (( _val_avail < 1 )) && _val_avail=1
+    local _val_left=$(( _pl + _kw + 2 ))
 
     local _kc="${SHQL_THEME_KEY_COLOR:-}"
     local _n_pairs=${#_SHQL_INSPECTOR_PAIRS[@]}
-    local _n_rows=$(( (_n_pairs + 1) / 2 ))
 
+    # Build display-row map: long values wrap across multiple rows.
+    local _dr_pair=() _dr_line=() _total_drows=0
+    local _i _j _drows _vlen _pair_i _val_i
+    for (( _i=0; _i<_n_pairs; _i++ )); do
+        _pair_i="${_SHQL_INSPECTOR_PAIRS[$_i]}"
+        _val_i="${_pair_i#*	}"
+        _vlen=${#_val_i}
+        _drows=$(( (_vlen + _val_avail - 1) / _val_avail ))
+        (( _drows < 1 )) && _drows=1
+        for (( _j=0; _j<_drows; _j++ )); do
+            _dr_pair[$_total_drows]=$_i
+            _dr_line[$_total_drows]=$_j
+            (( _total_drows++ ))
+        done
+    done
+
+    # Update scroll total without resetting position, then re-clamp
+    printf -v "_SHELLFRAME_SCROLL_${_SHQL_INSPECTOR_CTX}_ROWS" '%d' "$_total_drows"
     shellframe_scroll_resize "$_SHQL_INSPECTOR_CTX" "$_kv_h" 1
     local _scroll_top=0
     shellframe_scroll_top "$_SHQL_INSPECTOR_CTX" _scroll_top
 
-    local _r _logical_r _l_idx _r_idx _pair _key _val _val_clipped _key_padded
+    local _r _dr _pi _ldr _row _pair _key _val _val_chunk _key_padded
     for (( _r=0; _r<_kv_h; _r++ )); do
-        _logical_r=$(( _scroll_top + _r ))
-        [[ $_logical_r -ge $_n_rows ]] && continue
-        local _row=$(( _kv_top + _r ))
-
-        _l_idx=$(( _logical_r * 2 ))
-        if [[ $_l_idx -lt $_n_pairs ]]; then
-            _pair="${_SHQL_INSPECTOR_PAIRS[$_l_idx]}"
-            _key="${_pair%%	*}"; _val="${_pair#*	}"
+        _dr=$(( _scroll_top + _r ))
+        (( _dr >= _total_drows )) && continue
+        _row=$(( _kv_top + _r ))
+        _pi=${_dr_pair[$_dr]}
+        _ldr=${_dr_line[$_dr]}
+        _pair="${_SHQL_INSPECTOR_PAIRS[$_pi]}"
+        _key="${_pair%%	*}"
+        _val="${_pair#*	}"
+        _val_chunk="${_val:$(( _ldr * _val_avail )):$_val_avail}"
+        if (( _ldr == 0 )); then
             printf -v _key_padded '%-*s' "$_kw" "$_key"
-            shellframe_str_clip_ellipsis "$_val" "$_val" "$_val_avail_l" _val_clipped
-            shellframe_fb_print "$_row" "$_l_left" "$_key_padded" "${_ibg}${_kc}"
-            shellframe_fb_fill  "$_row" "$(( _l_left + _kw ))" 2 " " "$_ibg"
-            shellframe_fb_print "$_row" "$(( _l_left + _kw + 2 ))" "$_val_clipped" "$_ibg"
+        else
+            printf -v _key_padded '%-*s' "$_kw" ""
         fi
-
-        # │ divider — 3-byte UTF-8; use shellframe_fb_put
-        shellframe_fb_put "$_row" "$_divider_col" "${_gray}│"
-
-        _r_idx=$(( _logical_r * 2 + 1 ))
-        if [[ $_r_idx -lt $_n_pairs ]]; then
-            _pair="${_SHQL_INSPECTOR_PAIRS[$_r_idx]}"
-            _key="${_pair%%	*}"; _val="${_pair#*	}"
-            printf -v _key_padded '%-*s' "$_kw" "$_key"
-            shellframe_str_clip_ellipsis "$_val" "$_val" "$_val_avail_r" _val_clipped
-            shellframe_fb_print "$_row" "$_r_left" "$_key_padded" "${_ibg}${_kc}"
-            shellframe_fb_fill  "$_row" "$(( _r_left + _kw ))" 2 " " "$_ibg"
-            shellframe_fb_print "$_row" "$(( _r_left + _kw + 2 ))" "$_val_clipped" "$_ibg"
-        fi
+        shellframe_fb_print "$_row" "$_pl"       "$_key_padded" "${_ibg}${_kc}"
+        shellframe_fb_fill  "$_row" "$(( _pl + _kw ))" 2 " " "$_ibg"
+        shellframe_fb_print "$_row" "$_val_left" "$_val_chunk" "$_ibg"
     done
 }

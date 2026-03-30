@@ -432,6 +432,7 @@ _shql_TABLE_sidebar_on_key() {
 
     case "$_key" in
         "$_k_right") shellframe_shell_focus_set "tabbar"; shellframe_shell_mark_dirty; return 0 ;;
+        $'\033'|q)   _shql_quit_confirm; return 0 ;;
         $'\r'|$'\n') _shql_TABLE_sidebar_action; shellframe_shell_mark_dirty; return 0 ;;
         s)           _shql_TABLE_sidebar_action_schema; shellframe_shell_mark_dirty; return 0 ;;
         n)
@@ -765,6 +766,10 @@ _shql_TABLE_tabbar_on_key() {
                 _shql_tab_open "" "query"
                 shellframe_shell_focus_set "content"
             fi
+            shellframe_shell_mark_dirty
+            return 0 ;;
+        $'\033')
+            shellframe_shell_focus_set "sidebar"
             shellframe_shell_mark_dirty
             return 0 ;;
     esac
@@ -1334,6 +1339,12 @@ _shql_TABLE_content_on_key() {
                     return 0
                 fi
             fi
+            # q from data grid → tabbar (prevent falling through to global quit)
+            if [[ "$_key" == 'q' ]]; then
+                shellframe_shell_focus_set "tabbar"
+                shellframe_shell_mark_dirty
+                return 0
+            fi
             SHELLFRAME_GRID_CTX="${_ctx}_grid"
             shellframe_grid_on_key "$_key"
             return $?
@@ -1865,6 +1876,14 @@ _shql_TABLE_footer_render() {
 
 _shql_TABLE_quit() {
     _SHELLFRAME_SHELL_NEXT="WELCOME"
+}
+
+# ── _shql_quit_confirm ────────────────────────────────────────────────────────
+# Show yes/no confirm before quitting to WELCOME screen.
+
+_shql_quit_confirm() {
+    shellframe_confirm "Return to welcome screen?" && _shql_TABLE_quit || true
+    shellframe_shell_mark_dirty
 }
 
 # ── shql_table_init ───────────────────────────────────────────────────────────

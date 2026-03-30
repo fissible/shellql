@@ -290,6 +290,14 @@ Completed 2026-03-23 (ptyunit consumer migration):
 - **CI fixed**: `bootstrap.sh` macOS-only brew guard; `tests/run.sh` sibling-ptyunit fallback; `ci.yml` inlined with shellframe checkout + `SHELLFRAME_DIR`
 - **417/417 shellql unit assertions pass.**
 
+**Completed 2026-03-30 (Inspector/query detail word-wrap — bug fix):**
+- `src/screens/util.sh` — new shared screen utility; `_shql_word_wrap value avail` fills `_SHQL_WRAP_LINES[]` with word-boundary-wrapped lines; long words fall back to character-break; embedded newlines treated as word separators
+- `src/screens/inspector.sh` — switched from two-column to single-column layout (doubles available value width); word-wrap via `_shql_word_wrap` replaces character-slicing; display-row map now stores pre-wrapped line text in `_dr_text[]`; scroll total updated each frame without resetting position
+- `src/screens/query.sh` — same word-wrap applied to `_shql_query_detail_render`
+- `bin/shql` — sources `util.sh` before other screens
+- `tests/unit/test-inspector.sh` — 13 new assertions: 10 for `_shql_word_wrap` unit tests, 2 for render word-wrap integration; **432/432 passing**
+- **Self-nominated bug**: TEXT field values were hard-clipped mid-word with `shellframe_str_clip_ellipsis`; no path to see full content
+
 **Next task:** [shellql#12](https://github.com/fissible/shellql/issues/12)
 - **BLOCKED** on [shellframe#27](https://github.com/fissible/shellframe/issues/27) — Sheet navigation primitive (M effort in shellframe)
 - Design decision: `[o]` should use the sheet pattern rather than a modal, so shellframe#27 ships first

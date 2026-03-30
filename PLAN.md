@@ -278,6 +278,18 @@ Completed 2026-03-23 (ptyunit consumer migration):
 - New test file: `tests/unit/test-db-mock.sh`; expanded inspector/schema/theme/welcome test coverage
 - **371/371 shellql unit assertions pass. 1233/1233 shellframe unit assertions pass.**
 
+**Completed 2026-03-30 (Welcome screen tile grid — PR #33 merged):**
+- `src/themes/basic.sh`, `cascade.sh`, `uranium.sh` — tile-specific theme variables (border, selected, focused, metadata)
+- `src/screens/welcome.sh` — full rewrite: responsive tile grid with box-drawn borders, arrow-key + mouse navigation, context menus, per-connection metadata (file size, table count)
+- `tests/unit/test-welcome.sh` — expanded to cover tile grid behavior; 34/34 passing
+- `src/connections.sh` — added `shql_conn_create`, `shql_conn_update`, `shql_conn_delete`, `shql_conn_touch` (full CRUD for named connections)
+- `src/screens/query.sh` — row detail panel (Enter on grid row opens key/value view, ←→ navigates rows, ↑ from top / Esc / q dismisses); fast-path editor re-render during typing (bypasses full draw cycle)
+- `src/screens/inspector.sh` — fixed `shellframe_str_clip_ellipsis` calls to output-var API
+- `bin/shql` — added `SHQL_DEBUG` crash diagnostic export
+- `docs/v1-issue-specs.md` — v1.0 issue specs drafted (Tier 0 shellframe primitives + Tier 1 DML features)
+- **CI fixed**: `bootstrap.sh` macOS-only brew guard; `tests/run.sh` sibling-ptyunit fallback; `ci.yml` inlined with shellframe checkout + `SHELLFRAME_DIR`
+- **417/417 shellql unit assertions pass.**
+
 **Next task:** [shellql#12](https://github.com/fissible/shellql/issues/12)
 - **BLOCKED** on [shellframe#27](https://github.com/fissible/shellframe/issues/27) — Sheet navigation primitive (M effort in shellframe)
 - Design decision: `[o]` should use the sheet pattern rather than a modal, so shellframe#27 ships first

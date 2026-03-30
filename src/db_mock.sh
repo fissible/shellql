@@ -114,6 +114,39 @@ shql_db_describe() {
     esac
 }
 
+# shql_db_columns <db_path> <table>
+# Returns TSV rows: name<TAB>type<TAB>flags  (flags: "PK", "NN", "PK NN", or "")
+shql_db_columns() {
+    local _table="${2:-users}"
+    case "$_table" in
+        users)
+            printf 'id\tINTEGER\tPK\n'
+            printf 'name\tTEXT\tNN\n'
+            printf 'email\tTEXT\t\n'
+            printf 'phone\tTEXT\t\n'
+            printf 'role\tTEXT\t\n'
+            printf 'status\tTEXT\t\n'
+            ;;
+        products)
+            printf 'id\tINTEGER\tPK\n'
+            printf 'sku\tTEXT\tNN\n'
+            printf 'name\tTEXT\tNN\n'
+            printf 'price\tREAL\tNN\n'
+            printf 'stock\tINTEGER\t\n'
+            ;;
+        orders)
+            printf 'id\tINTEGER\tPK\n'
+            printf 'user_id\tINTEGER\t\n'
+            printf 'status\tTEXT\t\n'
+            printf 'total\tREAL\tNN\n'
+            ;;
+        *)
+            printf 'id\tINTEGER\tPK\n'
+            printf 'value\tTEXT\t\n'
+            ;;
+    esac
+}
+
 # shql_db_fetch <db_path> <table> [limit] [offset]
 shql_db_fetch() {
     local _table="${2:-users}"

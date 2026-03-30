@@ -8,7 +8,39 @@ on:
 
 jobs:
   test:
-    uses: fissible/.github/.github/workflows/test-bash.yml@main
-    with:
-      bootstrap-command: bash bootstrap.sh
-      test-command: bash tests/run.sh
+    name: bash / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+          - os: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          path: repo
+
+      - name: Checkout ptyunit
+        uses: actions/checkout@v4
+        with:
+          repository: fissible/ptyunit
+          path: ptyunit
+
+      - name: Checkout shellframe
+        uses: actions/checkout@v4
+        with:
+          repository: fissible/shellframe
+          path: shellframe
+
+      - name: Bootstrap
+        working-directory: repo
+        run: bash bootstrap.sh
+
+      - name: Run tests
+        working-directory: repo
+        env:
+          SHELLFRAME_DIR: ${{ github.workspace }}/shellframe
+        run: bash tests/run.sh

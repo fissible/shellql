@@ -23,6 +23,7 @@ shellframe_grid_on_key()  { return 1; }
 shellframe_shell_focus_set() { true; }
 shellframe_shell_region()    { true; }
 shellframe_editor_get_text() { printf -v "$2" '%s' "SELECT 1"; }
+shellframe_editor_set_text() { _SHQL_TEST_EDITOR_CTX="$1"; _SHQL_TEST_EDITOR_TEXT="$2"; }
 shellframe_editor_on_key()   { return 1; }
 shellframe_sel_move()        { true; }
 shellframe_panel_render()    { true; }
@@ -578,5 +579,16 @@ _SHQL_DROP_CONFIRM_ACTIVE=0
 _shql_drop_confirm "v_active" "view"
 assert_eq "1" "$_SHQL_DROP_CONFIRM_ACTIVE"
 assert_eq "view" "$_SHQL_DROP_CONFIRM_TYPE"
+
+ptyunit_test_begin "sidebar_action_create_table: opens tab with 'New Table' label"
+shql_table_init_browser
+_SHQL_TEST_EDITOR_CTX=""
+_SHQL_TEST_EDITOR_TEXT=""
+_shql_TABLE_sidebar_action_create_table
+assert_eq "New Table" "${_SHQL_TABS_LABEL[$_SHQL_TAB_ACTIVE]}" "create_table: tab label is 'New Table'"
+
+ptyunit_test_begin "sidebar_action_create_table: pre-fills editor with CREATE TABLE template"
+assert_contains "$_SHQL_TEST_EDITOR_TEXT" "CREATE TABLE" "create_table: template contains CREATE TABLE"
+assert_contains "$_SHQL_TEST_EDITOR_TEXT" "PRIMARY KEY" "create_table: template contains PRIMARY KEY"
 
 ptyunit_test_summary

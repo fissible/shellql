@@ -93,7 +93,7 @@ _SHQL_TABLE_FOOTER_HINTS_INSPECTOR="[↑↓] Scroll  [PgUp/PgDn] Page  [Enter/Es
 
 # ── Browser footer hint strings ───────────────────────────────────────────────
 
-_SHQL_BROWSER_FOOTER_HINTS_SIDEBAR="[↑↓] Navigate  [Enter] Data  [s] Schema  [n] Query  [X] Drop  [→/Tab] Focus  [q] Back"
+_SHQL_BROWSER_FOOTER_HINTS_SIDEBAR="[↑↓] Navigate  [Enter] Data  [s] Schema  [c] New Table  [n] Query  [X] Drop  [→/Tab] Focus  [q] Back"
 _SHQL_BROWSER_FOOTER_HINTS_TABBAR="[←→] Switch tab  [↓/Enter] Content  [w] Close  [n] New query  [Tab] Sidebar"
 _SHQL_BROWSER_FOOTER_HINTS_DATA="[↑↓] Navigate  [←→] Scroll  [Enter] Inspect  [i] Insert  [e] Edit  [d] Delete  [T] Truncate  [[/]] Tabs  [Tab] Sidebar  [q] Back"
 _SHQL_BROWSER_FOOTER_HINTS_SCHEMA="[↑↓] Scroll  [Tab] DDL/exit  [q] Back"
@@ -480,6 +480,7 @@ _shql_TABLE_sidebar_on_key() {
         $'\033'|q)   _shql_quit_confirm; return 0 ;;
         $'\r'|$'\n') _shql_TABLE_sidebar_action; shellframe_shell_mark_dirty; return 0 ;;
         s)           _shql_TABLE_sidebar_action_schema; shellframe_shell_mark_dirty; return 0 ;;
+        c)           _shql_TABLE_sidebar_action_create_table; shellframe_shell_mark_dirty; return 0 ;;
         n)
             local _fits=1
             local _rows _cols; _shellframe_shell_terminal_size _rows _cols
@@ -567,14 +568,7 @@ _shql_TABLE_sidebar_action() {
     # "+ New table" button (last sidebar item, beyond _SHQL_BROWSER_TABLES)
     local _ntables=${#_SHQL_BROWSER_TABLES[@]}
     if (( _cursor >= _ntables )); then
-        local _rows2 _cols2; _shellframe_shell_terminal_size _rows2 _cols2
-        local _sbw2; _shql_browser_sidebar_width "$_cols2" _sbw2
-        local _fits2=1; _shql_tab_fits $(( _cols2 - _sbw2 )) _fits2
-        if (( _fits2 )); then
-            _shql_tab_open "" "query"
-            # TODO: pre-fill editor with CREATE TABLE template
-            shellframe_shell_focus_set "content"
-        fi
+        _shql_TABLE_sidebar_action_create_table
         return 0
     fi
 
@@ -604,6 +598,31 @@ _shql_TABLE_sidebar_action_schema() {
     local _table="${_SHQL_BROWSER_TABLES[$_cursor]:-}"
     [[ -z "$_table" ]] && return 0
     _shql_tab_open "$_table" "schema"
+    shellframe_shell_focus_set "content"
+}
+
+_shql_TABLE_sidebar_action_create_table() {
+    local _rows _cols; _shellframe_shell_terminal_size _rows _cols
+    local _sidebar_w; _shql_browser_sidebar_width "$_cols" _sidebar_w
+    local _fits=1; _shql_tab_fits $(( _cols - _sidebar_w )) _fits
+    (( _fits )) || return 0
+
+    _shql_tab_open "" "query"
+    local _new_ctx="${_SHQL_TABS_CTX[$_SHQL_TAB_ACTIVE]}"
+
+    # Override label to make tab purpose obvious
+    _SHQL_TABS_LABEL[$_SHQL_TAB_ACTIVE]="New Table"
+
+    # Pre-fill editor with CREATE TABLE template
+    local _tmpl
+    _tmpl="$(printf '%s\n' \
+        'CREATE TABLE table_name (' \
+        '    id INTEGER PRIMARY KEY AUTOINCREMENT,' \
+        '    name TEXT NOT NULL,' \
+        '    -- add columns here' \
+        ');')"
+    shellframe_editor_set_text "${_new_ctx}_editor" "$_tmpl"
+
     shellframe_shell_focus_set "content"
 }
 

@@ -257,6 +257,15 @@ _shql_tab_close() {
     local _n=${#_SHQL_TABS_TYPE[@]}
     (( _n == 0 || _idx < 0 || _idx >= _n )) && return 0
 
+    # Query tabs use a deferred direct-draw for editor content that bypasses
+    # _SF_FRAME_PREV. When the tab closes, the framebuffer diff sees no change
+    # (content_bg+space == content_bg+space) and never re-emits those cells,
+    # leaving the editor text as a ghost on the terminal. Reset PREV so the
+    # next flush does a full re-emit and clears any deferred-draw residue.
+    if [[ "${_SHQL_TABS_TYPE[$_idx]:-}" == "query" ]]; then
+        shellframe_screen_clear
+    fi
+
     # Rebuild arrays without the removed index
     local -a _new_type _new_table _new_label _new_ctx
     local _i

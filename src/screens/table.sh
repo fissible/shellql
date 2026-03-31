@@ -1279,12 +1279,26 @@ _shql_TABLE_content_render() {
             shellframe_fb_print "$_mid" "$_hcol" "$_hint" "$_gray"
             ;;
     esac
+
+    # DML form overlay (renders on top of whatever tab is active)
+    if (( ${_SHQL_DML_ACTIVE:-0} )); then
+        _shql_dml_render "$_top" "$_left" "$_width" "$_height"
+    fi
+
+    # Toast overlay (always topmost)
+    shellframe_toast_render "$_top" "$_left" "$_width" "$_height"
 }
 
 _shql_TABLE_content_on_key() {
     local _key="$1"
     local _k_up="${SHELLFRAME_KEY_UP:-$'\033[A'}"
     local _k_left="${SHELLFRAME_KEY_LEFT:-$'\033[D'}"
+
+    # Route to DML form when active (takes priority over inspector)
+    if (( ${_SHQL_DML_ACTIVE:-0} )); then
+        _shql_dml_on_key "$_key"
+        return $?
+    fi
 
     # Route to inspector when active
     if (( _SHQL_INSPECTOR_ACTIVE )); then
@@ -1343,6 +1357,31 @@ _shql_TABLE_content_on_key() {
             if [[ "$_key" == 'q' ]]; then
                 shellframe_shell_focus_set "tabbar"
                 shellframe_shell_mark_dirty
+                return 0
+            fi
+            # DML triggers
+            local _dml_table="${_SHQL_TABS_TABLE[$_SHQL_TAB_ACTIVE]:-}"
+            if [[ "$_key" == 'i' && -n "$_dml_table" ]]; then
+                _shql_dml_insert_open "$_dml_table"
+                shellframe_shell_mark_dirty
+                return 0
+            fi
+            if [[ "$_key" == 'e' && -n "$_dml_table" ]]; then
+                if (( SHELLFRAME_GRID_ROWS > 0 )); then
+                    local _cursor=0
+                    shellframe_sel_cursor "${_ctx}_grid" _cursor 2>/dev/null || true
+                    _shql_dml_update_open "$_dml_table" "$_cursor"
+                    shellframe_shell_mark_dirty
+                fi
+                return 0
+            fi
+            if [[ "$_key" == 'd' && -n "$_dml_table" ]]; then
+                if (( SHELLFRAME_GRID_ROWS > 0 )); then
+                    local _cursor=0
+                    shellframe_sel_cursor "${_ctx}_grid" _cursor 2>/dev/null || true
+                    _shql_dml_delete_open "$_dml_table" "$_cursor"
+                    shellframe_shell_mark_dirty
+                fi
                 return 0
             fi
             SHELLFRAME_GRID_CTX="${_ctx}_grid"

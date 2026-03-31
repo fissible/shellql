@@ -356,4 +356,12 @@ Completed 2026-03-23 (ptyunit consumer migration):
 3. shellql#30 — after shellframe#38
 4. shellql#31 — last, after all actions exist
 
-**Next:** shellql#26 + #27 + #28 + #32 (Session A — DDL + focus bug)
+**Completed 2026-03-31 (Truncate, Drop, Create Table + UX polish — shellql#26, #27, #28, PR #35):**
+- `src/screens/dml.sh` — `_shql_dml_truncate_open` + `_shql_dml_execute_truncate` + truncate confirm overlay (T/y confirms); `_shql_dml_on_key` truncate branch; `_shql_dml_render` truncate mode title + prompt
+- `src/screens/table.sh` — `T` key wires to truncate; footer hints updated; `[i] +Row` button replaced with `" New Row "` styled like `+SQL` in gap row between tab bar and content; DML hints moved below data grid in dark surface area; `shellframe_screen_clear` on query tab close (editor ghost fix); `c` key → `_shql_TABLE_sidebar_action_create_table`; empty-state center hint removed (multi-byte ghost fix)
+- `src/screens/query.sh` — prefill variable applied after editor lazy-init; `shellframe_editor_set_text` no longer needed at open time
+- `tests/unit/test-dml.sh` — 5 new assertions for truncate_open; 470/470 passing
+- **PR #35 open**: `feature/shellql-26-truncate-table`
+- **GitHub:** #26, #27, #28 ready to close once PR merges
+
+**Next:** shellql#32 (first data tab focus bug), then shellql#29 (CSV export), shellframe#38 (autocomplete)

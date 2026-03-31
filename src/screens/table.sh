@@ -613,15 +613,15 @@ _shql_TABLE_sidebar_action_create_table() {
     # Override label to make tab purpose obvious
     _SHQL_TABS_LABEL[$_SHQL_TAB_ACTIVE]="New Table"
 
-    # Pre-fill editor with CREATE TABLE template
-    local _tmpl
-    _tmpl="$(printf '%s\n' \
-        'CREATE TABLE table_name (' \
-        '    id INTEGER PRIMARY KEY AUTOINCREMENT,' \
-        '    name TEXT NOT NULL,' \
-        '    -- add columns here' \
-        ');')"
-    shellframe_editor_set_text "${_new_ctx}_editor" "$_tmpl"
+    # Store template for the lazy-init path in _shql_query_render to apply
+    # after shellframe_editor_init (which overwrites any pre-set content).
+    printf -v "_SHQL_QUERY_CTX_PREFILL_${_new_ctx}" '%s' \
+        "$(printf '%s\n' \
+            'CREATE TABLE table_name (' \
+            '    id INTEGER PRIMARY KEY AUTOINCREMENT,' \
+            '    name TEXT NOT NULL,' \
+            '    -- add columns here' \
+            ');')"
 
     shellframe_shell_focus_set "content"
 }

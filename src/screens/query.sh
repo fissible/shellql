@@ -594,6 +594,13 @@ _shql_query_render() {
         SHELLFRAME_GRID_CTX="$_SHQL_QUERY_GRID_CTX"
         shellframe_grid_init "$_SHQL_QUERY_GRID_CTX"
         _SHQL_QUERY_INITIALIZED=1
+        # Apply any pre-fill template (set before first render; consumed here).
+        local _tab_ctx="${_SHQL_QUERY_EDITOR_CTX%_editor}"
+        local _pf_var="_SHQL_QUERY_CTX_PREFILL_${_tab_ctx}"
+        if [[ -n "${!_pf_var:-}" ]]; then
+            shellframe_editor_set_text "$_SHQL_QUERY_EDITOR_CTX" "${!_pf_var}"
+            printf -v "$_pf_var" '%s' ""
+        fi
     fi
 
     # Compute split (panel consumes 2 border rows from editor budget)

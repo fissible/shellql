@@ -310,5 +310,15 @@ Completed 2026-03-23 (ptyunit consumer migration):
 - **462/462 shellql unit assertions pass. 1325/1325 shellframe unit assertions pass.**
 
 **[shellql#12](https://github.com/fissible/shellql/issues/12) — CLOSED** (`[o]` open database dialog)
-- **Follow-up**: user noted typing is still "a little slow" after subshell removal — may need further profiling
-- **Toast TTL tick**: `shellframe_toast_tick` is not wired into `shellframe_shell`'s event loop — toasts render but don't auto-dismiss. Accepted for v1; needs a per-tick callback in shellframe to fix.
+
+**Completed 2026-03-30 (UX fixes — toast, inspector, close-file confirm):**
+- `shellframe/src/shell.sh` — `shellframe_toast_tick` wired into draw loop + idle-timeout path; toasts now auto-dismiss
+- `shellframe/src/widgets/toast.sh` — TTL reduced from 30→5; added `SHELLFRAME_TOAST_{SUCCESS,ERROR,WARNING,INFO}_COLOR` overrides for dark-theme backgrounds
+- `shellframe/src/widgets/input-field.sh` — fixed `SHELLFRAME_FIELD_BG` threading in focused render so typed text doesn't revert to black background on cascade theme
+- `shellql/src/themes/cascade.sh` — cascade toast colors: dark green/red/amber/gray bg + white text
+- `shellql/src/screens/inspector.sh` — removed ←/→ row-stepping nav bar; Esc/Enter/q close the inspector; kv content fills full inner area
+- `shellql/src/screens/table.sh` — replaced `shellframe_confirm` (fd 3 incompatible with event loop) with inline `_SHQL_QUIT_CONFIRM_ACTIVE` overlay + `focus_set` + rc=2/action routing; renamed prompt to "Close file?"; reset in `shql_table_init`
+- `shellql/src/db.sh` — fixed `[notnull]` bracket quoting in `shql_db_columns` SQLite query (was silently returning 0 rows on some SQLite versions, causing empty DML forms)
+- **453/453 shellql unit assertions pass.**
+
+**Next:** open GitHub issues for any remaining UX tickets; check ROADMAP for v1 priorities.

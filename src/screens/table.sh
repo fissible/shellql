@@ -1305,13 +1305,21 @@ _shql_TABLE_content_render() {
                     _grid_w=$(( _width - 1 ))
                     _sb_col=$(( _left + _grid_w ))
                 fi
+
+                # "+Row" affordance row above column headers
+                local _rowbtn_bg="${SHQL_THEME_GRID_HEADER_BG:-${SHQL_THEME_CONTENT_BG:-}}"
+                local _rowbtn_fg="${SHQL_THEME_GRID_HEADER_COLOR:-}"
+                shellframe_fb_fill "$_top" "$_left" "$_width" " " "$_rowbtn_bg"
+                shellframe_fb_print "$_top" "$_left" " [i] +Row" "${_rowbtn_bg}${_rowbtn_fg}"
+
+                # Grid starts 1 row below to make room for +Row button
                 _shql_grid_fill_width "$_grid_w"
-                shellframe_grid_render "$_top" "$_left" "$_grid_w" "$_height"
+                shellframe_grid_render "$(( _top + 1 ))" "$_left" "$_grid_w" "$(( _height - 1 ))"
                 _shql_grid_restore_last
-                # Scrollbar in rightmost column (data rows start 2 below _top)
+                # Scrollbar in rightmost column (data rows start 3 below _top)
                 if (( _sb_col > 0 )); then
-                    local _sb_top=$(( _top + 2 ))
-                    local _sb_h=$(( _height - 2 ))
+                    local _sb_top=$(( _top + 3 ))
+                    local _sb_h=$(( _height - 3 ))
                     SHELLFRAME_SCROLLBAR_STYLE="${SHQL_THEME_CONTENT_BG:-}${SHELLFRAME_GRAY:-$'\033[2m'}"
                     SHELLFRAME_SCROLLBAR_THUMB_STYLE="${SHQL_THEME_CONTENT_BG:-}"
                     if ! shellframe_scrollbar_render "${SHELLFRAME_GRID_CTX:-grid}" \
@@ -1322,11 +1330,12 @@ _shql_TABLE_content_render() {
                         done
                     fi
                     # Header rows in scrollbar column
-                    shellframe_fb_put "$_top" "$_sb_col" "${SHQL_THEME_GRID_HEADER_BG:-} "
-                    shellframe_fb_put "$(( _top + 1 ))" "$_sb_col" "${SHQL_THEME_CONTENT_BG:-} "
+                    shellframe_fb_put "$_top" "$_sb_col" "${_rowbtn_bg:-} "
+                    shellframe_fb_put "$(( _top + 1 ))" "$_sb_col" "${SHQL_THEME_GRID_HEADER_BG:-} "
+                    shellframe_fb_put "$(( _top + 2 ))" "$_sb_col" "${SHQL_THEME_CONTENT_BG:-} "
                 fi
                 # Dark surface below last data row
-                local _data_end=$(( _top + 2 + SHELLFRAME_GRID_ROWS ))
+                local _data_end=$(( _top + 3 + SHELLFRAME_GRID_ROWS ))
                 local _surface_bg="${SHQL_THEME_EDITOR_FOCUSED_BG:-${SHQL_THEME_CONTENT_BG:-}}"
                 if [[ -n "$_surface_bg" ]] && (( _data_end < _top + _height )); then
                     local _sr
@@ -1761,7 +1770,7 @@ _shql_table_data_footer_hint() {
 
     local _term_rows _term_cols
     _shellframe_shell_terminal_size _term_rows _term_cols
-    local _vrows=$(( _term_rows - 4 - 2 ))   # body_h=rows-4, minus 2 grid header rows
+    local _vrows=$(( _term_rows - 4 - 3 ))   # body_h=rows-4, minus 3 rows (+Row btn + 2 grid headers)
     (( _vrows < 1 )) && _vrows=1
 
     local _first=$(( _scroll_top + 1 ))

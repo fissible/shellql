@@ -76,7 +76,15 @@ _shql_inspector_on_key() {
     local _k_pgdn="${SHELLFRAME_KEY_PAGE_DOWN:-$'\033[6~'}"
 
     case "$_key" in
-        "$_k_up")   shellframe_scroll_move "$_SHQL_INSPECTOR_CTX" up;        return 0 ;;
+        "$_k_up")
+            local _st=0; shellframe_scroll_top "$_SHQL_INSPECTOR_CTX" _st 2>/dev/null || true
+            if (( _st == 0 )); then
+                _SHQL_INSPECTOR_ACTIVE=0
+                shellframe_shell_mark_dirty
+            else
+                shellframe_scroll_move "$_SHQL_INSPECTOR_CTX" up
+            fi
+            return 0 ;;
         "$_k_down") shellframe_scroll_move "$_SHQL_INSPECTOR_CTX" down;      return 0 ;;
         "$_k_pgup") shellframe_scroll_move "$_SHQL_INSPECTOR_CTX" page_up;   return 0 ;;
         "$_k_pgdn") shellframe_scroll_move "$_SHQL_INSPECTOR_CTX" page_down; return 0 ;;

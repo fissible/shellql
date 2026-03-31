@@ -255,6 +255,35 @@ _shql_dml_delete_open() {
     _SHQL_DML_ACTIVE=1
 }
 
+# ── _shql_dml_truncate_open ───────────────────────────────────────────────────
+
+_shql_dml_truncate_open() {
+    local _table="$1"
+    _SHQL_DML_TABLE="$_table"
+    _SHQL_DML_MODE="truncate"
+    _SHQL_DML_ACTIVE=1
+}
+
+# ── _shql_dml_execute_truncate ────────────────────────────────────────────────
+
+_shql_dml_execute_truncate() {
+    local _sql
+    printf -v _sql 'DELETE FROM "%s"' "${_SHQL_DML_TABLE//\"/\"\"}"
+    local _err_file
+    _err_file=$(mktemp)
+    shql_db_query "$SHQL_DB_PATH" "$_sql" >"$_err_file" 2>&1
+    local _qrc=$?
+    if (( _qrc == 0 )); then
+        shellframe_toast_show "Table truncated" success
+        _shql_dml_refresh_grid "$_SHQL_DML_TABLE"
+    else
+        local _errmsg; _errmsg=$(cat "$_err_file")
+        shellframe_toast_show "Truncate failed: ${_errmsg}" error
+        _SHQL_DML_ACTIVE=0
+    fi
+    rm -f "$_err_file"
+}
+
 # ── _shql_dml_execute_delete ──────────────────────────────────────────────────
 
 _shql_dml_execute_delete() {
@@ -342,6 +371,17 @@ _shql_dml_on_key() {
         return 0
     fi
 
+    # Truncate confirmation: T/y executes, all other keys cancel
+    if [[ "$_SHQL_DML_MODE" == "truncate" ]]; then
+        if [[ "$_key" == 'T' || "$_key" == 'y' ]]; then
+            _shql_dml_execute_truncate
+        else
+            _SHQL_DML_ACTIVE=0
+        fi
+        shellframe_shell_mark_dirty
+        return 0
+    fi
+
     shellframe_form_on_key "$_SHQL_DML_CTX" "$_key"
     local _frc=$?
     if (( _frc == 2 )); then
@@ -367,8 +407,9 @@ _shql_dml_render() {
     SHELLFRAME_PANEL_STYLE="${SHQL_THEME_PANEL_STYLE_FOCUSED:-double}"
     local _title=""
     case "$_SHQL_DML_MODE" in
-        insert) _title="Insert Row — ${_SHQL_DML_TABLE}" ;;
-        update) _title="Edit Row — ${_SHQL_DML_TABLE}" ;;
+        insert)   _title="Insert Row — ${_SHQL_DML_TABLE}" ;;
+        update)   _title="Edit Row — ${_SHQL_DML_TABLE}" ;;
+        truncate) _title="Truncate Table — ${_SHQL_DML_TABLE}" ;;
     esac
     SHELLFRAME_PANEL_TITLE="$_title"
     SHELLFRAME_PANEL_TITLE_ALIGN="left"
@@ -397,6 +438,17 @@ _shql_dml_render() {
         shellframe_fb_print "$_mid" "$(( _il + 2 ))" "$_pk_line" "${_ibg}${_gray}"
         shellframe_fb_print "$(( _it + _ih - 1 ))" "$_il" \
             " [d] Confirm  [Esc] Cancel" "${_ibg}${_gray}"
+        return 0
+    fi
+
+    if [[ "$_SHQL_DML_MODE" == "truncate" ]]; then
+        local _mid=$(( _it + _ih / 2 ))
+        shellframe_fb_print "$(( _mid - 1 ))" "$(( _il + 2 ))" \
+            "Delete ALL rows from '${_SHQL_DML_TABLE}'?" "${_ibg}"
+        shellframe_fb_print "$_mid" "$(( _il + 2 ))" \
+            "This cannot be undone." "${_ibg}${_gray}"
+        shellframe_fb_print "$(( _it + _ih - 1 ))" "$_il" \
+            " [T] Confirm  [Esc] Cancel" "${_ibg}${_gray}"
         return 0
     fi
 

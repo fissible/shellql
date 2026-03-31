@@ -14,8 +14,10 @@ shql_theme_load basic
 assert_eq "single" "$SHQL_THEME_PANEL_STYLE"
 
 ptyunit_test_begin "shql_theme_load uranium: SHQL_THEME_PANEL_STYLE=rounded"
+tput() { case "$1" in colors) printf '256' ;; *) command tput "$@" 2>/dev/null ;; esac }
 shql_theme_load uranium
 assert_eq "rounded" "$SHQL_THEME_PANEL_STYLE"
+unset -f tput
 
 ptyunit_test_begin "shql_theme_load nonexistent: falls back to basic"
 shql_theme_load basic   # precondition: basic is loaded (sets SHQL_THEME_PANEL_STYLE=single)

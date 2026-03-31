@@ -1337,6 +1337,22 @@ _shql_TABLE_content_render() {
                 "$(( _left + _width - ${#_filter_label} ))" \
                 "$_filter_label" "$_filter_sty"
             if (( ${_SHQL_WHERE_ACTIVE:-0} )); then
+                # Render full grid (unfocused) so the table is visible behind the overlay
+                SHELLFRAME_GRID_CTX="${_SHQL_TABS_CTX[$_SHQL_TAB_ACTIVE]}_grid"
+                SHELLFRAME_GRID_FOCUSED=0
+                SHELLFRAME_GRID_BG="${SHQL_THEME_CONTENT_BG:-}"
+                SHELLFRAME_GRID_STRIPE_BG="${SHQL_THEME_ROW_STRIPE_BG:-}"
+                SHELLFRAME_GRID_HEADER_STYLE="${SHQL_THEME_GRID_HEADER_COLOR:-}"
+                SHELLFRAME_GRID_HEADER_BG="${SHQL_THEME_GRID_HEADER_BG:-}"
+                SHELLFRAME_GRID_CURSOR_STYLE=""
+                local _wgrid_w="$_width"
+                if (( _width > 10 && _height > 3 )); then
+                    _wgrid_w=$(( _width - 1 ))
+                fi
+                _shql_grid_fill_width "$_wgrid_w"
+                shellframe_grid_render "$_top" "$_left" "$_wgrid_w" "$_height"
+                _shql_grid_restore_last
+                # Overlay the WHERE panel on top of the grid
                 _shql_where_render "$_top" "$_left" "$_width" "$_height"
             elif (( ${_SHQL_DML_ACTIVE:-0} )); then
                 # Popover pattern: frozen 3-row grid header + DML form below

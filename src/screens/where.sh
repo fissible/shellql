@@ -160,8 +160,10 @@ _shql_where_on_key() {
         local _n=${#_SHQL_WHERE_OPERATORS[@]}
         if [[ "$_key" == "$_k_left" ]]; then
             _SHQL_WHERE_OP_IDX=$(( (_SHQL_WHERE_OP_IDX - 1 + _n) % _n ))
+            shellframe_shell_mark_dirty
         elif [[ "$_key" == "$_k_right" ]]; then
             _SHQL_WHERE_OP_IDX=$(( (_SHQL_WHERE_OP_IDX + 1) % _n ))
+            shellframe_shell_mark_dirty
         fi
         return 0
     fi

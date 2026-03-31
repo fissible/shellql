@@ -63,6 +63,9 @@ _SHQL_BROWSER_QUERY_STATUS=""       # "Query returned N rows in Xms" (set by _sh
 # ── Quit-confirm overlay state ───────────────────────────────────────────────
 
 _SHQL_QUIT_CONFIRM_ACTIVE=0    # 1 when "close file?" overlay is showing
+_SHQL_DROP_CONFIRM_ACTIVE=0    # 1 when "drop table?" overlay is showing
+_SHQL_DROP_CONFIRM_TABLE=""    # table/view name to drop
+_SHQL_DROP_CONFIRM_TYPE="table" # "table" or "view"
 
 # ── Context menu overlay state ──────────────────────────────────────────────
 
@@ -90,7 +93,7 @@ _SHQL_TABLE_FOOTER_HINTS_INSPECTOR="[↑↓] Scroll  [PgUp/PgDn] Page  [Enter/Es
 
 # ── Browser footer hint strings ───────────────────────────────────────────────
 
-_SHQL_BROWSER_FOOTER_HINTS_SIDEBAR="[↑↓] Navigate  [Enter] Data  s=Schema  [→/Tab] Focus  [q] Back"
+_SHQL_BROWSER_FOOTER_HINTS_SIDEBAR="[↑↓] Navigate  [Enter] Data  [s] Schema  [n] Query  [X] Drop  [→/Tab] Focus  [q] Back"
 _SHQL_BROWSER_FOOTER_HINTS_TABBAR="[←→] Switch tab  [↓/Enter] Content  [w] Close  [n] New query  [Tab] Sidebar"
 _SHQL_BROWSER_FOOTER_HINTS_DATA="[↑↓] Navigate  [←→] Scroll  [Enter] Inspect  [i] Insert  [e] Edit  [d] Delete  [T] Truncate  [[/]] Tabs  [Tab] Sidebar  [q] Back"
 _SHQL_BROWSER_FOOTER_HINTS_SCHEMA="[↑↓] Scroll  [Tab] DDL/exit  [q] Back"
@@ -281,6 +284,44 @@ _shql_tab_close() {
     fi
 }
 
+# ── _shql_tabs_close_by_table ─────────────────────────────────────────────────
+# Close all open tabs whose table name matches. Iterates in reverse to keep
+# indices stable as tabs are removed.
+_shql_tabs_close_by_table() {
+    local _table="$1"
+    local _i
+    for (( _i=${#_SHQL_TABS_TABLE[@]}-1; _i>=0; _i-- )); do
+        [[ "${_SHQL_TABS_TABLE[$_i]}" == "$_table" ]] && _shql_tab_close "$_i"
+    done
+}
+
+# ── _shql_browser_reload_sidebar ──────────────────────────────────────────────
+# Reload the object list from the database and reinitialise the list widget.
+_shql_browser_reload_sidebar() {
+    _SHQL_BROWSER_TABLES=()
+    _SHQL_BROWSER_OBJECT_TYPES=()
+    _SHQL_BROWSER_SIDEBAR_ITEMS=()
+    local _obj_name _obj_type
+    while IFS=$'\t' read -r _obj_name _obj_type; do
+        [[ -z "$_obj_name" ]] && continue
+        _SHQL_BROWSER_TABLES+=("$_obj_name")
+        _SHQL_BROWSER_OBJECT_TYPES+=("${_obj_type:-table}")
+        local _icon=""
+        if [[ "$_obj_type" == "view" ]]; then
+            _icon="${SHQL_THEME_VIEW_ICON:-}"
+        else
+            _icon="${SHQL_THEME_TABLE_ICON:-}"
+        fi
+        _SHQL_BROWSER_SIDEBAR_ITEMS+=("${_icon}${_obj_name}")
+    done < <(shql_db_list_objects "$SHQL_DB_PATH" 2>/dev/null)
+    _SHQL_BROWSER_SIDEBAR_ITEMS+=("+ New table")
+
+    SHELLFRAME_LIST_CTX="$_SHQL_BROWSER_SIDEBAR_CTX"
+    SHELLFRAME_LIST_ITEMS=("${_SHQL_BROWSER_SIDEBAR_ITEMS[@]+"${_SHQL_BROWSER_SIDEBAR_ITEMS[@]}"}")
+    shellframe_list_init "$_SHQL_BROWSER_SIDEBAR_CTX"
+    _SHQL_BROWSER_GRID_OWNER_CTX=""  # force data grid reload for any open tabs
+}
+
 # ── _shql_tab_fits ────────────────────────────────────────────────────────────
 # _shql_tab_fits <available_cols> <out_var>
 # Sets out_var to 1 if all current tabs fit in available_cols, else 0.
@@ -450,6 +491,15 @@ _shql_TABLE_sidebar_on_key() {
             fi
             shellframe_shell_mark_dirty
             return 0 ;;
+        X)
+            local _cursor=0
+            shellframe_sel_cursor "$_SHQL_BROWSER_SIDEBAR_CTX" _cursor 2>/dev/null || true
+            if (( _cursor < ${#_SHQL_BROWSER_TABLES[@]} )); then
+                local _tname="${_SHQL_BROWSER_TABLES[$_cursor]}"
+                local _ttype="${_SHQL_BROWSER_OBJECT_TYPES[$_cursor]:-table}"
+                _shql_drop_confirm "$_tname" "$_ttype"
+            fi
+            return 0 ;;
     esac
     # Delegate ↑/↓ and other list keys to the list widget
     SHELLFRAME_LIST_CTX="$_SHQL_BROWSER_SIDEBAR_CTX"
@@ -612,6 +662,11 @@ _shql_TABLE_render() {
     # Quit-confirm overlay — registered after cmenu so it wins over everything
     if (( _SHQL_QUIT_CONFIRM_ACTIVE )); then
         shellframe_shell_region quitconfirm 1 1 "$_cols" "$_rows" focus
+    fi
+
+    # Drop-confirm overlay — wins over everything else
+    if (( _SHQL_DROP_CONFIRM_ACTIVE )); then
+        shellframe_shell_region dropconfirm 1 1 "$_cols" "$_rows" focus
     fi
 }
 
@@ -2025,6 +2080,104 @@ _shql_TABLE_quitconfirm_action() {
     _shql_TABLE_quit
 }
 
+# ── _shql_drop_confirm ────────────────────────────────────────────────────────
+
+_shql_drop_confirm() {
+    local _table="$1" _type="${2:-table}"
+    _SHQL_DROP_CONFIRM_TABLE="$_table"
+    _SHQL_DROP_CONFIRM_TYPE="$_type"
+    _SHQL_DROP_CONFIRM_ACTIVE=1
+    shellframe_shell_focus_set "dropconfirm"
+    shellframe_shell_mark_dirty
+}
+
+# ── _shql_TABLE_dropconfirm_render ────────────────────────────────────────────
+
+_shql_TABLE_dropconfirm_render() {
+    local _top="$1" _left="$2" _width="$3" _height="$4"
+
+    local _cbg="${SHQL_THEME_CONTENT_BG:-}"
+    local _focus_color="${SHQL_THEME_QUERY_PANEL_COLOR:-}"
+
+    local _dw=46 _dh=5
+    (( _dw > _width  )) && _dw=$_width
+    (( _dh > _height )) && _dh=$_height
+    local _dt=$(( _top  + (_height - _dh) / 2 ))
+    local _dl=$(( _left + (_width  - _dw) / 2 ))
+
+    local _dlabel="Table"; [[ "$_SHQL_DROP_CONFIRM_TYPE" == "view" ]] && _dlabel="View"
+    SHELLFRAME_PANEL_STYLE="${SHQL_THEME_PANEL_STYLE_FOCUSED:-double}"
+    SHELLFRAME_PANEL_TITLE="Drop ${_dlabel}?"
+    SHELLFRAME_PANEL_TITLE_ALIGN="center"
+    SHELLFRAME_PANEL_FOCUSED=1
+    SHELLFRAME_PANEL_CELL_ATTRS="${_cbg}${_focus_color}"
+    shellframe_panel_render "$_dt" "$_dl" "$_dw" "$_dh"
+    SHELLFRAME_PANEL_CELL_ATTRS=""
+
+    local _it _il _iw _ih
+    shellframe_panel_inner "$_dt" "$_dl" "$_dw" "$_dh" _it _il _iw _ih
+
+    local _ibg="${SHQL_THEME_EDITOR_FOCUSED_BG:-$_cbg}"
+    local _gray="${SHELLFRAME_GRAY:-}"
+    local _ir
+    for (( _ir=0; _ir<_ih; _ir++ )); do
+        shellframe_fb_fill "$(( _it + _ir ))" "$_il" "$_iw" " " "$_ibg"
+    done
+
+    local _mid=$(( _it + _ih / 2 ))
+    local _dlabel_lc="table"; [[ "$_SHQL_DROP_CONFIRM_TYPE" == "view" ]] && _dlabel_lc="view"
+    shellframe_fb_print "$(( _mid - 1 ))" "$(( _il + 2 ))" \
+        "Drop ${_dlabel_lc} '${_SHQL_DROP_CONFIRM_TABLE}'?" "${_ibg}"
+    shellframe_fb_print "$_mid" "$(( _il + 2 ))" \
+        "This cannot be undone." "${_ibg}${_gray}"
+    shellframe_fb_print "$(( _it + _ih - 1 ))" "$_il" \
+        " [X] Confirm  [Esc] Cancel" "${_ibg}${_gray}"
+}
+
+# ── _shql_TABLE_dropconfirm_on_key ───────────────────────────────────────────
+
+_shql_TABLE_dropconfirm_on_key() {
+    local _key="$1"
+    case "$_key" in
+        X|y|Y)
+            _SHQL_DROP_CONFIRM_ACTIVE=0
+            return 2   # triggers _shql_TABLE_dropconfirm_action
+            ;;
+        *)
+            _SHQL_DROP_CONFIRM_ACTIVE=0
+            shellframe_shell_focus_set "sidebar"
+            shellframe_shell_mark_dirty
+            return 0
+            ;;
+    esac
+}
+
+_shql_TABLE_dropconfirm_action() {
+    local _table="$_SHQL_DROP_CONFIRM_TABLE"
+    local _type="$_SHQL_DROP_CONFIRM_TYPE"
+    local _keyword="TABLE"; [[ "$_type" == "view" ]] && _keyword="VIEW"
+    local _sql
+    printf -v _sql 'DROP %s "%s"' "$_keyword" "${_table//\"/\"\"}"
+    local _err_file; _err_file=$(mktemp)
+    shql_db_query "$SHQL_DB_PATH" "$_sql" >"$_err_file" 2>&1
+    local _qrc=$?
+    if (( _qrc == 0 )); then
+        local _label="Table"; [[ "$_type" == "view" ]] && _label="View"
+        shellframe_toast_show "${_label} dropped" success
+        _shql_tabs_close_by_table "$_table"
+        _shql_browser_reload_sidebar
+        if (( _SHQL_TAB_ACTIVE < 0 )); then
+            shellframe_shell_focus_set "sidebar"
+        fi
+    else
+        local _errmsg; _errmsg=$(cat "$_err_file")
+        shellframe_toast_show "Drop failed: ${_errmsg}" error
+        shellframe_shell_focus_set "sidebar"
+    fi
+    rm -f "$_err_file"
+    shellframe_shell_mark_dirty
+}
+
 # ── shql_table_init ───────────────────────────────────────────────────────────
 
 # Called once before the TABLE screen is first entered.
@@ -2033,6 +2186,7 @@ shql_table_init() {
     _SHQL_TABLE_TABBAR_FOCUSED=0
     _SHQL_TABLE_BODY_FOCUSED=0
     _SHQL_QUIT_CONFIRM_ACTIVE=0
+    _SHQL_DROP_CONFIRM_ACTIVE=0
     SHELLFRAME_TABBAR_ACTIVE=0
     _SHQL_INSPECTOR_ACTIVE=0    # reset inspector state on table entry
 

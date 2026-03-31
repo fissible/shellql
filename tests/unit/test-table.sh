@@ -354,7 +354,7 @@ _SHQL_BROWSER_CONTENT_FOCUSED=0
 _SHQL_INSPECTOR_ACTIVE=0
 _shql_browser_footer_hint _hint
 assert_contains "$_hint" "Enter"
-assert_contains "$_hint" "s=Schema"
+assert_contains "$_hint" "[s] Schema"
 
 ptyunit_test_begin "footer_hint: empty state shows select hint"
 _SHQL_BROWSER_SIDEBAR_FOCUSED=0
@@ -549,5 +549,34 @@ _shql_TABLE_render
 # (we can't easily inspect the array since stubs don't populate it,
 #  but the function runs without error)
 assert_eq "1" "$_SHQL_CMENU_ACTIVE"
+
+ptyunit_test_begin "tabs_close_by_table: closes all matching tabs"
+shql_table_init_browser
+_shql_tab_open "users" "data"
+_shql_tab_open "users" "schema"
+_shql_tab_open "orders" "data"
+assert_eq 3 "${#_SHQL_TABS_TYPE[@]}"
+_shql_tabs_close_by_table "users"
+assert_eq 1 "${#_SHQL_TABS_TYPE[@]}"
+assert_eq "orders" "${_SHQL_TABS_TABLE[0]}"
+
+ptyunit_test_begin "tabs_close_by_table: no-op when table not open"
+shql_table_init_browser
+_shql_tab_open "orders" "data"
+_shql_tabs_close_by_table "users"
+assert_eq 1 "${#_SHQL_TABS_TYPE[@]}"
+
+ptyunit_test_begin "drop_confirm: sets active flag and table/type"
+_SHQL_DROP_CONFIRM_ACTIVE=0
+_shql_drop_confirm "orders" "table"
+assert_eq "1" "$_SHQL_DROP_CONFIRM_ACTIVE"
+assert_eq "orders" "$_SHQL_DROP_CONFIRM_TABLE"
+assert_eq "table" "$_SHQL_DROP_CONFIRM_TYPE"
+
+ptyunit_test_begin "drop_confirm: works for views"
+_SHQL_DROP_CONFIRM_ACTIVE=0
+_shql_drop_confirm "v_active" "view"
+assert_eq "1" "$_SHQL_DROP_CONFIRM_ACTIVE"
+assert_eq "view" "$_SHQL_DROP_CONFIRM_TYPE"
 
 ptyunit_test_summary

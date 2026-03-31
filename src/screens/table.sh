@@ -60,6 +60,10 @@ _SHQL_BROWSER_CONTENT_FOCUSED=0
 _SHQL_BROWSER_CONTENT_FOCUS="data"  # "data" | "schema_cols" | "schema_ddl" | "query_editor" | "query_results"
 _SHQL_BROWSER_QUERY_STATUS=""       # "Query returned N rows in Xms" (set by _shql_query_run)
 
+# ── Quit-confirm overlay state ───────────────────────────────────────────────
+
+_SHQL_QUIT_CONFIRM_ACTIVE=0    # 1 when "close file?" overlay is showing
+
 # ── Context menu overlay state ──────────────────────────────────────────────
 
 _SHQL_CMENU_ACTIVE=0           # 1 when a context menu is showing
@@ -88,7 +92,7 @@ _SHQL_TABLE_FOOTER_HINTS_INSPECTOR="[↑↓] Scroll  [PgUp/PgDn] Page  [Enter/Es
 
 _SHQL_BROWSER_FOOTER_HINTS_SIDEBAR="[↑↓] Navigate  [Enter] Data  s=Schema  [→/Tab] Focus  [q] Back"
 _SHQL_BROWSER_FOOTER_HINTS_TABBAR="[←→] Switch tab  [↓/Enter] Content  [w] Close  [n] New query  [Tab] Sidebar"
-_SHQL_BROWSER_FOOTER_HINTS_DATA="[↑↓] Navigate  [←→] Scroll  [Enter] Inspect  [[/]] Tabs  [Tab] Sidebar  [q] Back"
+_SHQL_BROWSER_FOOTER_HINTS_DATA="[↑↓] Navigate  [←→] Scroll  [Enter] Inspect  [i] Insert  [e] Edit  [d] Delete  [[/]] Tabs  [Tab] Sidebar  [q] Back"
 _SHQL_BROWSER_FOOTER_HINTS_SCHEMA="[↑↓] Scroll  [Tab] DDL/exit  [q] Back"
 # Documentation constant only — runtime hint is built dynamically by _shql_query_footer_hint
 _SHQL_BROWSER_FOOTER_HINTS_QUERY_BUTTON="[Enter] Edit  [Tab] Results  [Esc] Tab bar"
@@ -603,6 +607,11 @@ _shql_TABLE_render() {
     # Context menu overlay — registered last so it wins hit-testing
     if (( _SHQL_CMENU_ACTIVE )); then
         shellframe_shell_region cmenu 1 1 "$_cols" "$_rows" focus
+    fi
+
+    # Quit-confirm overlay — registered after cmenu so it wins over everything
+    if (( _SHQL_QUIT_CONFIRM_ACTIVE )); then
+        shellframe_shell_region quitconfirm 1 1 "$_cols" "$_rows" focus
     fi
 }
 
@@ -1188,7 +1197,23 @@ _shql_TABLE_content_render() {
         data)
             # Load data for this tab's table if not already loaded
             _shql_content_data_ensure
-            if (( _SHQL_INSPECTOR_ACTIVE )); then
+            if (( ${_SHQL_DML_ACTIVE:-0} )); then
+                # Popover pattern: frozen 3-row grid header + DML form below
+                SHELLFRAME_GRID_CTX="${_SHQL_TABS_CTX[$_SHQL_TAB_ACTIVE]}_grid"
+                SHELLFRAME_GRID_FOCUSED=0
+                SHELLFRAME_GRID_BG="${SHQL_THEME_CONTENT_BG:-}"
+                SHELLFRAME_GRID_STRIPE_BG="${SHQL_THEME_ROW_STRIPE_BG:-}"
+                SHELLFRAME_GRID_HEADER_STYLE="${SHQL_THEME_GRID_HEADER_COLOR:-}"
+                SHELLFRAME_GRID_HEADER_BG="${SHQL_THEME_GRID_HEADER_BG:-}"
+                SHELLFRAME_GRID_CURSOR_STYLE=""
+                _shql_grid_fill_width "$_width"
+                shellframe_grid_render "$_top" "$_left" "$_width" 3
+                _shql_grid_restore_last
+                local _dml_top=$(( _top + 3 ))
+                local _dml_h=$(( _height - 3 ))
+                (( _dml_h < 3 )) && _dml_h=3
+                _shql_dml_render "$_dml_top" "$_left" "$_width" "$_dml_h"
+            elif (( _SHQL_INSPECTOR_ACTIVE )); then
                 # Render grid header row visible above the inspector
                 SHELLFRAME_GRID_CTX="${_SHQL_TABS_CTX[$_SHQL_TAB_ACTIVE]}_grid"
                 SHELLFRAME_GRID_FOCUSED=0
@@ -1280,11 +1305,6 @@ _shql_TABLE_content_render() {
             ;;
     esac
 
-    # DML form overlay (renders on top of whatever tab is active)
-    if (( ${_SHQL_DML_ACTIVE:-0} )); then
-        _shql_dml_render "$_top" "$_left" "$_width" "$_height"
-    fi
-
     # Toast overlay (always topmost)
     shellframe_toast_render "$_top" "$_left" "$_width" "$_height"
 }
@@ -1302,6 +1322,16 @@ _shql_TABLE_content_on_key() {
 
     # Route to inspector when active
     if (( _SHQL_INSPECTOR_ACTIVE )); then
+        # [e] from inspector → close inspector and open edit form for that row
+        if [[ "$_key" == 'e' ]]; then
+            local _e_table="${_SHQL_TABS_TABLE[$_SHQL_TAB_ACTIVE]:-}"
+            if [[ -n "$_e_table" ]]; then
+                _SHQL_INSPECTOR_ACTIVE=0
+                _shql_dml_update_open "$_e_table" "$_SHQL_INSPECTOR_ROW_IDX"
+                shellframe_shell_mark_dirty
+                return 0
+            fi
+        fi
         _shql_inspector_on_key "$_key"
         return $?
     fi
@@ -1918,11 +1948,76 @@ _shql_TABLE_quit() {
 }
 
 # ── _shql_quit_confirm ────────────────────────────────────────────────────────
-# Show yes/no confirm before quitting to WELCOME screen.
+# Activate the inline quit-confirm overlay (replaces shellframe_confirm which
+# is incompatible with the shellframe event loop — it rewires fd 3).
 
 _shql_quit_confirm() {
-    shellframe_confirm "Return to welcome screen?" && _shql_TABLE_quit || true
+    _SHQL_QUIT_CONFIRM_ACTIVE=1
+    shellframe_shell_focus_set "quitconfirm"
     shellframe_shell_mark_dirty
+}
+
+# ── _shql_TABLE_quitconfirm_render ───────────────────────────────────────────
+
+_shql_TABLE_quitconfirm_render() {
+    local _top="$1" _left="$2" _width="$3" _height="$4"
+
+    local _cbg="${SHQL_THEME_CONTENT_BG:-}"
+    local _focus_color="${SHQL_THEME_QUERY_PANEL_COLOR:-}"
+
+    # Small centered dialog: 5 rows × 38 cols
+    local _dw=38 _dh=5
+    (( _dw > _width  )) && _dw=$_width
+    (( _dh > _height )) && _dh=$_height
+    local _dt=$(( _top  + (_height - _dh) / 2 ))
+    local _dl=$(( _left + (_width  - _dw) / 2 ))
+
+    SHELLFRAME_PANEL_STYLE="${SHQL_THEME_PANEL_STYLE_FOCUSED:-double}"
+    SHELLFRAME_PANEL_TITLE="Close file?"
+    SHELLFRAME_PANEL_TITLE_ALIGN="center"
+    SHELLFRAME_PANEL_FOCUSED=1
+    SHELLFRAME_PANEL_CELL_ATTRS="${_cbg}${_focus_color}"
+    shellframe_panel_render "$_dt" "$_dl" "$_dw" "$_dh"
+    SHELLFRAME_PANEL_CELL_ATTRS=""
+
+    local _it _il _iw _ih
+    shellframe_panel_inner "$_dt" "$_dl" "$_dw" "$_dh" _it _il _iw _ih
+
+    local _ibg="${SHQL_THEME_EDITOR_FOCUSED_BG:-$_cbg}"
+    local _gray="${SHELLFRAME_GRAY:-}"
+    local _ir
+    for (( _ir=0; _ir<_ih; _ir++ )); do
+        shellframe_fb_fill "$(( _it + _ir ))" "$_il" "$_iw" " " "$_ibg"
+    done
+
+    local _mid=$(( _it + _ih / 2 ))
+    shellframe_fb_print "$(( _mid - 1 ))" "$(( _il + 2 ))" \
+        "Close database and return to the" "${_ibg}"
+    shellframe_fb_print "$_mid" "$(( _il + 2 ))" \
+        "file picker?" "${_ibg}"
+    shellframe_fb_print "$(( _it + _ih - 1 ))" "$_il" \
+        " [y] Close  [n/Esc] Stay" "${_ibg}${_gray}"
+}
+
+# ── _shql_TABLE_quitconfirm_on_key ───────────────────────────────────────────
+
+_shql_TABLE_quitconfirm_on_key() {
+    local _key="$1"
+    case "$_key" in
+        y|Y|$'\r'|$'\n')
+            _SHQL_QUIT_CONFIRM_ACTIVE=0
+            return 2   # triggers _shql_TABLE_quitconfirm_action
+            ;;
+        *)
+            _SHQL_QUIT_CONFIRM_ACTIVE=0
+            shellframe_shell_mark_dirty
+            return 0
+            ;;
+    esac
+}
+
+_shql_TABLE_quitconfirm_action() {
+    _shql_TABLE_quit
 }
 
 # ── shql_table_init ───────────────────────────────────────────────────────────
@@ -1932,6 +2027,7 @@ _shql_quit_confirm() {
 shql_table_init() {
     _SHQL_TABLE_TABBAR_FOCUSED=0
     _SHQL_TABLE_BODY_FOCUSED=0
+    _SHQL_QUIT_CONFIRM_ACTIVE=0
     SHELLFRAME_TABBAR_ACTIVE=0
     _SHQL_INSPECTOR_ACTIVE=0    # reset inspector state on table entry
 

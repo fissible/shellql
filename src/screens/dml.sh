@@ -31,6 +31,8 @@ _SHQL_DML_TABLE=""
 _SHQL_DML_COL_DEFS=()
 _SHQL_DML_CTX="dml_form"
 _SHQL_DML_ROW_VALS=()
+_SHQL_DML_DELETE_PK_LABEL=""
+_SHQL_DML_DELETE_PK_VAL=""
 
 # ── _shql_dml_quote_val ───────────────────────────────────────────────────────
 # Produce a SQLite-safe quoted value string.
@@ -246,27 +248,31 @@ _shql_dml_delete_open() {
         return 0
     fi
 
-    shellframe_confirm "Delete this row from ${_table}?" \
-        "${_pk_label} = ${_pk_val}"
-    local _rc=$?
-    if (( _rc == 0 )); then
-        local _sql=""
-        _shql_dml_build_delete "$_table" _SHQL_DML_COL_DEFS _SHQL_DML_ROW_VALS _sql
-        local _err_file
-        _err_file=$(mktemp)
-        shql_db_query "$SHQL_DB_PATH" "$_sql" >"$_err_file" 2>&1
-        local _qrc=$?
-        if (( _qrc == 0 )); then
-            shellframe_toast_show "Row deleted" success
-            _shql_dml_refresh_grid "$_table"
-        else
-            local _errmsg
-            _errmsg=$(cat "$_err_file")
-            shellframe_toast_show "Delete failed: ${_errmsg}" error
-        fi
-        rm -f "$_err_file"
+    _SHQL_DML_TABLE="$_table"
+    _SHQL_DML_MODE="delete"
+    _SHQL_DML_DELETE_PK_LABEL="$_pk_label"
+    _SHQL_DML_DELETE_PK_VAL="$_pk_val"
+    _SHQL_DML_ACTIVE=1
+}
+
+# ── _shql_dml_execute_delete ──────────────────────────────────────────────────
+
+_shql_dml_execute_delete() {
+    local _sql=""
+    _shql_dml_build_delete "$_SHQL_DML_TABLE" _SHQL_DML_COL_DEFS _SHQL_DML_ROW_VALS _sql
+    local _err_file
+    _err_file=$(mktemp)
+    shql_db_query "$SHQL_DB_PATH" "$_sql" >"$_err_file" 2>&1
+    local _qrc=$?
+    if (( _qrc == 0 )); then
+        shellframe_toast_show "Row deleted" success
+        _shql_dml_refresh_grid "$_SHQL_DML_TABLE"
+    else
+        local _errmsg; _errmsg=$(cat "$_err_file")
+        shellframe_toast_show "Delete failed: ${_errmsg}" error
+        _SHQL_DML_ACTIVE=0
     fi
-    shellframe_shell_mark_dirty
+    rm -f "$_err_file"
 }
 
 # ── _shql_dml_refresh_grid ────────────────────────────────────────────────────
@@ -325,10 +331,22 @@ _shql_dml_on_key() {
         return 0
     fi
 
+    # Delete confirmation: d/y executes, n cancels; all other keys swallowed
+    if [[ "$_SHQL_DML_MODE" == "delete" ]]; then
+        if [[ "$_key" == 'd' || "$_key" == 'y' ]]; then
+            _shql_dml_execute_delete
+        else
+            _SHQL_DML_ACTIVE=0
+        fi
+        shellframe_shell_mark_dirty
+        return 0
+    fi
+
     shellframe_form_on_key "$_SHQL_DML_CTX" "$_key"
     local _frc=$?
     if (( _frc == 2 )); then
         _shql_dml_submit
+        shellframe_shell_mark_dirty
         return 0
     elif (( _frc == 0 )); then
         shellframe_shell_mark_dirty
@@ -342,23 +360,7 @@ _shql_dml_on_key() {
 _shql_dml_render() {
     local _top="$1" _left="$2" _width="$3" _height="$4"
 
-    # Compute centered modal size
-    local _form_w=$(( _width * 3 / 4 ))
-    (( _form_w < 40 )) && _form_w=40
-    (( _form_w > 80 )) && _form_w=80
-    (( _form_w > _width )) && _form_w=$_width
-
-    local _n_fields=${#SHELLFRAME_FORM_FIELDS[@]}
-    local _form_h=$(( _n_fields + 5 ))
-    (( _form_h < 8 ))    && _form_h=8
-    (( _form_h > _height )) && _form_h=$_height
-
-    local _form_top=$(( _top  + (_height - _form_h) / 2 ))
-    local _form_left=$(( _left + (_width  - _form_w) / 2 ))
-    (( _form_top  < _top  )) && _form_top=$_top
-    (( _form_left < _left )) && _form_left=$_left
-
-    # Draw panel border
+    # Draw panel border (same inline-popover style as the row inspector)
     local _cbg="${SHQL_THEME_CONTENT_BG:-}"
     local _focus_color="${SHQL_THEME_QUERY_PANEL_COLOR:-}"
     SHELLFRAME_PANEL_CELL_ATTRS="${_cbg}${_focus_color}"
@@ -371,11 +373,11 @@ _shql_dml_render() {
     SHELLFRAME_PANEL_TITLE="$_title"
     SHELLFRAME_PANEL_TITLE_ALIGN="left"
     SHELLFRAME_PANEL_FOCUSED=1
-    shellframe_panel_render "$_form_top" "$_form_left" "$_form_w" "$_form_h"
+    shellframe_panel_render "$_top" "$_left" "$_width" "$_height"
     SHELLFRAME_PANEL_CELL_ATTRS=""
 
     local _it _il _iw _ih
-    shellframe_panel_inner "$_form_top" "$_form_left" "$_form_w" "$_form_h" _it _il _iw _ih
+    shellframe_panel_inner "$_top" "$_left" "$_width" "$_height" _it _il _iw _ih
 
     # Clear inner area
     local _ibg="${SHQL_THEME_EDITOR_FOCUSED_BG:-$_cbg}"
@@ -384,12 +386,27 @@ _shql_dml_render() {
         shellframe_fb_fill "$(( _it + _ir ))" "$_il" "$_iw" " " "$_ibg"
     done
 
-    # Hint row at bottom of inner area
     local _gray="${SHELLFRAME_GRAY:-}"
-    shellframe_fb_print "$(( _it + _ih - 1 ))" "$_il" " Tab next  Enter submit  Esc cancel" "$_gray"
+
+    if [[ "$_SHQL_DML_MODE" == "delete" ]]; then
+        # Confirmation message centred vertically in the inner area
+        local _mid=$(( _it + _ih / 2 ))
+        local _pk_line="${_SHQL_DML_DELETE_PK_LABEL} = ${_SHQL_DML_DELETE_PK_VAL}"
+        shellframe_fb_print "$(( _mid - 1 ))" "$(( _il + 2 ))" \
+            "Are you sure you want to delete this row?" "${_ibg}"
+        shellframe_fb_print "$_mid" "$(( _il + 2 ))" "$_pk_line" "${_ibg}${_gray}"
+        shellframe_fb_print "$(( _it + _ih - 1 ))" "$_il" \
+            " [d] Confirm  [Esc] Cancel" "${_ibg}${_gray}"
+        return 0
+    fi
+
+    # Hint row at bottom of inner area
+    shellframe_fb_print "$(( _it + _ih - 1 ))" "$_il" " Tab next  Enter submit  Esc cancel" "${_ibg}${_gray}"
 
     # Form fills inner area minus hint row
     local _form_inner_h=$(( _ih - 1 ))
     (( _form_inner_h < 1 )) && _form_inner_h=1
+    SHELLFRAME_FORM_BG="$_ibg"
     shellframe_form_render "$_SHQL_DML_CTX" "$_it" "$_il" "$_iw" "$_form_inner_h"
+    SHELLFRAME_FORM_BG=""
 }

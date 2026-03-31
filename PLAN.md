@@ -309,9 +309,6 @@ Completed 2026-03-23 (ptyunit consumer migration):
 - `shellql/tests/unit/test-esc-hierarchy.sh` — 7 assertions; `shellql/tests/unit/test-dml.sh` — 23 assertions
 - **462/462 shellql unit assertions pass. 1325/1325 shellframe unit assertions pass.**
 
-**Next task:** [shellql#12](https://github.com/fissible/shellql/issues/12)
-- **BLOCKED** on [shellframe#27](https://github.com/fissible/shellframe/issues/27) — Sheet navigation primitive (M effort in shellframe)
-- Design decision: `[o]` should use the sheet pattern rather than a modal, so shellframe#27 ships first
-- Flag for PM: shellframe#27 is M+ cross-repo work; needs scheduling before shellql#12 can proceed
+**[shellql#12](https://github.com/fissible/shellql/issues/12) — CLOSED** (`[o]` open database dialog)
 - **Follow-up**: user noted typing is still "a little slow" after subshell removal — may need further profiling
 - **Toast TTL tick**: `shellframe_toast_tick` is not wired into `shellframe_shell`'s event loop — toasts render but don't auto-dismiss. Accepted for v1; needs a per-tick callback in shellframe to fix.

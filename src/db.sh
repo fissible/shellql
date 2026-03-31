@@ -65,7 +65,7 @@ shql_db_columns() {
     _shql_db_check_path "$_db" || return 1
     local _et="${_table//\'/\'\'}"
     sqlite3 -separator $'\t' "$_db" \
-        "SELECT name, type, TRIM(CASE WHEN pk>0 THEN 'PK' ELSE '' END || CASE WHEN notnull=1 THEN ' NN' ELSE '' END) FROM pragma_table_info('$_et')"
+        "SELECT name, type, TRIM(CASE WHEN pk>0 THEN 'PK' ELSE '' END || CASE WHEN [notnull]=1 THEN ' NN' ELSE '' END) FROM pragma_table_info('$_et')"
 }
 
 # ── shql_db_fetch ─────────────────────────────────────────────────────────────

@@ -141,16 +141,6 @@ shellframe_sel_move "test_grid" down  # cursor at row 1
 _shql_inspector_open
 assert_eq "$_SHQL_INSPECTOR_ROW_IDX" "1" "open: ROW_IDX=1 when cursor at row 1"
 
-ptyunit_test_begin "inspector_navbar: format is '← VALUE  (N/Total) →'"
-_SHQL_INSPECTOR_PAIRS=("id	42" "name	Alice" "email	a@b.com")
-_SHQL_INSPECTOR_ROW_IDX=2
-_SHQL_INSPECTOR_TOTAL_ROWS=5
-_shql_inspector_nav_label _nav
-assert_contains "$_nav" "42"
-assert_contains "$_nav" "(3/5)"
-assert_contains "$_nav" "←"
-assert_contains "$_nav" "→"
-
 ptyunit_test_begin "inspector_on_key: Esc sets ACTIVE=0 and preserves ROW_IDX"
 _SHQL_INSPECTOR_ACTIVE=1
 _SHQL_INSPECTOR_ROW_IDX=3
@@ -158,31 +148,7 @@ _shql_inspector_on_key $'\033'
 assert_eq "0" "$_SHQL_INSPECTOR_ACTIVE" "Esc: sets ACTIVE=0"
 assert_eq "3" "$_SHQL_INSPECTOR_ROW_IDX" "Esc: preserves ROW_IDX for cursor return"
 
-ptyunit_test_begin "inspector_step: → advances to next row"
-_setup_mock_grid   # 2 rows: Alice (0), Bob (1)
-shellframe_sel_move "test_grid" home
-_shql_inspector_open
-_SHQL_INSPECTOR_GRID_CTX="test_grid"
-_shql_inspector_on_key $'\033[C'   # right arrow
-assert_eq "1" "$_SHQL_INSPECTOR_ROW_IDX" "→: ROW_IDX advances to 1"
-assert_contains "${_SHQL_INSPECTOR_PAIRS[1]#*	}" "Bob" "→: pairs reloaded for row 1"
-
-ptyunit_test_begin "inspector_step: → wraps at last row"
-_shql_inspector_on_key $'\033[C'   # right again from row 1 (last)
-assert_eq "0" "$_SHQL_INSPECTOR_ROW_IDX" "→: wraps back to row 0"
-
-ptyunit_test_begin "inspector_step: ← at row 0 wraps to last"
-_shql_inspector_on_key $'\033[D'   # left from row 0
-assert_eq "1" "$_SHQL_INSPECTOR_ROW_IDX" "←: wraps to last row"
-
-ptyunit_test_begin "inspector_on_key: ↑ at scroll top (0) dismisses inspector"
-_SHQL_INSPECTOR_ACTIVE=1
-shellframe_scroll_init "$_SHQL_INSPECTOR_CTX" 5 1 3 1
-# After init scroll top is 0 — pressing up should dismiss
-_shql_inspector_on_key $'\033[A'
-assert_eq "0" "$_SHQL_INSPECTOR_ACTIVE" "↑ at top: ACTIVE=0"
-
-ptyunit_test_begin "inspector_on_key: ↑ when scroll_top>0 scrolls up (not dismiss)"
+ptyunit_test_begin "inspector_on_key: ↑ scrolls up (does not dismiss)"
 _SHQL_INSPECTOR_ACTIVE=1
 shellframe_scroll_init "$_SHQL_INSPECTOR_CTX" 5 1 3 1
 shellframe_scroll_move "$_SHQL_INSPECTOR_CTX" down   # top becomes 1

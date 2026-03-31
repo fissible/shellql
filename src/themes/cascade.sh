@@ -56,6 +56,12 @@ SHQL_THEME_TAB_INACTIVE_BG=$'\033[48;5;238m\033[37m'  # medium gray bg + light g
 # ── Footer / status bar ───────────────────────────────────────────────────
 SHQL_THEME_FOOTER_BG=$'\033[48;5;234m'            # 234 — matches sidebar, frames the content
 
+# ── Toast notifications ───────────────────────────────────────────────────────
+SHELLFRAME_TOAST_SUCCESS_COLOR=$'\033[48;5;22m\033[97m'   # dark green bg + bright white text
+SHELLFRAME_TOAST_ERROR_COLOR=$'\033[48;5;88m\033[97m'     # dark red bg + bright white text
+SHELLFRAME_TOAST_WARNING_COLOR=$'\033[48;5;94m\033[97m'   # dark amber bg + bright white text
+SHELLFRAME_TOAST_INFO_COLOR=$'\033[48;5;239m\033[37m'     # medium-dark gray bg + light gray text
+
 # ── Tiles (welcome screen) ───────────────────────────────────────────────
 SHQL_THEME_TILE_BG=$'\033[48;5;236m'
 SHQL_THEME_TILE_BORDER=$'\033[38;5;242m'

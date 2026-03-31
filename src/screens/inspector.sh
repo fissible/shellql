@@ -11,21 +11,17 @@
 #   _SHQL_INSPECTOR_PAIRS      — array of "key<TAB>value" strings (one per column)
 #   _SHQL_INSPECTOR_CTX        — scroll context name
 #   _SHQL_INSPECTOR_ROW_IDX    — which data-grid row is being inspected
-#   _SHQL_INSPECTOR_TOTAL_ROWS — total rows in the grid (for nav bar)
 #
 # ── Public functions ───────────────────────────────────────────────────────────
 #   _shql_inspector_open          — build pairs from current grid cursor row
 #   _shql_inspector_render t l w h — draw inspector (call from body_render)
 #   _shql_inspector_on_key key    — handle keys (call from body_on_key guard)
 #   _shql_inspector_key_width out — compute key column width into out_var
-#   _shql_inspector_nav_label out — compute nav bar label into out_var
 
 _SHQL_INSPECTOR_ACTIVE=0
 _SHQL_INSPECTOR_PAIRS=()
 _SHQL_INSPECTOR_CTX="inspector_scroll"
 _SHQL_INSPECTOR_ROW_IDX=0       # which data-grid row is being inspected
-_SHQL_INSPECTOR_TOTAL_ROWS=0    # total rows in the grid (for nav bar)
-_SHQL_INSPECTOR_GRID_CTX=""     # grid context for row stepping
 
 # ── _shql_inspector_open ──────────────────────────────────────────────────────
 
@@ -36,8 +32,6 @@ _shql_inspector_open() {
     shellframe_sel_cursor "${SHELLFRAME_GRID_CTX:-}" _cursor 2>/dev/null || true
 
     _SHQL_INSPECTOR_ROW_IDX=$_cursor
-    _SHQL_INSPECTOR_TOTAL_ROWS="${SHELLFRAME_GRID_ROWS:-0}"
-    _SHQL_INSPECTOR_GRID_CTX="${SHELLFRAME_GRID_CTX:-}"
 
     local _ncols="${SHELLFRAME_GRID_COLS:-0}"
     _SHQL_INSPECTOR_PAIRS=()
@@ -53,37 +47,6 @@ _shql_inspector_open() {
     local _n=${#_SHQL_INSPECTOR_PAIRS[@]}
     shellframe_scroll_init "$_SHQL_INSPECTOR_CTX" "$_n" 1 10 1
     _SHQL_INSPECTOR_ACTIVE=1
-}
-
-# ── _shql_inspector_step ──────────────────────────────────────────────────────
-# Move to the next (+1) or previous (-1) row in the grid.
-_shql_inspector_step() {
-    local _delta="$1"
-    local _total="${_SHQL_INSPECTOR_TOTAL_ROWS:-0}"
-    (( _total == 0 )) && return 0
-
-    local _new=$(( _SHQL_INSPECTOR_ROW_IDX + _delta ))
-    # Wrap
-    (( _new < 0 )) && _new=$(( _total - 1 ))
-    (( _new >= _total )) && _new=0
-
-    _SHQL_INSPECTOR_ROW_IDX=$_new
-
-    # Reload pairs from the grid data
-    local _ncols="${SHELLFRAME_GRID_COLS:-0}"
-    _SHQL_INSPECTOR_PAIRS=()
-    local _c _idx _key _val
-    for (( _c=0; _c<_ncols; _c++ )); do
-        _key="${SHELLFRAME_GRID_HEADERS[$_c]:-col$_c}"
-        _idx=$(( _new * _ncols + _c ))
-        _val="${SHELLFRAME_GRID_DATA[$_idx]:-}"
-        [[ -z "$_val" ]] && _val="(null)"
-        _SHQL_INSPECTOR_PAIRS+=("${_key}"$'\t'"${_val}")
-    done
-
-    # Reset scroll to top for the new record
-    local _n=${#_SHQL_INSPECTOR_PAIRS[@]}
-    shellframe_scroll_init "$_SHQL_INSPECTOR_CTX" "$_n" 1 10 1
 }
 
 # ── _shql_inspector_key_width ─────────────────────────────────────────────────
@@ -103,19 +66,6 @@ _shql_inspector_key_width() {
     printf -v "$_out_var" '%d' "$_max"
 }
 
-# ── _shql_inspector_nav_label ─────────────────────────────────────────────────
-
-_shql_inspector_nav_label() {
-    local _out_var="$1"
-    local _first_val=""
-    if [[ ${#_SHQL_INSPECTOR_PAIRS[@]} -gt 0 ]]; then
-        _first_val="${_SHQL_INSPECTOR_PAIRS[0]#*	}"
-    fi
-    local _n=$(( _SHQL_INSPECTOR_ROW_IDX + 1 ))
-    local _total="$_SHQL_INSPECTOR_TOTAL_ROWS"
-    printf -v "$_out_var" '← %s  (%d/%d) →' "$_first_val" "$_n" "$_total"
-}
-
 # ── _shql_inspector_on_key ────────────────────────────────────────────────────
 
 _shql_inspector_on_key() {
@@ -124,22 +74,9 @@ _shql_inspector_on_key() {
     local _k_down="${SHELLFRAME_KEY_DOWN:-$'\033[B'}"
     local _k_pgup="${SHELLFRAME_KEY_PAGE_UP:-$'\033[5~'}"
     local _k_pgdn="${SHELLFRAME_KEY_PAGE_DOWN:-$'\033[6~'}"
-    local _k_left="${SHELLFRAME_KEY_LEFT:-$'\033[D'}"
-    local _k_right="${SHELLFRAME_KEY_RIGHT:-$'\033[C'}"
 
     case "$_key" in
-        "$_k_right") _shql_inspector_step 1;  shellframe_shell_mark_dirty; return 0 ;;
-        "$_k_left")  _shql_inspector_step -1; shellframe_shell_mark_dirty; return 0 ;;
-        "$_k_up")
-            # ↑ at scroll top dismisses inspector (back to grid)
-            local _st=0; shellframe_scroll_top "$_SHQL_INSPECTOR_CTX" _st 2>/dev/null || true
-            if (( _st == 0 )); then
-                _SHQL_INSPECTOR_ACTIVE=0
-                shellframe_shell_mark_dirty
-            else
-                shellframe_scroll_move "$_SHQL_INSPECTOR_CTX" up
-            fi
-            return 0 ;;
+        "$_k_up")   shellframe_scroll_move "$_SHQL_INSPECTOR_CTX" up;        return 0 ;;
         "$_k_down") shellframe_scroll_move "$_SHQL_INSPECTOR_CTX" down;      return 0 ;;
         "$_k_pgup") shellframe_scroll_move "$_SHQL_INSPECTOR_CTX" page_up;   return 0 ;;
         "$_k_pgdn") shellframe_scroll_move "$_SHQL_INSPECTOR_CTX" page_down; return 0 ;;
@@ -175,42 +112,22 @@ _shql_inspector_render() {
     local _it _il _iw _ih
     shellframe_panel_inner "$_top" "$_left" "$_width" "$_height" _it _il _iw _ih
 
-    # 1-char inner padding (all sides)
-    local _pt=$(( _it + 1 ))         # pad top
+    # 1-char inner padding (left/right only; top/bottom are the panel border)
     local _pl=$(( _il + 1 ))         # pad left
     local _pw=$(( _iw - 2 ))         # content width (1 pad each side)
-    local _ph=$(( _ih - 2 ))         # content height (1 pad top + 1 pad bottom)
     (( _pw < 1 )) && _pw=1
-    (( _ph < 1 )) && _ph=1
 
     # Clear inner area with editor bg (darker than content, lighter than black)
     local _ibg="${SHQL_THEME_EDITOR_FOCUSED_BG:-$_cbg}"
+    local _gray="${SHELLFRAME_GRAY:-}"
     local _ir
     for (( _ir=0; _ir<_ih; _ir++ )); do
         shellframe_fb_fill "$(( _it + _ir ))" "$_il" "$_iw" " " "$_ibg"
     done
 
-    # Nav bar — distinct bg for gradation (stripe color or cursor color)
-    local _gray="${SHELLFRAME_GRAY:-}"
-    local _nav_bg="${SHQL_THEME_ROW_STRIPE_BG:-$_cbg}"
-    local _nav
-    _shql_inspector_nav_label _nav
-    local _nav_clipped
-    shellframe_str_clip_ellipsis "$_nav" "$_nav" "$_pw" _nav_clipped
-    shellframe_fb_fill  "$_pt" "$_il" "$_iw" " " "$_nav_bg"
-    shellframe_fb_print "$_pt" "$_pl" "$_nav_clipped" "$_nav_bg"
-
-    # Separator line — ─ is 3-byte UTF-8; use shellframe_fb_put per cell
-    local _sep_row=$(( _pt + 1 ))
-    local _si=0
-    while (( _si < _iw )); do
-        shellframe_fb_put "$_sep_row" "$(( _il + _si ))" "${_ibg}${_gray}─"
-        (( _si++ ))
-    done
-
-    # Single-column key/value area starts 2 rows after padded top (nav + sep)
-    local _kv_top=$(( _pt + 2 ))
-    local _kv_h=$(( _ph - 2 ))
+    # Key/value area fills the full inner height
+    local _kv_top="$_it"
+    local _kv_h="$_ih"
     (( _kv_h < 1 )) && _kv_h=1
 
     local _kw; _shql_inspector_key_width _kw

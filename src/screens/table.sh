@@ -678,7 +678,7 @@ _shql_TABLE_render() {
 
     shellframe_shell_region header   1              1              "$_cols"      1             nofocus
     shellframe_shell_region sidebar  "$_body_top"   1              "$_sidebar_w" "$_body_h"    focus
-    shellframe_shell_region tabbar   "$_body_top"   "$_right_left" "$_right_w"  1             focus
+    shellframe_shell_region tabbar   "$_body_top"   "$_right_left" "$_right_w"  2             focus
     shellframe_shell_region content  "$_content_top" "$_right_left" "$_right_w" "$_content_h" "$_content_focus"
     shellframe_shell_region footer   "$_footer_top" 1              "$_cols"      2             nofocus
 
@@ -884,6 +884,22 @@ _shql_TABLE_tabbar_on_mouse() {
     local _button="$1" _action="$2" _mrow="$3" _mcol="$4"
     local _rtop="$5" _rleft="$6" _rwidth="$7" _rheight="$8"
     [[ "$_action" != "press" ]] && return 1
+
+    # Gap row (row below tab bar) — "New Row" button click → open insert DML
+    if (( _mrow == _rtop + 1 )); then
+        local _nr_label=" New Row "
+        if (( _mcol >= _rleft && _mcol < _rleft + ${#_nr_label} )); then
+            local _dml_table="${_SHQL_TABS_TABLE[${_SHQL_TAB_ACTIVE:-0}]:-}"
+            if [[ -n "$_dml_table" ]] && \
+               [[ "${_SHQL_TABS_TYPE[${_SHQL_TAB_ACTIVE:-0}]:-}" == "data" ]]; then
+                _shql_dml_insert_open "$_dml_table"
+                shellframe_shell_focus_set "content"
+                shellframe_shell_mark_dirty
+                return 0
+            fi
+        fi
+        return 1
+    fi
 
     # Walk the tab labels to find which tab was clicked (mirrors render logic)
     local _n=${#_SHQL_TABS_LABEL[@]}

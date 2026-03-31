@@ -88,4 +88,18 @@ _vals=("")
 _shql_dml_validate _col_defs _vals _err
 assert_eq "" "$_err" "validate: PK-only table passes validation"
 
+ptyunit_test_begin "dml_truncate_open: sets mode and active flag"
+_SHQL_DML_ACTIVE=0
+_SHQL_DML_TABLE=""
+_shql_dml_truncate_open "orders"
+assert_eq "1" "$_SHQL_DML_ACTIVE" "truncate_open: DML active"
+assert_eq "truncate" "$_SHQL_DML_MODE" "truncate_open: mode is truncate"
+assert_eq "orders" "$_SHQL_DML_TABLE" "truncate_open: table name set"
+
+ptyunit_test_begin "dml_truncate_open: does not require rows"
+_SHQL_DML_ACTIVE=0
+_shql_dml_truncate_open "empty_table"
+assert_eq "1" "$_SHQL_DML_ACTIVE" "truncate_open: active even when no rows"
+assert_eq "empty_table" "$_SHQL_DML_TABLE" "truncate_open: table name preserved"
+
 ptyunit_test_summary

@@ -92,7 +92,7 @@ _SHQL_TABLE_FOOTER_HINTS_INSPECTOR="[↑↓] Scroll  [PgUp/PgDn] Page  [Enter/Es
 
 _SHQL_BROWSER_FOOTER_HINTS_SIDEBAR="[↑↓] Navigate  [Enter] Data  s=Schema  [→/Tab] Focus  [q] Back"
 _SHQL_BROWSER_FOOTER_HINTS_TABBAR="[←→] Switch tab  [↓/Enter] Content  [w] Close  [n] New query  [Tab] Sidebar"
-_SHQL_BROWSER_FOOTER_HINTS_DATA="[↑↓] Navigate  [←→] Scroll  [Enter] Inspect  [i] Insert  [e] Edit  [d] Delete  [[/]] Tabs  [Tab] Sidebar  [q] Back"
+_SHQL_BROWSER_FOOTER_HINTS_DATA="[↑↓] Navigate  [←→] Scroll  [Enter] Inspect  [i] Insert  [e] Edit  [d] Delete  [T] Truncate  [[/]] Tabs  [Tab] Sidebar  [q] Back"
 _SHQL_BROWSER_FOOTER_HINTS_SCHEMA="[↑↓] Scroll  [Tab] DDL/exit  [q] Back"
 # Documentation constant only — runtime hint is built dynamically by _shql_query_footer_hint
 _SHQL_BROWSER_FOOTER_HINTS_QUERY_BUTTON="[Enter] Edit  [Tab] Results  [Esc] Tab bar"
@@ -1412,6 +1412,11 @@ _shql_TABLE_content_on_key() {
                     _shql_dml_delete_open "$_dml_table" "$_cursor"
                     shellframe_shell_mark_dirty
                 fi
+                return 0
+            fi
+            if [[ "$_key" == 'T' && -n "$_dml_table" ]]; then
+                _shql_dml_truncate_open "$_dml_table"
+                shellframe_shell_mark_dirty
                 return 0
             fi
             SHELLFRAME_GRID_CTX="${_ctx}_grid"

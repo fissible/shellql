@@ -1372,19 +1372,14 @@ _shql_TABLE_content_render() {
             _shql_query_render_ctx "$_ctx" "$_top" "$_left" "$_width" "$_height"
             ;;
         *)
-            # Empty state
-            local _gray="${SHELLFRAME_GRAY:-}"
+            # Empty state — fill with content bg only; footer hint provides guidance.
+            # (A center hint using multi-byte chars like ↑↓ ghosts when a tab opens
+            #  because shellframe_fb_print maps bytes not glyphs, leaving stale cells.)
             local _cbg="${SHQL_THEME_CONTENT_BG:-}"
             local _r
             for (( _r=0; _r<_height; _r++ )); do
                 shellframe_fb_fill "$(( _top + _r ))" "$_left" "$_width" " " "$_cbg"
             done
-            local _mid=$(( _top + _height / 2 ))
-            local _hint="↑↓ select a table · Enter = Data · s = Schema · n = New query"
-            local _hlen=${#_hint}
-            local _hcol=$(( _left + (_width - _hlen) / 2 ))
-            (( _hcol < _left )) && _hcol=$_left
-            shellframe_fb_print "$_mid" "$_hcol" "$_hint" "$_gray"
             ;;
     esac
 

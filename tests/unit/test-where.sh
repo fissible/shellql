@@ -91,6 +91,54 @@ assert_eq "status" "$_col" "where_open: pre-fills column"
 assert_eq "%active%" "$_val" "where_open: pre-fills value"
 assert_eq "LIKE" "${_SHQL_WHERE_OPERATORS[$_SHQL_WHERE_OP_IDX]}" "where_open: pre-fills operator"
 
+# ── _shql_where_apply ────────────────────────────────────────────────────────
+
+ptyunit_test_begin "where_apply: stores filter and clears active flag"
+_SHQL_WHERE_ACTIVE=1
+_SHQL_WHERE_TAB_CTX="tab_apply1"
+_SHQL_WHERE_OP_IDX=0   # "="
+shellframe_cur_init "${_SHQL_WHERE_CTX}_col" "age"
+shellframe_cur_init "${_SHQL_WHERE_CTX}_val" "30"
+_shql_where_apply
+assert_eq "0" "$_SHQL_WHERE_ACTIVE" "where_apply: deactivates overlay"
+assert_eq $'age\t=\t30' "$_SHQL_WHERE_APPLIED_tab_apply1" "where_apply: stores col/op/val"
+
+ptyunit_test_begin "where_apply: empty column clears the filter"
+_SHQL_WHERE_ACTIVE=1
+_SHQL_WHERE_TAB_CTX="tab_apply2"
+_SHQL_WHERE_APPLIED_tab_apply2=$'old\t=\tval'
+shellframe_cur_init "${_SHQL_WHERE_CTX}_col" ""
+shellframe_cur_init "${_SHQL_WHERE_CTX}_val" "whatever"
+_shql_where_apply
+assert_eq "" "$_SHQL_WHERE_APPLIED_tab_apply2" "where_apply: empty col clears filter"
+
+# ── _shql_where_pill_label ────────────────────────────────────────────────────
+
+ptyunit_test_begin "pill_label: returns empty when no filter applied"
+_SHQL_WHERE_APPLIED_tab_pill=""
+_pill=""
+_shql_where_pill_label "tab_pill" 30 _pill
+assert_eq "" "$_pill" "pill_label: empty when no filter"
+
+ptyunit_test_begin "pill_label: returns expression when filter applied"
+_SHQL_WHERE_APPLIED_tab_pill2=$'status\t=\tactive'
+_pill2=""
+_shql_where_pill_label "tab_pill2" 40 _pill2
+assert_eq "status = active" "$_pill2" "pill_label: full expr"
+
+ptyunit_test_begin "pill_label: truncates long expressions"
+_SHQL_WHERE_APPLIED_tab_pill3=$'very_long_column_name\tLIKE\t%pattern%'
+_pill3=""
+_shql_where_pill_label "tab_pill3" 15 _pill3
+assert_eq 15 "${#_pill3}" "pill_label: truncated to max_len"
+assert_contains "$_pill3" "..." "pill_label: ends with ellipsis"
+
+ptyunit_test_begin "pill_label: IS NULL omits value"
+_SHQL_WHERE_APPLIED_tab_pill4=$'deleted_at\tIS NULL\t'
+_pill4=""
+_shql_where_pill_label "tab_pill4" 40 _pill4
+assert_eq "deleted_at IS NULL" "$_pill4" "pill_label: IS NULL has no value"
+
 # ── _shql_where_clear ────────────────────────────────────────────────────────
 
 ptyunit_test_begin "where_clear: clears applied filter var"

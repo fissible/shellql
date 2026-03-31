@@ -55,10 +55,33 @@ _shql_where_build_clause() {
     esac
 }
 
+# ── _shql_where_pill_label ────────────────────────────────────────────────────
+# Builds the display text for a filter pill from the stored filter string.
+# Result is truncated to _max_len chars (minimum 6). Stored into _pout_var.
+
+_shql_where_pill_label() {
+    local _tab_ctx="$1" _max_len="$2" _pout_var="$3"
+    local _applied_var="_SHQL_WHERE_APPLIED_${_tab_ctx}"
+    if [[ -z "${!_applied_var:-}" ]]; then
+        printf -v "$_pout_var" '%s' ""
+        return
+    fi
+    local _wpc _wpo _wpv
+    IFS=$'\t' read -r _wpc _wpo _wpv <<< "${!_applied_var}"
+    local _expr="${_wpc} ${_wpo}"
+    [[ "$_wpo" != "IS NULL" && "$_wpo" != "IS NOT NULL" ]] && _expr+=" ${_wpv}"
+    if (( ${#_expr} > _max_len )); then
+        _expr="${_expr:0:$(( _max_len - 3 ))}..."
+    fi
+    printf -v "$_pout_var" '%s' "$_expr"
+}
+
 # ── _shql_where_open ──────────────────────────────────────────────────────────
+# _fresh=1 → always start with empty fields (for "add new filter" action)
+# _fresh=0 (default) → pre-fill from applied filter (for "edit" action)
 
 _shql_where_open() {
-    local _table="$1" _tab_ctx="$2"
+    local _table="$1" _tab_ctx="$2" _fresh="${3:-0}"
     _SHQL_WHERE_TABLE="$_table"
     _SHQL_WHERE_TAB_CTX="$_tab_ctx"
     _SHQL_WHERE_FOCUS=0
@@ -67,7 +90,7 @@ _shql_where_open() {
     shellframe_field_init "${_SHQL_WHERE_CTX}_val"
 
     local _applied_var="_SHQL_WHERE_APPLIED_${_tab_ctx}"
-    if [[ -n "${!_applied_var:-}" ]]; then
+    if (( ! _fresh )) && [[ -n "${!_applied_var:-}" ]]; then
         local _wcol _wop _wval
         IFS=$'\t' read -r _wcol _wop _wval <<< "${!_applied_var}"
         shellframe_cur_init "${_SHQL_WHERE_CTX}_col" "$_wcol"
@@ -94,20 +117,22 @@ _shql_where_open() {
 # Empty column → clears the filter.
 
 _shql_where_apply() {
-    local _col _val
-    shellframe_cur_text "${_SHQL_WHERE_CTX}_col" _col
-    shellframe_cur_text "${_SHQL_WHERE_CTX}_val" _val
+    # Use unique names — shellframe_cur_text uses printf -v which can't reach
+    # a local declared in this function if the names clash.
+    local _wapply_col _wapply_val
+    shellframe_cur_text "${_SHQL_WHERE_CTX}_col" _wapply_col
+    shellframe_cur_text "${_SHQL_WHERE_CTX}_val" _wapply_val
     local _op="${_SHQL_WHERE_OPERATORS[$_SHQL_WHERE_OP_IDX]}"
 
     # Trim column name
-    _col="${_col#"${_col%%[! ]*}"}"
-    _col="${_col%"${_col##*[! ]}"}"
+    _wapply_col="${_wapply_col#"${_wapply_col%%[! ]*}"}"
+    _wapply_col="${_wapply_col%"${_wapply_col##*[! ]}"}"
 
-    if [[ -z "$_col" ]]; then
+    if [[ -z "$_wapply_col" ]]; then
         printf -v "_SHQL_WHERE_APPLIED_${_SHQL_WHERE_TAB_CTX}" '%s' ""
     else
         printf -v "_SHQL_WHERE_APPLIED_${_SHQL_WHERE_TAB_CTX}" '%s' \
-            "${_col}"$'\t'"${_op}"$'\t'"${_val}"
+            "${_wapply_col}"$'\t'"${_op}"$'\t'"${_wapply_val}"
     fi
     _SHQL_BROWSER_GRID_OWNER_CTX=""
     _SHQL_WHERE_ACTIVE=0

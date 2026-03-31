@@ -31,6 +31,9 @@ ShellQL cannot be built until these shellframe components exist:
 | Text editor             | [#16](https://github.com/fissible/shellframe/issues/16) | open |
 | Data grid               | [#17](https://github.com/fissible/shellframe/issues/17) | open |
 | App shell               | [#18](https://github.com/fissible/shellframe/issues/18) | ✓ closed |
+| Form widget             | [#36](https://github.com/fissible/shellframe/issues/36) | ✓ closed (2026-03-30) |
+| Toast widget + TTL tick | [#37](https://github.com/fissible/shellframe/issues/37) | ✓ closed (2026-03-30) |
+| Autocomplete layer      | [#38](https://github.com/fissible/shellframe/issues/38) | open |
 
 ---
 
@@ -321,4 +324,36 @@ Completed 2026-03-23 (ptyunit consumer migration):
 - `shellql/src/db.sh` — fixed `[notnull]` bracket quoting in `shql_db_columns` SQLite query (was silently returning 0 rows on some SQLite versions, causing empty DML forms)
 - **453/453 shellql unit assertions pass.**
 
-**Next:** open GitHub issues for any remaining UX tickets; check ROADMAP for v1 priorities.
+**Completed 2026-03-30 (additional fixes + polish):**
+- `shellframe/src/shell.sh` — `shellframe_toast_tick` wired into draw loop + idle-timeout path; toasts now auto-dismiss
+- `shellframe/src/widgets/toast.sh` — TTL reduced 30→5; `SHELLFRAME_TOAST_{SUCCESS,ERROR,WARNING,INFO}_COLOR` overrides for dark themes
+- `shellframe/src/widgets/input-field.sh` — fixed `SHELLFRAME_FIELD_BG` threading so typed text doesn't revert to black on cascade theme
+- `shellql/src/themes/cascade.sh` — cascade toast colors (dark green/red/amber/gray bg + white text)
+- `shellql/src/screens/inspector.sh` — removed ←/→ row-stepping nav bar; kv content fills full inner area
+- `shellql/src/screens/table.sh` — replaced `shellframe_confirm` (fd3-incompatible) with inline `_SHQL_QUIT_CONFIRM_ACTIVE` overlay
+- `shellql/src/db.sh` — fixed `[notnull]` bracket quoting in `shql_db_columns` (was silently returning 0 rows on some SQLite versions)
+- **453/453 shellql unit assertions pass.**
+- **GitHub housekeeping:** shellframe#36, #37, shellql#22–#25 closed (2026-03-30)
+
+---
+
+## v1.0 Remaining Work
+
+| Issue | Feature | Effort | Deps |
+|-------|---------|--------|------|
+| [shellql#26](https://github.com/fissible/shellql/issues/26) | Truncate table | XS | confirm.sh (exists) |
+| [shellql#27](https://github.com/fissible/shellql/issues/27) | Drop table/view | S | confirm.sh (exists) |
+| [shellql#28](https://github.com/fissible/shellql/issues/28) | Create table (SQL template) | S | none |
+| [shellql#29](https://github.com/fissible/shellql/issues/29) | Export CSV | S–M | none |
+| [shellql#32](https://github.com/fissible/shellql/issues/32) | First data tab focus bug | XS–S | none |
+| [shellframe#38](https://github.com/fissible/shellframe/issues/38) | Autocomplete layer | M | input-field, context-menu |
+| [shellql#30](https://github.com/fissible/shellql/issues/30) | SQL type-ahead | L | shellframe#38 |
+| [shellql#31](https://github.com/fissible/shellql/issues/31) | Enrich context menus | XS | all DML/DDL above |
+
+**Build order:**
+1. shellql#26 + #27 + #28 + #32 — parallel (DDL ops + focus bug, all short)
+2. shellql#29 + shellframe#38 — parallel (export independent; autocomplete independent)
+3. shellql#30 — after shellframe#38
+4. shellql#31 — last, after all actions exist
+
+**Next:** shellql#26 + #27 + #28 + #32 (Session A — DDL + focus bug)

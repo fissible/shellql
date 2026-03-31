@@ -77,7 +77,7 @@ shql_db_columns() {
 # constraint (explicit limit never triggers a warning).
 
 shql_db_fetch() {
-    local _db="$1" _table="$2" _limit="${3:-}" _offset="${4:-0}"
+    local _db="$1" _table="$2" _limit="${3:-}" _offset="${4:-0}" _where="${5:-}"
     _shql_db_check_path "$_db" || return 1
 
     local _use_config_limit=0
@@ -91,9 +91,12 @@ shql_db_fetch() {
     local _tmpfile
     _tmpfile=$(mktemp)
 
+    local _sql="SELECT * FROM \"${_id}\""
+    [[ -n "$_where" ]] && _sql+=" WHERE ${_where}"
+    _sql+=" LIMIT ${_limit} OFFSET ${_offset}"
+
     local _out
-    _out=$(sqlite3 -separator $'\t' -header "$_db" \
-        "SELECT * FROM \"$_id\" LIMIT $_limit OFFSET $_offset" 2>"$_tmpfile")
+    _out=$(sqlite3 -separator $'\t' -header "$_db" "$_sql" 2>"$_tmpfile")
     local _rc=$?
 
     if (( _rc != 0 )); then

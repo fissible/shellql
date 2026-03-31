@@ -66,6 +66,7 @@ source "$_SHQL_ROOT/src/screens/table.sh"
 source "$_SHQL_ROOT/src/screens/query.sh"
 source "$_SHQL_ROOT/src/screens/inspector.sh"
 source "$_SHQL_ROOT/src/screens/dml.sh"
+source "$_SHQL_ROOT/src/screens/where.sh"
 
 # ── Argument parsing ──────────────────────────────────────────────────────────
 

@@ -95,7 +95,7 @@ _SHQL_TABLE_FOOTER_HINTS_INSPECTOR="[↑↓] Scroll  [PgUp/PgDn] Page  [Enter/Es
 
 _SHQL_BROWSER_FOOTER_HINTS_SIDEBAR="[↑↓] Navigate  [Enter] Data  [s] Schema  [c] New Table  [n] Query  [X] Drop  [→/Tab] Focus  [q] Back"
 _SHQL_BROWSER_FOOTER_HINTS_TABBAR="[←→] Switch tab  [↓/Enter] Content  [w] Close  [n] New query  [Tab] Sidebar"
-_SHQL_BROWSER_FOOTER_HINTS_DATA="[↑↓] Navigate  [←→] Scroll  [Enter] Inspect  [[/]] Tabs  [Tab] Sidebar  [q] Back"
+_SHQL_BROWSER_FOOTER_HINTS_DATA="[↑↓] Navigate  [←→] Scroll  [Enter] Inspect  [f] Filter  [[/]] Tabs  [Tab] Sidebar  [q] Back"
 _SHQL_BROWSER_FOOTER_HINTS_SCHEMA="[↑↓] Scroll  [Tab] DDL/exit  [q] Back"
 # Documentation constant only — runtime hint is built dynamically by _shql_query_footer_hint
 _SHQL_BROWSER_FOOTER_HINTS_QUERY_BUTTON="[Enter] Edit  [Tab] Results  [Esc] Tab bar"
@@ -885,14 +885,30 @@ _shql_TABLE_tabbar_on_mouse() {
     local _rtop="$5" _rleft="$6" _rwidth="$7" _rheight="$8"
     [[ "$_action" != "press" ]] && return 1
 
-    # Gap row (row below tab bar) — "New Row" button click → open insert DML
+    # Gap row (row below tab bar) — button clicks
     if (( _mrow == _rtop + 1 )); then
-        local _nr_label=" New Row "
-        if (( _mcol >= _rleft && _mcol < _rleft + ${#_nr_label} )); then
-            local _dml_table="${_SHQL_TABS_TABLE[${_SHQL_TAB_ACTIVE:-0}]:-}"
-            if [[ -n "$_dml_table" ]] && \
-               [[ "${_SHQL_TABS_TYPE[${_SHQL_TAB_ACTIVE:-0}]:-}" == "data" ]]; then
-                _shql_dml_insert_open "$_dml_table"
+        local _gap_tab_active="${_SHQL_TAB_ACTIVE:-0}"
+        local _gap_type="${_SHQL_TABS_TYPE[$_gap_tab_active]:-}"
+        local _gap_table="${_SHQL_TABS_TABLE[$_gap_tab_active]:-}"
+        if [[ "$_gap_type" == "data" && -n "$_gap_table" ]]; then
+            # "New Row" button (left-aligned)
+            local _nr_label=" New Row "
+            if (( _mcol >= _rleft && _mcol < _rleft + ${#_nr_label} )); then
+                _shql_dml_insert_open "$_gap_table"
+                shellframe_shell_focus_set "content"
+                shellframe_shell_mark_dirty
+                return 0
+            fi
+            # "Filter" button (right-aligned)
+            local _filter_label=" Filter "
+            local _filter_right=$(( _rleft + _rwidth ))
+            local _filter_left=$(( _filter_right - ${#_filter_label} ))
+            local _fapplied_var="_SHQL_WHERE_APPLIED_${_SHQL_TABS_CTX[$_gap_tab_active]:-}"
+            [[ -n "${!_fapplied_var:-}" ]] && _filter_label=" Filter*"
+            _filter_right=$(( _rleft + _rwidth ))
+            _filter_left=$(( _filter_right - ${#_filter_label} ))
+            if (( _mcol >= _filter_left && _mcol < _filter_right )); then
+                _shql_where_open "$_gap_table" "${_SHQL_TABS_CTX[$_gap_tab_active]:-}"
                 shellframe_shell_focus_set "content"
                 shellframe_shell_mark_dirty
                 return 0
@@ -1128,6 +1144,15 @@ _shql_content_data_ensure() {
     # Skip reload if this ctx already owns the globals
     [[ "$_SHQL_BROWSER_GRID_OWNER_CTX" == "$_ctx" ]] && return 0
 
+    # Build WHERE clause from any applied filter for this tab
+    local _where_clause=""
+    local _wvar="_SHQL_WHERE_APPLIED_${_ctx}"
+    if [[ -n "${!_wvar:-}" ]]; then
+        local _wcol _wop _wval
+        IFS=$'\t' read -r _wcol _wop _wval <<< "${!_wvar}"
+        _shql_where_build_clause "$_wcol" "$_wop" "$_wval" _where_clause
+    fi
+
     SHELLFRAME_GRID_HEADERS=()
     SHELLFRAME_GRID_DATA=()
     SHELLFRAME_GRID_ROWS=0
@@ -1163,7 +1188,7 @@ _shql_content_data_ensure() {
             (( SHELLFRAME_GRID_ROWS++ ))
         fi
         (( _idx++ ))
-    done < <(shql_db_fetch "$SHQL_DB_PATH" "$_table" 2>"$_SHQL_STDERR_TTY")
+    done < <(shql_db_fetch "$SHQL_DB_PATH" "$_table" "" "" "$_where_clause" 2>"$_SHQL_STDERR_TTY")
 
     _shql_detect_grid_align
     shellframe_grid_init "${_ctx}_grid"
@@ -1296,11 +1321,24 @@ _shql_TABLE_content_render() {
         data)
             # Load data for this tab's table if not already loaded
             _shql_content_data_ensure
-            # "New Row" button in the gap row (styled like "+SQL")
+            # Gap row: "New Row" button (left) + "Filter" button (right)
             local _inv="${SHELLFRAME_REVERSE:-}"
             local _itab_style="${SHQL_THEME_TAB_INACTIVE_BG:-${SHQL_THEME_TABBAR_BG:-$_inv}}"
             shellframe_fb_print "$(( _top - 1 ))" "$_left" " New Row " "$_itab_style"
-            if (( ${_SHQL_DML_ACTIVE:-0} )); then
+            local _filter_label=" Filter "
+            local _ctx_active="${_SHQL_TABS_CTX[$_SHQL_TAB_ACTIVE]:-}"
+            local _fapplied_var="_SHQL_WHERE_APPLIED_${_ctx_active}"
+            local _filter_sty="$_itab_style"
+            if [[ -n "${!_fapplied_var:-}" ]]; then
+                _filter_label=" Filter*"
+                _filter_sty="${_itab_style}${SHQL_THEME_QUERY_PANEL_COLOR:-}"
+            fi
+            shellframe_fb_print "$(( _top - 1 ))" \
+                "$(( _left + _width - ${#_filter_label} ))" \
+                "$_filter_label" "$_filter_sty"
+            if (( ${_SHQL_WHERE_ACTIVE:-0} )); then
+                _shql_where_render "$_top" "$_left" "$_width" "$_height"
+            elif (( ${_SHQL_DML_ACTIVE:-0} )); then
                 # Popover pattern: frozen 3-row grid header + DML form below
                 SHELLFRAME_GRID_CTX="${_SHQL_TABS_CTX[$_SHQL_TAB_ACTIVE]}_grid"
                 SHELLFRAME_GRID_FOCUSED=0
@@ -1417,6 +1455,12 @@ _shql_TABLE_content_on_key() {
     local _k_up="${SHELLFRAME_KEY_UP:-$'\033[A'}"
     local _k_left="${SHELLFRAME_KEY_LEFT:-$'\033[D'}"
 
+    # Route to WHERE filter overlay when active
+    if (( ${_SHQL_WHERE_ACTIVE:-0} )); then
+        _shql_where_on_key "$_key"
+        return $?
+    fi
+
     # Route to DML form when active (takes priority over inspector)
     if (( ${_SHQL_DML_ACTIVE:-0} )); then
         _shql_dml_on_key "$_key"
@@ -1519,6 +1563,11 @@ _shql_TABLE_content_on_key() {
             fi
             if [[ "$_key" == 'T' && -n "$_dml_table" ]]; then
                 _shql_dml_truncate_open "$_dml_table"
+                shellframe_shell_mark_dirty
+                return 0
+            fi
+            if [[ "$_key" == 'f' && -n "$_dml_table" ]]; then
+                _shql_where_open "$_dml_table" "$_ctx"
                 shellframe_shell_mark_dirty
                 return 0
             fi

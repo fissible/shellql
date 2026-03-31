@@ -298,8 +298,20 @@ Completed 2026-03-23 (ptyunit consumer migration):
 - `tests/unit/test-inspector.sh` — 13 new assertions: 10 for `_shql_word_wrap` unit tests, 2 for render word-wrap integration; **432/432 passing**
 - **Self-nominated bug**: TEXT field values were hard-clipped mid-word with `shellframe_str_clip_ellipsis`; no path to see full content
 
+**Completed 2026-03-30 (v1 DML + Form + Toast — shellframe#36, #37, shellql#13, #14, #15, #22):**
+- `shellframe/src/widgets/toast.sh` — new toast queue widget: `shellframe_toast_show/tick/render/clear`; newest-first, capped at 3, style→color mapping; 11 unit assertions
+- `shellframe/src/widgets/form.sh` — new multi-field form widget: Tab/Shift-Tab traversal, scroll, readonly skip, error row, Enter=submit (rc=2)/Esc=cancel (rc=1); 18 unit assertions
+- `shellframe/shellframe.sh` — sources `form.sh` and `toast.sh`
+- `shellql/src/screens/dml.sh` — new DML module: state globals, SQL builders (`_shql_dml_build_insert/update/delete`), validation, form open/render/on_key overlay; `shellframe_confirm` inline for delete; eval-based array-by-name for bash 3.2 compat; 23 unit assertions
+- `shellql/src/db_mock.sh` — added `shql_db_columns` mock (users/products/orders/fallback with name+type+flags TSV)
+- `shellql/src/screens/table.sh` — Esc hierarchy: tabbar Esc→sidebar, sidebar Esc/q→`_shql_quit_confirm`, content `q`→tabbar; DML overlay + toast render; `i`/`e`/`d` hooks in data content handler
+- `shellql/bin/shql` — sources `dml.sh` after `inspector.sh`
+- `shellql/tests/unit/test-esc-hierarchy.sh` — 7 assertions; `shellql/tests/unit/test-dml.sh` — 23 assertions
+- **462/462 shellql unit assertions pass. 1325/1325 shellframe unit assertions pass.**
+
 **Next task:** [shellql#12](https://github.com/fissible/shellql/issues/12)
 - **BLOCKED** on [shellframe#27](https://github.com/fissible/shellframe/issues/27) — Sheet navigation primitive (M effort in shellframe)
 - Design decision: `[o]` should use the sheet pattern rather than a modal, so shellframe#27 ships first
 - Flag for PM: shellframe#27 is M+ cross-repo work; needs scheduling before shellql#12 can proceed
 - **Follow-up**: user noted typing is still "a little slow" after subshell removal — may need further profiling
+- **Toast TTL tick**: `shellframe_toast_tick` is not wired into `shellframe_shell`'s event loop — toasts render but don't auto-dismiss. Accepted for v1; needs a per-tick callback in shellframe to fix.

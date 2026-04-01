@@ -1492,7 +1492,8 @@ _shql_TABLE_content_render() {
                 _shql_inspector_render "$_insp_top" "$_left" "$_width" "$_insp_h"
             else
                 SHELLFRAME_GRID_CTX="${_SHQL_TABS_CTX[$_SHQL_TAB_ACTIVE]}_grid"
-                SHELLFRAME_GRID_FOCUSED=$_SHQL_BROWSER_CONTENT_FOCUSED
+                # Suppress grid row highlight while keyboard is in header focus mode
+                SHELLFRAME_GRID_FOCUSED=$(( _SHQL_BROWSER_CONTENT_FOCUSED && ! _SHQL_HEADER_FOCUSED ))
                 SHELLFRAME_GRID_BG="${SHQL_THEME_CONTENT_BG:-}"
                 SHELLFRAME_GRID_STRIPE_BG="${SHQL_THEME_ROW_STRIPE_BG:-}"
                 SHELLFRAME_GRID_HEADER_STYLE="${SHQL_THEME_GRID_HEADER_COLOR:-}"
@@ -1576,7 +1577,7 @@ _shql_TABLE_content_on_key() {
     local _k_left="${SHELLFRAME_KEY_LEFT:-$'\033[D'}"
     local _k_right="${SHELLFRAME_KEY_RIGHT:-$'\033[C'}"
     local _k_down="${SHELLFRAME_KEY_DOWN:-$'\033[B'}"
-    local _k_enter=$'\r'
+    local _k_enter="${SHELLFRAME_KEY_ENTER:-$'\n'}"
     local _k_tab=$'\t'
 
     # Route to WHERE filter overlay when active
@@ -1674,7 +1675,7 @@ _shql_TABLE_content_on_key() {
                         _SHQL_HEADER_FOCUSED=0
                         shellframe_shell_mark_dirty
                         return 0 ;;
-                    "$_k_enter")
+                    "$_k_enter"|$'\r')
                         # Enter → toggle sort on focused column
                         local _hcol="${SHELLFRAME_GRID_HEADERS[$_SHQL_HEADER_FOCUSED_COL]:-}"
                         if [[ -n "$_hcol" ]]; then

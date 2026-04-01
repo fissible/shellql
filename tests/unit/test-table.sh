@@ -765,7 +765,7 @@ _SHQL_SORT_VISIBLE_END_COL=4
 _shql_TABLE_content_on_key $'\033[C'
 assert_eq "4" "$_SHQL_HEADER_FOCUSED_COL"
 
-ptyunit_test_begin "sort: header Enter triggers sort_toggle with focused col name"
+ptyunit_test_begin "sort: header Enter (\\r) triggers sort_toggle with focused col name"
 _toggle_called_col=""
 _shql_sort_toggle() { _toggle_called_col="$2"; }
 shql_browser_init
@@ -775,6 +775,19 @@ _SHQL_HEADER_FOCUSED_COL=1
 SHELLFRAME_GRID_HEADERS=(id name email)
 _shql_TABLE_content_on_key $'\r'
 assert_eq "name" "$_toggle_called_col"
+_shql_sort_toggle() { true; }
+
+ptyunit_test_begin "sort: header Enter (\\n) triggers sort_toggle — not inspector"
+_toggle_called_col=""
+_shql_sort_toggle() { _toggle_called_col="$2"; }
+shql_browser_init
+_shql_tab_open "users" "data"
+_SHQL_HEADER_FOCUSED=1
+_SHQL_HEADER_FOCUSED_COL=2
+SHELLFRAME_GRID_HEADERS=(id name email)
+_shql_TABLE_content_on_key $'\n'
+assert_eq "email" "$_toggle_called_col"
+assert_eq "1" "$_SHQL_HEADER_FOCUSED"   # header focus stays active
 _shql_sort_toggle() { true; }
 
 ptyunit_test_begin "sort: header click sets focused col and calls toggle"
@@ -820,5 +833,26 @@ _shql_TABLE_content_on_focus 0
 assert_eq "0" "$_SHQL_BROWSER_CONTENT_FOCUSED"
 assert_eq "0" "$_SHQL_TABLE_BODY_FOCUSED"
 assert_eq "0" "$SHELLFRAME_GRID_FOCUSED"
+
+# ── Header focus: SHELLFRAME_GRID_FOCUSED suppressed while in header mode ─────
+
+ptyunit_test_begin "header_focus: grid render suppresses row highlight when header focused"
+shql_browser_init
+_shql_tab_open "users" "data"
+_SHQL_BROWSER_CONTENT_FOCUSED=1
+_SHQL_HEADER_FOCUSED=1
+_shql_content_data_ensure
+# Render — SHELLFRAME_GRID_FOCUSED should be 0 while header is focused
+_shql_TABLE_content_render 1 1 60 20
+assert_eq "0" "$SHELLFRAME_GRID_FOCUSED"
+
+ptyunit_test_begin "header_focus: grid render shows row highlight when not in header mode"
+shql_browser_init
+_shql_tab_open "users" "data"
+_SHQL_BROWSER_CONTENT_FOCUSED=1
+_SHQL_HEADER_FOCUSED=0
+_shql_content_data_ensure
+_shql_TABLE_content_render 1 1 60 20
+assert_eq "1" "$SHELLFRAME_GRID_FOCUSED"
 
 ptyunit_test_summary

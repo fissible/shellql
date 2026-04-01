@@ -1203,6 +1203,20 @@ _shql_content_data_ensure() {
             case "$_SHQL_WHERE_RESULT_OP" in
                 "IS NULL"|"IS NOT NULL")
                     _wclause="${_wc_q} ${_SHQL_WHERE_RESULT_OP}" ;;
+                "IN"|"NOT IN")
+                    local _in_list="" _in_item _in_items
+                    IFS=',' read -ra _in_items <<< "$_SHQL_WHERE_RESULT_VAL"
+                    for _in_item in "${_in_items[@]}"; do
+                        _in_item="${_in_item#"${_in_item%%[! ]*}"}"
+                        _in_item="${_in_item%"${_in_item##*[! ]}"}"
+                        _in_list+="'${_in_item//\'/\'\'}', "
+                    done
+                    _in_list="${_in_list%, }"
+                    _wclause="${_wc_q} ${_SHQL_WHERE_RESULT_OP} (${_in_list})" ;;
+                "BETWEEN"|"NOT BETWEEN")
+                    local _bv1 _bv2
+                    IFS=$'\t' read -r _bv1 _bv2 <<< "$_SHQL_WHERE_RESULT_VAL"
+                    _wclause="${_wc_q} ${_SHQL_WHERE_RESULT_OP} '${_bv1//\'/\'\'}' AND '${_bv2//\'/\'\'}'" ;;
                 *)
                     _wclause="${_wc_q} ${_SHQL_WHERE_RESULT_OP} '${_SHQL_WHERE_RESULT_VAL//\'/\'\'}'" ;;
             esac

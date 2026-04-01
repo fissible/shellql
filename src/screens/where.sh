@@ -64,7 +64,7 @@ _SHQL_WHERE_FOCUS=0
 _SHQL_WHERE_OP_IDX=0
 _SHQL_WHERE_EDIT_IDX=-1
 
-_SHQL_WHERE_OPERATORS=("=" "<>" ">" "<" ">=" "<=" "LIKE" "NOT LIKE" "GLOB" "IS NULL" "IS NOT NULL")
+_SHQL_WHERE_OPERATORS=("=" "<>" ">" "<" ">=" "<=" "LIKE" "NOT LIKE" "GLOB" "IN" "NOT IN" "BETWEEN" "NOT BETWEEN" "IS NULL" "IS NOT NULL")
 
 # Output globals
 _SHQL_WHERE_RESULT_COUNT=0
@@ -190,6 +190,23 @@ _shql_where_build_clause() {
     case "$_op" in
         "IS NULL"|"IS NOT NULL")
             printf -v "$_clause_out" '%s %s' "$_col_q" "$_op" ;;
+        "IN"|"NOT IN")
+            # _val is comma-separated; quote each trimmed item
+            local _in_list="" _in_item _in_items
+            IFS=',' read -ra _in_items <<< "$_val"
+            for _in_item in "${_in_items[@]}"; do
+                _in_item="${_in_item#"${_in_item%%[! ]*}"}"
+                _in_item="${_in_item%"${_in_item##*[! ]}"}"
+                _in_list+="'${_in_item//\'/\'\'}', "
+            done
+            _in_list="${_in_list%, }"
+            printf -v "$_clause_out" '%s %s (%s)' "$_col_q" "$_op" "$_in_list" ;;
+        "BETWEEN"|"NOT BETWEEN")
+            # _val is "low<TAB>high"
+            local _bv1 _bv2
+            IFS=$'\t' read -r _bv1 _bv2 <<< "$_val"
+            printf -v "$_clause_out" "%s %s '%s' AND '%s'" \
+                "$_col_q" "$_op" "${_bv1//\'/\'\'}" "${_bv2//\'/\'\'}" ;;
         *)
             local _val_q="'${_val//\'/\'\'}'"
             printf -v "$_clause_out" '%s %s %s' "$_col_q" "$_op" "$_val_q" ;;
@@ -208,9 +225,14 @@ _shql_where_pill_label() {
         return
     fi
     local _expr="${_SHQL_WHERE_RESULT_COL} ${_SHQL_WHERE_RESULT_OP}"
-    [[ "$_SHQL_WHERE_RESULT_OP" != "IS NULL" && \
-       "$_SHQL_WHERE_RESULT_OP" != "IS NOT NULL" ]] && \
-        _expr+=" ${_SHQL_WHERE_RESULT_VAL}"
+    case "$_SHQL_WHERE_RESULT_OP" in
+        "IS NULL"|"IS NOT NULL") ;;
+        "BETWEEN"|"NOT BETWEEN")
+            local _bv1 _bv2
+            IFS=$'\t' read -r _bv1 _bv2 <<< "$_SHQL_WHERE_RESULT_VAL"
+            _expr+=" ${_bv1} AND ${_bv2}" ;;
+        *) _expr+=" ${_SHQL_WHERE_RESULT_VAL}" ;;
+    esac
     if (( ${#_expr} > _pl_max )); then
         _expr="${_expr:0:$(( _pl_max - 3 ))}..."
     fi
@@ -366,6 +388,7 @@ _shql_where_open() {
 
     shellframe_field_init "${_SHQL_WHERE_CTX}_col"
     shellframe_field_init "${_SHQL_WHERE_CTX}_val"
+    shellframe_field_init "${_SHQL_WHERE_CTX}_val2"
 
     if (( _edit_idx >= 0 )); then
         _shql_where_filter_get "$_tab_ctx" "$_edit_idx"
@@ -378,11 +401,21 @@ _shql_where_open() {
                 break
             fi
         done
-        shellframe_cur_init "${_SHQL_WHERE_CTX}_val" "$_SHQL_WHERE_RESULT_VAL"
+        case "$_SHQL_WHERE_RESULT_OP" in
+            "BETWEEN"|"NOT BETWEEN")
+                local _bv1 _bv2
+                IFS=$'\t' read -r _bv1 _bv2 <<< "$_SHQL_WHERE_RESULT_VAL"
+                shellframe_cur_init "${_SHQL_WHERE_CTX}_val"  "$_bv1"
+                shellframe_cur_init "${_SHQL_WHERE_CTX}_val2" "$_bv2" ;;
+            *)
+                shellframe_cur_init "${_SHQL_WHERE_CTX}_val"  "$_SHQL_WHERE_RESULT_VAL"
+                shellframe_cur_init "${_SHQL_WHERE_CTX}_val2" "" ;;
+        esac
     else
-        shellframe_cur_init "${_SHQL_WHERE_CTX}_col" ""
+        shellframe_cur_init "${_SHQL_WHERE_CTX}_col"  ""
+        shellframe_cur_init "${_SHQL_WHERE_CTX}_val"  ""
+        shellframe_cur_init "${_SHQL_WHERE_CTX}_val2" ""
         _SHQL_WHERE_OP_IDX=0
-        shellframe_cur_init "${_SHQL_WHERE_CTX}_val" ""
     fi
 
     _SHQL_WHERE_ACTIVE=1
@@ -397,9 +430,16 @@ _shql_where_open() {
 _shql_where_apply() {
     _wapply_col=""
     _wapply_val=""
-    shellframe_cur_text "${_SHQL_WHERE_CTX}_col" _wapply_col
-    shellframe_cur_text "${_SHQL_WHERE_CTX}_val" _wapply_val
+    _wapply_val2=""
+    shellframe_cur_text "${_SHQL_WHERE_CTX}_col"  _wapply_col
+    shellframe_cur_text "${_SHQL_WHERE_CTX}_val"  _wapply_val
     local _op="${_SHQL_WHERE_OPERATORS[$_SHQL_WHERE_OP_IDX]}"
+
+    # For BETWEEN/NOT BETWEEN, combine val and val2 with a tab separator
+    if [[ "$_op" == "BETWEEN" || "$_op" == "NOT BETWEEN" ]]; then
+        shellframe_cur_text "${_SHQL_WHERE_CTX}_val2" _wapply_val2
+        _wapply_val="${_wapply_val}"$'\t'"${_wapply_val2}"
+    fi
 
     # Trim leading/trailing whitespace from column name
     _wapply_col="${_wapply_col#"${_wapply_col%%[! ]*}"}"
@@ -455,7 +495,12 @@ _shql_where_on_key() {
     local _op="${_SHQL_WHERE_OPERATORS[$_SHQL_WHERE_OP_IDX]}"
     local _has_value=1
     [[ "$_op" == "IS NULL" || "$_op" == "IS NOT NULL" ]] && _has_value=0
-    local _nfields=$(( _has_value ? 3 : 2 ))
+    local _nfields=3
+    if (( ! _has_value )); then
+        _nfields=2
+    elif [[ "$_op" == "BETWEEN" || "$_op" == "NOT BETWEEN" ]]; then
+        _nfields=4
+    fi
 
     case "$_key" in
         "$_k_tab"|"$_k_down")
@@ -492,10 +537,13 @@ _shql_where_on_key() {
         return 0
     fi
 
-    # Column (0) or Value (2): delegate to text field
+    # Column (0), Value (2), or To-value (3): delegate to text field
     local _fctx
-    (( _SHQL_WHERE_FOCUS == 0 )) && _fctx="${_SHQL_WHERE_CTX}_col" \
-                                  || _fctx="${_SHQL_WHERE_CTX}_val"
+    case "$_SHQL_WHERE_FOCUS" in
+        0) _fctx="${_SHQL_WHERE_CTX}_col" ;;
+        3) _fctx="${_SHQL_WHERE_CTX}_val2" ;;
+        *) _fctx="${_SHQL_WHERE_CTX}_val" ;;
+    esac
     local _save_ctx="$SHELLFRAME_FIELD_CTX"
     SHELLFRAME_FIELD_CTX="$_fctx"
     shellframe_field_on_key "$_key"
@@ -515,8 +563,11 @@ _shql_where_on_key() {
 _shql_where_render() {
     local _bound_top="$1" _bound_left="$2" _bound_w="$3" _bound_h="$4"
 
-    # Panel: 7 rows tall, up to 56 cols wide, centered in bounding box
+    local _op="${_SHQL_WHERE_OPERATORS[$_SHQL_WHERE_OP_IDX]}"
+
+    # BETWEEN needs an extra row for the "To" field; otherwise 7 rows suffice
     local _ph=7 _pw
+    [[ "$_op" == "BETWEEN" || "$_op" == "NOT BETWEEN" ]] && _ph=8
     _pw=$(( _bound_w < 56 ? _bound_w : 56 ))
     (( _ph > _bound_h )) && _ph=$_bound_h
     local _pt=$(( _bound_top  + (_bound_h - _ph) / 2 ))
@@ -561,9 +612,12 @@ _shql_where_render() {
     local _field_w=$(( _inner_w - _lw - 2 ))
     (( _field_w < 4 )) && _field_w=4
 
-    local _op="${_SHQL_WHERE_OPERATORS[$_SHQL_WHERE_OP_IDX]}"
     local _has_value=1
     [[ "$_op" == "IS NULL" || "$_op" == "IS NOT NULL" ]] && _has_value=0
+    local _is_between=0
+    [[ "$_op" == "BETWEEN" || "$_op" == "NOT BETWEEN" ]] && _is_between=1
+    local _is_in=0
+    [[ "$_op" == "IN" || "$_op" == "NOT IN" ]] && _is_in=1
 
     local _sty_norm="${_ibg}"
     local _sty_focus="${_ibg}${_bold}"
@@ -604,12 +658,16 @@ _shql_where_render() {
         fi
     fi
 
-    # ── Row 2: Value field ────────────────────────────────────────────────────
+    # ── Row 2: Value / From field ─────────────────────────────────────────────
     if (( _ih >= 3 )); then
-        local _lbl_val
-        printf -v _lbl_val '%-*s' "$_lw" "Value"
         local _val_row=$(( _it + 2 ))
         if (( _has_value )); then
+            # Label: "Values" for IN/NOT IN, "From" for BETWEEN/NOT BETWEEN, else "Value"
+            local _val_lbl="Value"
+            (( _is_in ))      && _val_lbl="Values"
+            (( _is_between )) && _val_lbl="From"
+            local _lbl_val
+            printf -v _lbl_val '%-*s' "$_lw" "$_val_lbl"
             local _val_sty; (( _SHQL_WHERE_FOCUS == 2 )) && _val_sty="$_sty_focus" || _val_sty="$_sty_norm"
             shellframe_fb_print "$_val_row" "$_pad_left" "${_lbl_val}:" "$_val_sty"
             shellframe_fb_fill  "$_val_row" "$(( _pad_left + _lw + 1 ))" 1 " " "$_ibg"
@@ -620,11 +678,39 @@ _shql_where_render() {
             SHELLFRAME_FIELD_CTX="$_save_ctx"
             SHELLFRAME_FIELD_FOCUSED="$_save_foc"
             SHELLFRAME_FIELD_BG="$_save_fbg"
+            # Dim hint for IN: show "(comma separated)" after the field
+            if (( _is_in && _SHQL_WHERE_FOCUS != 2 )); then
+                local _hint_col=$(( _field_left + _field_w + 1 ))
+                local _hint_avail=$(( _il + _iw - _hint_col - 1 ))
+                if (( _hint_avail >= 10 )); then
+                    shellframe_fb_print "$_val_row" "$_hint_col" \
+                        "(comma sep)" "${_ibg}${_gray}"
+                fi
+            fi
         else
+            local _lbl_val
+            printf -v _lbl_val '%-*s' "$_lw" "Value"
             shellframe_fb_print "$_val_row" "$_pad_left" "${_lbl_val}:" "${_ibg}${_gray}"
             shellframe_fb_fill  "$_val_row" "$(( _pad_left + _lw + 1 ))" 1 " " "$_ibg"
             shellframe_fb_print "$_val_row" "$_field_left" "(not applicable)" "${_ibg}${_gray}"
         fi
+    fi
+
+    # ── Row 3: "To" field for BETWEEN / NOT BETWEEN ───────────────────────────
+    if (( _ih >= 4 && _is_between )); then
+        local _lbl_to
+        printf -v _lbl_to '%-*s' "$_lw" "To"
+        local _to_row=$(( _it + 3 ))
+        local _to_sty; (( _SHQL_WHERE_FOCUS == 3 )) && _to_sty="$_sty_focus" || _to_sty="$_sty_norm"
+        shellframe_fb_print "$_to_row" "$_pad_left" "${_lbl_to}:" "$_to_sty"
+        shellframe_fb_fill  "$_to_row" "$(( _pad_left + _lw + 1 ))" 1 " " "$_ibg"
+        SHELLFRAME_FIELD_CTX="${_SHQL_WHERE_CTX}_val2"
+        SHELLFRAME_FIELD_FOCUSED=$(( _SHQL_WHERE_FOCUS == 3 ? 1 : 0 ))
+        SHELLFRAME_FIELD_BG="$_ibg"
+        shellframe_field_render "$_to_row" "$_field_left" "$_field_w" 1
+        SHELLFRAME_FIELD_CTX="$_save_ctx"
+        SHELLFRAME_FIELD_FOCUSED="$_save_foc"
+        SHELLFRAME_FIELD_BG="$_save_fbg"
     fi
 
     # ── Hint row ──────────────────────────────────────────────────────────────

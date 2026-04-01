@@ -56,6 +56,26 @@ _out=""
 _shql_where_build_clause "deleted_at" "IS NOT NULL" "ignored" _out
 assert_eq '"deleted_at" IS NOT NULL' "$_out" "build_clause: IS NOT NULL ignores value"
 
+ptyunit_test_begin "build_clause: IN quotes each comma-separated value"
+_out=""
+_shql_where_build_clause "status" "IN" "active, pending, closed" _out
+assert_eq '"status" IN ('"'"'active'"'"', '"'"'pending'"'"', '"'"'closed'"'"')' "$_out" "build_clause: IN"
+
+ptyunit_test_begin "build_clause: NOT IN"
+_out=""
+_shql_where_build_clause "id" "NOT IN" "1,2,3" _out
+assert_eq '"id" NOT IN ('"'"'1'"'"', '"'"'2'"'"', '"'"'3'"'"')' "$_out" "build_clause: NOT IN"
+
+ptyunit_test_begin "build_clause: BETWEEN quotes both values"
+_out=""
+_shql_where_build_clause "age" "BETWEEN" $'18\t65' _out
+assert_eq '"age" BETWEEN '"'"'18'"'"' AND '"'"'65'"'"'' "$_out" "build_clause: BETWEEN"
+
+ptyunit_test_begin "build_clause: NOT BETWEEN"
+_out=""
+_shql_where_build_clause "score" "NOT BETWEEN" $'0\t50' _out
+assert_eq '"score" NOT BETWEEN '"'"'0'"'"' AND '"'"'50'"'"'' "$_out" "build_clause: NOT BETWEEN"
+
 ptyunit_test_begin "build_clause: escapes single quotes in value"
 _out=""
 _shql_where_build_clause "note" "=" "O'Brien" _out
@@ -260,5 +280,9 @@ assert_contains "${_SHQL_WHERE_OPERATORS[*]}" "NOT LIKE" "operators: contains NO
 assert_contains "${_SHQL_WHERE_OPERATORS[*]}" "IS NULL" "operators: contains IS NULL"
 assert_contains "${_SHQL_WHERE_OPERATORS[*]}" "IS NOT NULL" "operators: contains IS NOT NULL"
 assert_contains "${_SHQL_WHERE_OPERATORS[*]}" "GLOB" "operators: contains GLOB"
+assert_contains "${_SHQL_WHERE_OPERATORS[*]}" "IN" "operators: contains IN"
+assert_contains "${_SHQL_WHERE_OPERATORS[*]}" "NOT IN" "operators: contains NOT IN"
+assert_contains "${_SHQL_WHERE_OPERATORS[*]}" "BETWEEN" "operators: contains BETWEEN"
+assert_contains "${_SHQL_WHERE_OPERATORS[*]}" "NOT BETWEEN" "operators: contains NOT BETWEEN"
 
 ptyunit_test_summary

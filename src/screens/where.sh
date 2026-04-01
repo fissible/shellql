@@ -505,9 +505,11 @@ _shql_where_on_key() {
     case "$_key" in
         "$_k_tab"|"$_k_down")
             _SHQL_WHERE_FOCUS=$(( (_SHQL_WHERE_FOCUS + 1) % _nfields ))
+            shellframe_shell_mark_dirty
             return 0 ;;
         "$_k_stab"|"$_k_up")
             _SHQL_WHERE_FOCUS=$(( (_SHQL_WHERE_FOCUS - 1 + _nfields) % _nfields ))
+            shellframe_shell_mark_dirty
             return 0 ;;
         $'\r'|$'\n')
             _shql_where_apply

@@ -74,6 +74,12 @@ _SHQL_CMENU_SOURCE=""          # "sidebar" | "tabbar" | "content"
 _SHQL_CMENU_SOURCE_IDX=-1     # index of the clicked item (tab index, sidebar row, grid row)
 _SHQL_CMENU_PREV_FOCUS=""     # region that had focus before the menu opened
 
+# ── Sort overlay / header focus state ────────────────────────────────────────
+# (sort state itself lives in _SHQL_SORT_<ctx> globals managed by sort.sh)
+
+_SHQL_HEADER_FOCUSED=0      # 1 while keyboard is navigating column headers
+_SHQL_HEADER_FOCUSED_COL=0  # absolute column index of the focused header
+
 # ── TTY for stderr passthrough ────────────────────────────────────────────────
 # Use /dev/tty when available (interactive terminal); fall back to /dev/null in
 # test environments where no controlling terminal exists.
@@ -238,6 +244,7 @@ _shql_tab_open() {
 _shql_tab_activate() {
     _SHQL_TAB_ACTIVE="$1"
     _SHQL_INSPECTOR_ACTIVE=0
+    _SHQL_HEADER_FOCUSED=0
     # Set content sub-focus based on tab type
     if (( _SHQL_TAB_ACTIVE >= 0 )); then
         case "${_SHQL_TABS_TYPE[$_SHQL_TAB_ACTIVE]}" in
@@ -1229,6 +1236,11 @@ _shql_content_data_ensure() {
         _where_arg="$_wclauses"
     fi
 
+    # Build ORDER BY clause from active sort entries for this tab.
+    local _order_arg=""
+    _shql_sort_build_clause "$_ctx"
+    _order_arg="$_SHQL_SORT_RESULT_CLAUSE"
+
     SHELLFRAME_GRID_HEADERS=()
     SHELLFRAME_GRID_DATA=()
     SHELLFRAME_GRID_ROWS=0
@@ -1264,7 +1276,7 @@ _shql_content_data_ensure() {
             (( SHELLFRAME_GRID_ROWS++ ))
         fi
         (( _idx++ ))
-    done < <(shql_db_fetch "$SHQL_DB_PATH" "$_table" "" "" "$_where_arg" 2>"$_SHQL_STDERR_TTY")
+    done < <(shql_db_fetch "$SHQL_DB_PATH" "$_table" "" "" "$_where_arg" "$_order_arg" 2>"$_SHQL_STDERR_TTY")
 
     _shql_detect_grid_align
     shellframe_grid_init "${_ctx}_grid"
@@ -1488,6 +1500,8 @@ _shql_TABLE_content_render() {
                 _shql_grid_fill_width "$_grid_w"
                 shellframe_grid_render "$_top" "$_left" "$_grid_w" "$_height"
                 _shql_grid_restore_last
+                # Sort indicators + header focus highlight (overlaid on header row)
+                _shql_sort_overlay_headers "$_top" "$_left" "$_grid_w" "$_ctx"
                 # Scrollbar in rightmost column (data rows start 2 below _top: headers + hint)
                 if (( _sb_col > 0 )); then
                     local _sb_top=$(( _top + 2 ))
@@ -1547,6 +1561,10 @@ _shql_TABLE_content_on_key() {
     local _key="$1"
     local _k_up="${SHELLFRAME_KEY_UP:-$'\033[A'}"
     local _k_left="${SHELLFRAME_KEY_LEFT:-$'\033[D'}"
+    local _k_right="${SHELLFRAME_KEY_RIGHT:-$'\033[C'}"
+    local _k_down="${SHELLFRAME_KEY_DOWN:-$'\033[B'}"
+    local _k_enter=$'\r'
+    local _k_tab=$'\t'
 
     # Route to WHERE filter overlay when active
     if (( ${_SHQL_WHERE_ACTIVE:-0} )); then
@@ -1603,12 +1621,70 @@ _shql_TABLE_content_on_key() {
     case "$_type" in
         data)
             local _ctx="${_SHQL_TABS_CTX[$_SHQL_TAB_ACTIVE]}"
-            # ↑ at row 0 → tabbar
+
+            # ── Header focus mode ─────────────────────────────────────────────
+            # Entered via ↑ at grid row 0 or a header click.
+            # ← / → move between columns and scroll the grid.
+            # Enter toggles sort; ↑ exits to tabbar; ↓/Esc/Tab returns to grid.
+            if (( _SHQL_HEADER_FOCUSED )); then
+                case "$_key" in
+                    "$_k_left")
+                        if (( _SHQL_HEADER_FOCUSED_COL > 0 )); then
+                            (( _SHQL_HEADER_FOCUSED_COL-- ))
+                            local _sl=0
+                            shellframe_scroll_left "${_ctx}_grid" _sl 2>/dev/null || true
+                            if (( _SHQL_HEADER_FOCUSED_COL < _sl )); then
+                                shellframe_scroll_move "${_ctx}_grid" left 1 2>/dev/null || true
+                            fi
+                        fi
+                        shellframe_shell_mark_dirty
+                        return 0 ;;
+                    "$_k_right")
+                        local _ncols="${SHELLFRAME_GRID_COLS:-0}"
+                        if (( _SHQL_HEADER_FOCUSED_COL < _ncols - 1 )); then
+                            (( _SHQL_HEADER_FOCUSED_COL++ ))
+                            local _vis_end="${_SHQL_SORT_VISIBLE_END_COL:--1}"
+                            if (( _SHQL_HEADER_FOCUSED_COL > _vis_end )); then
+                                shellframe_scroll_move "${_ctx}_grid" right 1 2>/dev/null || true
+                            fi
+                        fi
+                        shellframe_shell_mark_dirty
+                        return 0 ;;
+                    "$_k_up")
+                        # ↑ in header mode → exit header focus and move to tabbar
+                        _SHQL_HEADER_FOCUSED=0
+                        shellframe_shell_focus_set "tabbar"
+                        shellframe_shell_mark_dirty
+                        return 0 ;;
+                    "$_k_down"|"$_k_tab"|$'\033')
+                        # ↓ / Tab / Esc → exit header focus, return to data grid
+                        _SHQL_HEADER_FOCUSED=0
+                        shellframe_shell_mark_dirty
+                        return 0 ;;
+                    "$_k_enter")
+                        # Enter → toggle sort on focused column
+                        local _hcol="${SHELLFRAME_GRID_HEADERS[$_SHQL_HEADER_FOCUSED_COL]:-}"
+                        if [[ -n "$_hcol" ]]; then
+                            _shql_sort_toggle "$_ctx" "$_hcol"
+                            _SHQL_BROWSER_GRID_OWNER_CTX=""
+                        fi
+                        shellframe_shell_mark_dirty
+                        return 0 ;;
+                esac
+                # Any other key exits header focus mode and falls through to data grid
+                _SHQL_HEADER_FOCUSED=0
+                shellframe_shell_mark_dirty
+            fi
+
+            # ↑ at grid row 0 → enter header focus mode (headers are "above" data)
             if [[ "$_key" == "$_k_up" ]]; then
                 local _cursor=0
                 shellframe_sel_cursor "${_ctx}_grid" _cursor 2>/dev/null || true
                 if (( _cursor == 0 )); then
-                    shellframe_shell_focus_set "tabbar"
+                    _SHQL_HEADER_FOCUSED=1
+                    local _sl=0
+                    shellframe_scroll_left "${_ctx}_grid" _sl 2>/dev/null || true
+                    _SHQL_HEADER_FOCUSED_COL="$_sl"
                     shellframe_shell_mark_dirty
                     return 0
                 fi
@@ -1684,6 +1760,10 @@ _shql_TABLE_content_on_key() {
 _shql_TABLE_content_on_focus() {
     _SHQL_BROWSER_CONTENT_FOCUSED="${1:-0}"
     SHELLFRAME_GRID_FOCUSED=$_SHQL_BROWSER_CONTENT_FOCUSED
+    # Losing focus clears header focus mode
+    if (( ! _SHQL_BROWSER_CONTENT_FOCUSED )); then
+        _SHQL_HEADER_FOCUSED=0
+    fi
     # Losing focus deactivates editor mode for any active query tab
     if (( ! _SHQL_BROWSER_CONTENT_FOCUSED && _SHQL_TAB_ACTIVE >= 0 )); then
         local _type; _shql_content_type _type
@@ -1727,6 +1807,32 @@ _shql_TABLE_content_on_mouse() {
             if (( _button == 2 || (_button == 0 && ${SHELLFRAME_MOUSE_SHIFT:-0}) )); then
                 _shql_cmenu_open "content" 0 "$_mrow" "$_mcol" "Inspect Row"
                 return 0
+            fi
+
+            # Click on header row → toggle sort for that column + enter header focus
+            if (( _mrow == _rtop && _button == 0 )) && [[ "$_action" == "press" ]]; then
+                _shql_sort_col_at_x "$_ctx" "$_mcol" "$_rleft" "$_rwidth"
+                local _hit_col="$_SHQL_SORT_RESULT_IDX"
+                if (( _hit_col >= 0 )); then
+                    local _hcol="${SHELLFRAME_GRID_HEADERS[$_hit_col]:-}"
+                    if [[ -n "$_hcol" ]]; then
+                        _shql_sort_toggle "$_ctx" "$_hcol"
+                        _SHQL_BROWSER_GRID_OWNER_CTX=""
+                    fi
+                    _SHQL_HEADER_FOCUSED=1
+                    _SHQL_HEADER_FOCUSED_COL="$_hit_col"
+                    shellframe_shell_mark_dirty
+                fi
+                return 0
+            fi
+            # Swallow release on header row (paired with the press above)
+            if (( _mrow == _rtop )); then
+                return 0
+            fi
+
+            # Click outside header → clear header focus
+            if (( _SHQL_HEADER_FOCUSED )); then
+                _SHQL_HEADER_FOCUSED=0
             fi
 
             # Remember cursor before click
@@ -1978,7 +2084,12 @@ _shql_browser_footer_hint() {
     else
         local _type; _shql_content_type _type
         case "$_type" in
-            data)    printf -v "$_out_var" '%s' "$_SHQL_BROWSER_FOOTER_HINTS_DATA" ;;
+            data)
+                if (( _SHQL_HEADER_FOCUSED )); then
+                    printf -v "$_out_var" '%s' "[←→] Move  [Enter] Sort  [↑] Tabbar  [↓/Esc] Grid"
+                else
+                    printf -v "$_out_var" '%s' "$_SHQL_BROWSER_FOOTER_HINTS_DATA"
+                fi ;;
             schema)  printf -v "$_out_var" '%s' "$_SHQL_BROWSER_FOOTER_HINTS_SCHEMA" ;;
             query)   _shql_query_footer_hint "$_out_var" ;;
             *)       printf -v "$_out_var" '%s' "$_SHQL_BROWSER_FOOTER_HINTS_EMPTY" ;;

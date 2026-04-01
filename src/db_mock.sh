@@ -147,7 +147,7 @@ shql_db_columns() {
     esac
 }
 
-# shql_db_fetch <db_path> <table> [limit] [offset]
+# shql_db_fetch <db_path> <table> [limit] [offset] [where] [order]
 shql_db_fetch() {
     local _table="${2:-users}"
     case "$_table" in

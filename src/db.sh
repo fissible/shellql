@@ -77,7 +77,7 @@ shql_db_columns() {
 # constraint (explicit limit never triggers a warning).
 
 shql_db_fetch() {
-    local _db="$1" _table="$2" _limit="${3:-}" _offset="${4:-0}" _where="${5:-}"
+    local _db="$1" _table="$2" _limit="${3:-}" _offset="${4:-0}" _where="${5:-}" _order="${6:-}"
     _shql_db_check_path "$_db" || return 1
 
     local _use_config_limit=0
@@ -93,6 +93,7 @@ shql_db_fetch() {
 
     local _sql="SELECT * FROM \"${_id}\""
     [[ -n "$_where" ]] && _sql+=" WHERE ${_where}"
+    [[ -n "$_order" ]] && _sql+=" ORDER BY ${_order}"
     _sql+=" LIMIT ${_limit} OFFSET ${_offset}"
 
     local _out

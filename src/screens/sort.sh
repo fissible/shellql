@@ -164,7 +164,7 @@ _shql_sort_col_at_x() {
             _SHQL_SORT_RESULT_IDX=$_c
             return 0
         fi
-        _x=$(( _x + _cw ))
+        _x=$(( _x + _cw + 1 ))   # +1 for the 1-px column separator
     done
 }
 
@@ -225,6 +225,6 @@ _shql_sort_overlay_headers() {
                 shellframe_fb_print "$_top" "$_ind_x" "$_indicator" "${_hdr_bg}${_hdr_style}"
         fi
 
-        _x=$(( _x + _cw ))
+        _x=$(( _x + _cw + 1 ))   # +1 for the 1-px column separator
     done
 }

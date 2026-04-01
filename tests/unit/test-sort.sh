@@ -186,7 +186,7 @@ assert_eq "0" "$_SHQL_SORT_RESULT_IDX"
 ptyunit_test_begin "sort_col_at_x: finds second column"
 SHELLFRAME_GRID_COLS=3
 SHELLFRAME_GRID_COL_WIDTHS=(10 10 10)
-# Region starts at col 1; col 0 = cols 1-10, col 1 = cols 11-20
+# Region starts at col 1; col 0 = cols 1-10, separator at 11, col 1 = cols 12-21
 _shql_sort_col_at_x "t0" 15 1 30
 assert_eq "1" "$_SHQL_SORT_RESULT_IDX"
 

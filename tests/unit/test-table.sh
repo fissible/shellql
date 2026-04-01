@@ -777,4 +777,24 @@ _SHQL_HEADER_FOCUSED_COL=2
 _shql_TABLE_content_on_mouse 0 "press" 6 30 4 21 59 20
 assert_eq "0" "$_SHQL_HEADER_FOCUSED"
 
+# ── content_on_focus: syncs _SHQL_TABLE_BODY_FOCUSED ─────────────────────────
+
+ptyunit_test_begin "content_on_focus: gaining focus sets BODY_FOCUSED and GRID_FOCUSED"
+_SHQL_BROWSER_CONTENT_FOCUSED=0
+_SHQL_TABLE_BODY_FOCUSED=0
+SHELLFRAME_GRID_FOCUSED=0
+_shql_TABLE_content_on_focus 1
+assert_eq "1" "$_SHQL_BROWSER_CONTENT_FOCUSED"
+assert_eq "1" "$_SHQL_TABLE_BODY_FOCUSED"
+assert_eq "1" "$SHELLFRAME_GRID_FOCUSED"
+
+ptyunit_test_begin "content_on_focus: losing focus clears BODY_FOCUSED and GRID_FOCUSED"
+_SHQL_BROWSER_CONTENT_FOCUSED=1
+_SHQL_TABLE_BODY_FOCUSED=1
+SHELLFRAME_GRID_FOCUSED=1
+_shql_TABLE_content_on_focus 0
+assert_eq "0" "$_SHQL_BROWSER_CONTENT_FOCUSED"
+assert_eq "0" "$_SHQL_TABLE_BODY_FOCUSED"
+assert_eq "0" "$SHELLFRAME_GRID_FOCUSED"
+
 ptyunit_test_summary

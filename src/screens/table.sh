@@ -1759,6 +1759,7 @@ _shql_TABLE_content_on_key() {
 
 _shql_TABLE_content_on_focus() {
     _SHQL_BROWSER_CONTENT_FOCUSED="${1:-0}"
+    _SHQL_TABLE_BODY_FOCUSED=$_SHQL_BROWSER_CONTENT_FOCUSED
     SHELLFRAME_GRID_FOCUSED=$_SHQL_BROWSER_CONTENT_FOCUSED
     # Losing focus clears header focus mode
     if (( ! _SHQL_BROWSER_CONTENT_FOCUSED )); then

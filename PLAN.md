@@ -364,4 +364,11 @@ Completed 2026-03-23 (ptyunit consumer migration):
 - **PR #35 open**: `feature/shellql-26-truncate-table`
 - **GitHub:** #26, #27, #28 ready to close once PR merges
 
+**Completed 2026-03-31 (WHERE filter — multi-filter + fix):**
+- `src/screens/where.sh` — full redesign: multi-filter storage (newline-delimited `col\top\tval` entries per tab); new helpers `_shql_where_filter_{count,get,set,add,del}`, `_shql_where_clear_one`, `_shql_where_pills_layout`, `_shql_where_pills_render`; all output via named globals to avoid `printf -v`/`local` scope clash; `_shql_where_open` takes `edit_idx` (-1=new, >=0=edit existing); `_shql_where_apply` fixed (removed `local` from output vars)
+- `src/screens/table.sh` — `_shql_content_data_ensure` iterates all filters with AND; gap row renders scrollable pills via `_shql_where_pills_render`; mouse handler updated for per-pill edit/close and [<]/[>] scroll; `+ Filter` and `f` key always open new filter (edit_idx=-1)
+- `tests/unit/test-where.sh` — updated for new API; 63 assertions
+- `tests/unit/test-table.sh` — where.sh stubs added; 111 assertions
+- **533/533 assertions passing**
+
 **Next:** shellql#32 (first data tab focus bug), then shellql#29 (CSV export), shellframe#38 (autocomplete)

@@ -900,41 +900,63 @@ _shql_TABLE_tabbar_on_mouse() {
                 return 0
             fi
             local _gap_ctx="${_SHQL_TABS_CTX[$_gap_tab_active]:-}"
-            # "+ Filter" button (right-aligned) → always opens a fresh (empty) form
+            # "+ Filter" button (right-aligned) → always opens a new filter form
             local _filter_label=" + Filter "
             local _filter_right=$(( _rleft + _rwidth ))
             local _filter_left=$(( _filter_right - ${#_filter_label} ))
             if (( _mcol >= _filter_left && _mcol < _filter_right )); then
-                _shql_where_open "$_gap_table" "$_gap_ctx" 1
+                _shql_where_open "$_gap_table" "$_gap_ctx" -1
                 shellframe_shell_focus_set "content"
                 shellframe_shell_mark_dirty
                 return 0
             fi
-            # Active filter pill (between New Row and + Filter)
-            local _fapplied_var="_SHQL_WHERE_APPLIED_${_gap_ctx}"
-            if [[ -n "${!_fapplied_var:-}" ]]; then
-                local _nr_label=" New Row "
-                local _pill_left=$(( _rleft + ${#_nr_label} + 1 ))
-                local _pill_right=$(( _filter_left - 1 ))
-                local _pill_avail=$(( _pill_right - _pill_left ))
-                if (( _pill_avail >= 7 && _mcol >= _pill_left && _mcol < _pill_right )); then
-                    local _pill_text=""
-                    _shql_where_pill_label "$_gap_ctx" "$(( _pill_avail - 4 ))" _pill_text
-                    local _pill_str="(${_pill_text} x)"
-                    local _x_col=$(( _pill_left + ${#_pill_str} - 2 ))
-                    if (( _mcol == _x_col || _mcol == _x_col + 1 )); then
-                        # Click on " x)" → clear filter
-                        _shql_where_clear "$_gap_ctx"
-                        shellframe_shell_mark_dirty
-                        return 0
-                    else
-                        # Click on pill body → edit (pre-filled)
-                        _shql_where_open "$_gap_table" "$_gap_ctx" 0
-                        shellframe_shell_focus_set "content"
+            # Filter pills area (between New Row and + Filter)
+            local _nr_label=" New Row "
+            local _pills_area_left=$(( _rleft + ${#_nr_label} ))
+            local _pills_area_right=$(( _filter_left ))
+            if (( _mcol >= _pills_area_left && _mcol < _pills_area_right )); then
+                _shql_where_pills_layout "$_gap_ctx" "$_pills_area_left" "$_pills_area_right"
+                # [<] scroll-left
+                if (( _SHQL_PILL_LAYOUT_HAS_PREV && \
+                      _mcol >= _SHQL_PILL_LAYOUT_PREV_COL && \
+                      _mcol < _SHQL_PILL_LAYOUT_PREV_COL + 3 )); then
+                    local _sv="_SHQL_WHERE_PILL_SCROLL_${_gap_ctx}"
+                    local _sv_val=$(( ${!_sv:-0} - 1 ))
+                    (( _sv_val < 0 )) && _sv_val=0
+                    printf -v "$_sv" '%d' "$_sv_val"
+                    shellframe_shell_mark_dirty
+                    return 0
+                fi
+                # [>] scroll-right
+                if (( _SHQL_PILL_LAYOUT_HAS_NEXT && \
+                      _mcol >= _SHQL_PILL_LAYOUT_NEXT_COL && \
+                      _mcol < _SHQL_PILL_LAYOUT_NEXT_COL + 3 )); then
+                    local _sv="_SHQL_WHERE_PILL_SCROLL_${_gap_ctx}"
+                    local _sv_val=$(( ${!_sv:-0} + 1 ))
+                    printf -v "$_sv" '%d' "$_sv_val"
+                    shellframe_shell_mark_dirty
+                    return 0
+                fi
+                # Pill body / close clicks
+                local _pj
+                for (( _pj=0; _pj<_SHQL_PILL_LAYOUT_N; _pj++ )); do
+                    local _pjidx_v="_SHQL_PILL_LAYOUT_IDX_${_pj}"
+                    local _pjcol_v="_SHQL_PILL_LAYOUT_COL_${_pj}"
+                    local _pjw_v="_SHQL_PILL_LAYOUT_W_${_pj}"
+                    local _pjidx="${!_pjidx_v}" _pjcol="${!_pjcol_v}" _pjw="${!_pjw_v}"
+                    if (( _mcol >= _pjcol && _mcol < _pjcol + _pjw )); then
+                        if (( _mcol >= _pjcol + _pjw - 3 )); then
+                            # Click on " x)" → remove this filter
+                            _shql_where_clear_one "$_gap_ctx" "$_pjidx"
+                        else
+                            # Click on body → edit this filter
+                            _shql_where_open "$_gap_table" "$_gap_ctx" "$_pjidx"
+                            shellframe_shell_focus_set "content"
+                        fi
                         shellframe_shell_mark_dirty
                         return 0
                     fi
-                fi
+                done
             fi
         fi
         return 1
@@ -1167,19 +1189,30 @@ _shql_content_data_ensure() {
     # Skip reload if this ctx already owns the globals
     [[ "$_SHQL_BROWSER_GRID_OWNER_CTX" == "$_ctx" ]] && return 0
 
-    # Build WHERE clause from any applied filter for this tab.
-    # Inlined (not via _shql_where_build_clause) to avoid printf -v scope clash
-    # with the local variable _where_arg declared here.
+    # Build WHERE clause from all applied filters for this tab (joined with AND).
+    # Uses _shql_where_filter_{count,get} which write to named globals to avoid
+    # printf -v scope issues with local variables.
     local _where_arg=""
-    local _wvar="_SHQL_WHERE_APPLIED_${_ctx}"
-    if [[ -n "${!_wvar:-}" ]]; then
-        local _wc _wo _wv
-        IFS=$'\t' read -r _wc _wo _wv <<< "${!_wvar}"
-        local _wc_q="\"${_wc//\"/\"\"}\""
-        case "$_wo" in
-            "IS NULL"|"IS NOT NULL") _where_arg="${_wc_q} ${_wo}" ;;
-            *) _where_arg="${_wc_q} ${_wo} '${_wv//\'/\'\'}'" ;;
-        esac
+    _shql_where_filter_count "$_ctx"
+    if (( _SHQL_WHERE_RESULT_COUNT > 0 )); then
+        local _wclauses="" _wi
+        for (( _wi=0; _wi<_SHQL_WHERE_RESULT_COUNT; _wi++ )); do
+            _shql_where_filter_get "$_ctx" "$_wi"
+            local _wc_q="\"${_SHQL_WHERE_RESULT_COL//\"/\"\"}\""
+            local _wclause
+            case "$_SHQL_WHERE_RESULT_OP" in
+                "IS NULL"|"IS NOT NULL")
+                    _wclause="${_wc_q} ${_SHQL_WHERE_RESULT_OP}" ;;
+                *)
+                    _wclause="${_wc_q} ${_SHQL_WHERE_RESULT_OP} '${_SHQL_WHERE_RESULT_VAL//\'/\'\'}'" ;;
+            esac
+            if [[ -z "$_wclauses" ]]; then
+                _wclauses="$_wclause"
+            else
+                _wclauses+=" AND ${_wclause}"
+            fi
+        done
+        _where_arg="$_wclauses"
     fi
 
     SHELLFRAME_GRID_HEADERS=()
@@ -1360,27 +1393,12 @@ _shql_TABLE_content_render() {
             shellframe_fb_print "$(( _top - 1 ))" \
                 "$(( _left + _width - ${#_filter_label} ))" \
                 "$_filter_label" "$_itab_style"
-            # Active filter pill between the two buttons
-            local _fapplied_var="_SHQL_WHERE_APPLIED_${_ctx_active}"
-            if [[ -n "${!_fapplied_var:-}" ]]; then
-                local _pill_left=$(( _left + ${#_nr_label} + 1 ))
-                local _pill_right=$(( _left + _width - ${#_filter_label} - 1 ))
-                local _pill_avail=$(( _pill_right - _pill_left ))
-                if (( _pill_avail >= 7 )); then
-                    # "(expr x)" — 1 + text + 1 + 1 + 1 = text needs avail-4
-                    local _pill_text=""
-                    _shql_where_pill_label "$_ctx_active" "$(( _pill_avail - 4 ))" _pill_text
-                    local _pill_str="(${_pill_text} x)"
-                    local _pill_focus="${SHQL_THEME_QUERY_PANEL_COLOR:-}"
-                    # Text portion (clickable to edit): everything except last 2 chars " x)"
-                    shellframe_fb_print "$(( _top - 1 ))" "$_pill_left" \
-                        "${_pill_str:0:$(( ${#_pill_str} - 2 ))}" "${_itab_style}${_pill_focus}"
-                    # " x)" close button (clickable to clear)
-                    shellframe_fb_print "$(( _top - 1 ))" \
-                        "$(( _pill_left + ${#_pill_str} - 2 ))" " x)" \
-                        "${_itab_style}${SHELLFRAME_GRAY:-}"
-                fi
-            fi
+            # Filter pills between the two buttons
+            local _pill_focus="${SHQL_THEME_QUERY_PANEL_COLOR:-}"
+            local _pills_left=$(( _left + ${#_nr_label} ))
+            local _pills_right=$(( _left + _width - ${#_filter_label} ))
+            _shql_where_pills_render "$_ctx_active" "$(( _top - 1 ))" \
+                "$_pills_left" "$_pills_right" "$_itab_style" "$_pill_focus"
             if (( ${_SHQL_WHERE_ACTIVE:-0} )); then
                 # Render full grid (unfocused) so the table is visible behind the overlay
                 SHELLFRAME_GRID_CTX="${_SHQL_TABS_CTX[$_SHQL_TAB_ACTIVE]}_grid"
@@ -1628,7 +1646,7 @@ _shql_TABLE_content_on_key() {
                 return 0
             fi
             if [[ "$_key" == 'f' && -n "$_dml_table" ]]; then
-                _shql_where_open "$_dml_table" "$_ctx" 1
+                _shql_where_open "$_dml_table" "$_ctx" -1
                 shellframe_shell_mark_dirty
                 return 0
             fi

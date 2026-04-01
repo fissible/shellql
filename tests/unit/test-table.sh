@@ -62,6 +62,22 @@ source "$SHQL_ROOT/src/db_mock.sh"
 shellframe_list_init() { true; }
 source "$SHQL_ROOT/src/screens/schema.sh"
 
+# Stubs for where.sh functions called by table.sh (avoids sourcing full module)
+_SHQL_WHERE_RESULT_COUNT=0
+_SHQL_WHERE_RESULT_COL=""
+_SHQL_WHERE_RESULT_OP=""
+_SHQL_WHERE_RESULT_VAL=""
+_SHQL_PILL_LAYOUT_N=0
+_SHQL_PILL_LAYOUT_TOTAL=0
+_SHQL_PILL_LAYOUT_HAS_PREV=0
+_SHQL_PILL_LAYOUT_PREV_COL=-1
+_SHQL_PILL_LAYOUT_HAS_NEXT=0
+_SHQL_PILL_LAYOUT_NEXT_COL=-1
+_shql_where_filter_count() { _SHQL_WHERE_RESULT_COUNT=0; }
+_shql_where_filter_get()   { _SHQL_WHERE_RESULT_COL=""; _SHQL_WHERE_RESULT_OP=""; _SHQL_WHERE_RESULT_VAL=""; return 1; }
+_shql_where_pills_layout() { _SHQL_PILL_LAYOUT_N=0; _SHQL_PILL_LAYOUT_TOTAL=0; _SHQL_PILL_LAYOUT_HAS_PREV=0; _SHQL_PILL_LAYOUT_PREV_COL=-1; _SHQL_PILL_LAYOUT_HAS_NEXT=0; _SHQL_PILL_LAYOUT_NEXT_COL=-1; }
+_shql_where_pills_render() { true; }
+
 # Source table module
 source "$SHQL_ROOT/src/screens/table.sh"
 source "$SHQL_ROOT/src/screens/query.sh"

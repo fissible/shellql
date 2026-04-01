@@ -3,31 +3,58 @@
 #
 # REQUIRES: shellframe sourced (including input-field.sh), src/state.sh sourced.
 #
-# Renders a compact centered overlay with three fields:
-#   Column   — free text (future: column-name dropdown)
-#   Operator — cycling select with left/right arrows
-#   Value    — free text (hidden for IS NULL / IS NOT NULL)
+# Applied filters are stored per-tab as newline-delimited entries:
+#   _SHQL_WHERE_APPLIED_${tab_ctx}  — "col<TAB>op<TAB>val\ncol<TAB>op<TAB>val\n..."
+#                                     empty string = no filters
 #
-# Applied filter is stored per-tab:
-#   _SHQL_WHERE_APPLIED_${tab_ctx}  — "col<TAB>op<TAB>val", or "" when cleared
-#
-# _shql_where_apply and _shql_where_clear reset _SHQL_BROWSER_GRID_OWNER_CTX
-# to force a grid reload on the next render cycle.
+# Pill scroll state is stored per-tab:
+#   _SHQL_WHERE_PILL_SCROLL_${tab_ctx}  — index of first visible pill (default 0)
 #
 # ── State globals ──────────────────────────────────────────────────────────────
-#   _SHQL_WHERE_ACTIVE    — 0|1: overlay visible
-#   _SHQL_WHERE_TABLE     — table name currently being filtered
-#   _SHQL_WHERE_TAB_CTX   — tab context to store applied filter against
-#   _SHQL_WHERE_CTX       — field context prefix
-#   _SHQL_WHERE_FOCUS     — 0=column, 1=operator, 2=value
-#   _SHQL_WHERE_OP_IDX    — index into _SHQL_WHERE_OPERATORS
+#   _SHQL_WHERE_ACTIVE      — 0|1: overlay visible
+#   _SHQL_WHERE_TABLE       — table name currently being filtered
+#   _SHQL_WHERE_TAB_CTX     — tab context for stored filters
+#   _SHQL_WHERE_CTX         — field context prefix (for shellframe_cur_*)
+#   _SHQL_WHERE_FOCUS       — 0=column, 1=operator, 2=value
+#   _SHQL_WHERE_OP_IDX      — index into _SHQL_WHERE_OPERATORS
+#   _SHQL_WHERE_EDIT_IDX    — index of filter being edited (-1 = new filter)
+#
+# ── Output globals (set by helpers, avoids printf -v scope issues) ─────────────
+#   _SHQL_WHERE_RESULT_COUNT — set by _shql_where_filter_count
+#   _SHQL_WHERE_RESULT_COL   — set by _shql_where_filter_get
+#   _SHQL_WHERE_RESULT_OP    — set by _shql_where_filter_get
+#   _SHQL_WHERE_RESULT_VAL   — set by _shql_where_filter_get
+#   _SHQL_WHERE_PILL_TEXT    — set by _shql_where_pill_label
+#
+# ── Pill layout globals (set by _shql_where_pills_layout) ─────────────────────
+#   _SHQL_PILL_LAYOUT_N          — number of visible pills
+#   _SHQL_PILL_LAYOUT_TOTAL      — total filter count
+#   _SHQL_PILL_LAYOUT_SCROLL     — current scroll offset
+#   _SHQL_PILL_LAYOUT_HAS_PREV   — 1 if [<] shown
+#   _SHQL_PILL_LAYOUT_PREV_COL   — column of [<] (-1 if not shown)
+#   _SHQL_PILL_LAYOUT_HAS_NEXT   — 1 if [>] shown
+#   _SHQL_PILL_LAYOUT_NEXT_COL   — column of [>] (-1 if not shown)
+#   _SHQL_PILL_LAYOUT_IDX_<j>    — filter index of visible pill j
+#   _SHQL_PILL_LAYOUT_COL_<j>    — start column of visible pill j
+#   _SHQL_PILL_LAYOUT_W_<j>      — width of visible pill j
+#   _SHQL_PILL_LAYOUT_EXPR_<j>   — full pill string "(expr x)" for pill j
 #
 # ── Public functions ───────────────────────────────────────────────────────────
-#   _shql_where_open table tab_ctx     — open overlay (pre-fills from applied filter)
-#   _shql_where_render t l w h         — draw overlay (call from content_render)
-#   _shql_where_on_key key             — handle keys; returns 0 (handled) or 1
-#   _shql_where_build_clause col op val out_var  — build SQL WHERE fragment
-#   _shql_where_clear [tab_ctx]        — clear applied filter, force reload
+#   _shql_where_filter_count tab_ctx          — count filters → _SHQL_WHERE_RESULT_COUNT
+#   _shql_where_filter_get tab_ctx idx        — get filter → _SHQL_WHERE_RESULT_{COL,OP,VAL}
+#   _shql_where_filter_set tab_ctx idx col op val — overwrite filter at idx
+#   _shql_where_filter_add tab_ctx col op val — append new filter
+#   _shql_where_filter_del tab_ctx idx        — delete filter at idx
+#   _shql_where_open table tab_ctx edit_idx   — open overlay (edit_idx=-1 for new)
+#   _shql_where_apply                         — read fields and store/update filter
+#   _shql_where_render t l w h                — draw overlay (call from content_render)
+#   _shql_where_on_key key                    — handle keys; returns 0 (handled) or 1
+#   _shql_where_build_clause col op val out_var — build SQL WHERE fragment
+#   _shql_where_pill_label tab_ctx idx max_len — set _SHQL_WHERE_PILL_TEXT
+#   _shql_where_pills_layout tab_ctx area_left area_right — compute pill layout globals
+#   _shql_where_pills_render tab_ctx row area_left area_right style focus_style
+#   _shql_where_clear [tab_ctx]               — clear ALL filters, force reload
+#   _shql_where_clear_one tab_ctx idx         — clear single filter, force reload
 
 _SHQL_WHERE_ACTIVE=0
 _SHQL_WHERE_TABLE=""
@@ -35,13 +62,127 @@ _SHQL_WHERE_TAB_CTX=""
 _SHQL_WHERE_CTX="where_form"
 _SHQL_WHERE_FOCUS=0
 _SHQL_WHERE_OP_IDX=0
+_SHQL_WHERE_EDIT_IDX=-1
 
 _SHQL_WHERE_OPERATORS=("=" "<>" ">" "<" ">=" "<=" "LIKE" "NOT LIKE" "GLOB" "IS NULL" "IS NOT NULL")
 
+# Output globals
+_SHQL_WHERE_RESULT_COUNT=0
+_SHQL_WHERE_RESULT_COL=""
+_SHQL_WHERE_RESULT_OP=""
+_SHQL_WHERE_RESULT_VAL=""
+_SHQL_WHERE_PILL_TEXT=""
+
+# Pill layout globals (populated by _shql_where_pills_layout)
+_SHQL_PILL_LAYOUT_N=0
+_SHQL_PILL_LAYOUT_TOTAL=0
+_SHQL_PILL_LAYOUT_SCROLL=0
+_SHQL_PILL_LAYOUT_HAS_PREV=0
+_SHQL_PILL_LAYOUT_PREV_COL=-1
+_SHQL_PILL_LAYOUT_HAS_NEXT=0
+_SHQL_PILL_LAYOUT_NEXT_COL=-1
+
+# ── _shql_where_filter_count ──────────────────────────────────────────────────
+# Sets _SHQL_WHERE_RESULT_COUNT to number of filters for tab_ctx.
+
+_shql_where_filter_count() {
+    local _fc_var="_SHQL_WHERE_APPLIED_$1"
+    local _fc_data="${!_fc_var:-}"
+    if [[ -z "$_fc_data" ]]; then
+        _SHQL_WHERE_RESULT_COUNT=0
+        return
+    fi
+    local _fc_n=0 _fc_line
+    while IFS= read -r _fc_line; do
+        [[ -n "$_fc_line" ]] && (( _fc_n++ ))
+    done <<< "$_fc_data"
+    _SHQL_WHERE_RESULT_COUNT=$_fc_n
+}
+
+# ── _shql_where_filter_get ────────────────────────────────────────────────────
+# Sets _SHQL_WHERE_RESULT_{COL,OP,VAL}. Returns 1 if idx out of range.
+
+_shql_where_filter_get() {
+    local _fg_var="_SHQL_WHERE_APPLIED_$1"
+    local _fg_idx="$2"
+    local _fg_data="${!_fg_var:-}"
+    _SHQL_WHERE_RESULT_COL=""
+    _SHQL_WHERE_RESULT_OP=""
+    _SHQL_WHERE_RESULT_VAL=""
+    local _fg_i=0 _fg_line
+    while IFS= read -r _fg_line; do
+        if [[ -n "$_fg_line" ]]; then
+            if (( _fg_i == _fg_idx )); then
+                IFS=$'\t' read -r _SHQL_WHERE_RESULT_COL _SHQL_WHERE_RESULT_OP _SHQL_WHERE_RESULT_VAL \
+                    <<< "$_fg_line"
+                return 0
+            fi
+            (( _fg_i++ ))
+        fi
+    done <<< "$_fg_data"
+    return 1
+}
+
+# ── _shql_where_filter_set ────────────────────────────────────────────────────
+# Overwrites filter at idx with new col/op/val.
+
+_shql_where_filter_set() {
+    local _fs_ctx="$1" _fs_idx="$2" _fs_col="$3" _fs_op="$4" _fs_val="$5"
+    local _fs_var="_SHQL_WHERE_APPLIED_${_fs_ctx}"
+    local _fs_data="${!_fs_var:-}"
+    local _fs_i=0 _fs_new="" _fs_line
+    while IFS= read -r _fs_line; do
+        if [[ -n "$_fs_line" ]]; then
+            if (( _fs_i == _fs_idx )); then
+                _fs_new+="${_fs_col}"$'\t'"${_fs_op}"$'\t'"${_fs_val}"$'\n'
+            else
+                _fs_new+="${_fs_line}"$'\n'
+            fi
+            (( _fs_i++ ))
+        fi
+    done <<< "$_fs_data"
+    _fs_new="${_fs_new%$'\n'}"
+    printf -v "_SHQL_WHERE_APPLIED_${_fs_ctx}" '%s' "$_fs_new"
+}
+
+# ── _shql_where_filter_add ────────────────────────────────────────────────────
+# Appends a new filter entry.
+
+_shql_where_filter_add() {
+    local _fa_ctx="$1" _fa_col="$2" _fa_op="$3" _fa_val="$4"
+    local _fa_var="_SHQL_WHERE_APPLIED_${_fa_ctx}"
+    local _fa_existing="${!_fa_var:-}"
+    local _fa_entry="${_fa_col}"$'\t'"${_fa_op}"$'\t'"${_fa_val}"
+    if [[ -z "$_fa_existing" ]]; then
+        printf -v "_SHQL_WHERE_APPLIED_${_fa_ctx}" '%s' "$_fa_entry"
+    else
+        printf -v "_SHQL_WHERE_APPLIED_${_fa_ctx}" '%s' "${_fa_existing}"$'\n'"${_fa_entry}"
+    fi
+}
+
+# ── _shql_where_filter_del ────────────────────────────────────────────────────
+# Removes the filter at idx; remaining entries shift down.
+
+_shql_where_filter_del() {
+    local _fd_ctx="$1" _fd_idx="$2"
+    local _fd_var="_SHQL_WHERE_APPLIED_${_fd_ctx}"
+    local _fd_data="${!_fd_var:-}"
+    local _fd_i=0 _fd_new="" _fd_line
+    while IFS= read -r _fd_line; do
+        if [[ -n "$_fd_line" ]]; then
+            if (( _fd_i != _fd_idx )); then
+                _fd_new+="${_fd_line}"$'\n'
+            fi
+            (( _fd_i++ ))
+        fi
+    done <<< "$_fd_data"
+    _fd_new="${_fd_new%$'\n'}"
+    printf -v "_SHQL_WHERE_APPLIED_${_fd_ctx}" '%s' "$_fd_new"
+}
+
 # ── _shql_where_build_clause ──────────────────────────────────────────────────
-# Builds a SQL WHERE fragment (without the "WHERE" keyword) into out_var.
-# For IS NULL / IS NOT NULL the value argument is ignored.
-# All other values are single-quoted; SQLite coerces via type affinity.
+# Builds a SQL WHERE fragment (without "WHERE") into out_var.
+# IS NULL / IS NOT NULL ignore the value argument.
 
 _shql_where_build_clause() {
     local _col="$1" _op="$2" _val="$3" _clause_out="$4"
@@ -56,53 +197,188 @@ _shql_where_build_clause() {
 }
 
 # ── _shql_where_pill_label ────────────────────────────────────────────────────
-# Builds the display text for a filter pill from the stored filter string.
-# Result is truncated to _max_len chars (minimum 6). Stored into _pout_var.
+# Sets _SHQL_WHERE_PILL_TEXT to the display label for filter at idx.
+# Truncates to _max_len chars. Empty if filter not found.
 
 _shql_where_pill_label() {
-    local _tab_ctx="$1" _max_len="$2" _pout_var="$3"
-    local _applied_var="_SHQL_WHERE_APPLIED_${_tab_ctx}"
-    if [[ -z "${!_applied_var:-}" ]]; then
-        printf -v "$_pout_var" '%s' ""
+    local _pl_ctx="$1" _pl_idx="$2" _pl_max="$3"
+    _shql_where_filter_get "$_pl_ctx" "$_pl_idx"
+    if [[ -z "$_SHQL_WHERE_RESULT_COL" ]]; then
+        _SHQL_WHERE_PILL_TEXT=""
         return
     fi
-    local _wpc _wpo _wpv
-    IFS=$'\t' read -r _wpc _wpo _wpv <<< "${!_applied_var}"
-    local _expr="${_wpc} ${_wpo}"
-    [[ "$_wpo" != "IS NULL" && "$_wpo" != "IS NOT NULL" ]] && _expr+=" ${_wpv}"
-    if (( ${#_expr} > _max_len )); then
-        _expr="${_expr:0:$(( _max_len - 3 ))}..."
+    local _expr="${_SHQL_WHERE_RESULT_COL} ${_SHQL_WHERE_RESULT_OP}"
+    [[ "$_SHQL_WHERE_RESULT_OP" != "IS NULL" && \
+       "$_SHQL_WHERE_RESULT_OP" != "IS NOT NULL" ]] && \
+        _expr+=" ${_SHQL_WHERE_RESULT_VAL}"
+    if (( ${#_expr} > _pl_max )); then
+        _expr="${_expr:0:$(( _pl_max - 3 ))}..."
     fi
-    printf -v "$_pout_var" '%s' "$_expr"
+    _SHQL_WHERE_PILL_TEXT="$_expr"
+}
+
+# ── _shql_where_pills_layout ──────────────────────────────────────────────────
+# Computes which pills are visible in [area_left, area_right) and where.
+# Populates _SHQL_PILL_LAYOUT_* globals (see file header for full list).
+
+_shql_where_pills_layout() {
+    local _pl_ctx="$1" _pl_left="$2" _pl_right="$3"
+
+    _shql_where_filter_count "$_pl_ctx"
+    local _total="$_SHQL_WHERE_RESULT_COUNT"
+
+    local _scroll_var="_SHQL_WHERE_PILL_SCROLL_${_pl_ctx}"
+    local _scroll="${!_scroll_var:-0}"
+    # Clamp scroll
+    (( _scroll >= _total )) && _scroll=$(( _total > 0 ? _total - 1 : 0 ))
+    (( _scroll < 0 )) && _scroll=0
+
+    _SHQL_PILL_LAYOUT_TOTAL="$_total"
+    _SHQL_PILL_LAYOUT_SCROLL="$_scroll"
+    _SHQL_PILL_LAYOUT_N=0
+    _SHQL_PILL_LAYOUT_HAS_PREV=0
+    _SHQL_PILL_LAYOUT_PREV_COL=-1
+    _SHQL_PILL_LAYOUT_HAS_NEXT=0
+    _SHQL_PILL_LAYOUT_NEXT_COL=-1
+
+    if (( _total == 0 )); then
+        return
+    fi
+
+    local _cursor="$_pl_left"
+
+    # [<] scroll-left indicator
+    if (( _scroll > 0 )); then
+        _SHQL_PILL_LAYOUT_HAS_PREV=1
+        _SHQL_PILL_LAYOUT_PREV_COL="$_cursor"
+        _cursor=$(( _cursor + 4 ))  # "[<] "
+    fi
+
+    local _i _j=0
+    for (( _i=_scroll; _i<_total; _i++ )); do
+        _shql_where_filter_get "$_pl_ctx" "$_i"
+        local _expr="${_SHQL_WHERE_RESULT_COL} ${_SHQL_WHERE_RESULT_OP}"
+        [[ "$_SHQL_WHERE_RESULT_OP" != "IS NULL" && \
+           "$_SHQL_WHERE_RESULT_OP" != "IS NOT NULL" ]] && \
+            _expr+=" ${_SHQL_WHERE_RESULT_VAL}"
+
+        # Space before this pill if not the first visible
+        local _sep=$(( _j > 0 ? 1 : 0 ))
+        # Available: right boundary minus cursor, minus separator, minus 4 for potential [>]
+        local _more_after=$(( _total - _i - 1 ))
+        local _avail=$(( _pl_right - _cursor - _sep - (_more_after > 0 ? 4 : 0) ))
+        # Pill is "(expr x)" = expr + 4 chars; need at least 5 (1-char expr)
+        local _max_expr=$(( _avail - 4 ))
+        if (( _max_expr < 1 )); then
+            # Can't fit even a minimal pill — show [>] and stop
+            _SHQL_PILL_LAYOUT_HAS_NEXT=1
+            _SHQL_PILL_LAYOUT_NEXT_COL=$(( _pl_right - 3 ))
+            break
+        fi
+
+        # Truncate expr if needed
+        if (( ${#_expr} > _max_expr )); then
+            if (( _max_expr >= 3 )); then
+                _expr="${_expr:0:$(( _max_expr - 3 ))}..."
+            else
+                _expr="${_expr:0:$_max_expr}"
+            fi
+        fi
+
+        local _pill="(${_expr} x)"
+        local _pill_col=$(( _cursor + _sep ))
+        printf -v "_SHQL_PILL_LAYOUT_IDX_${_j}" '%d' "$_i"
+        printf -v "_SHQL_PILL_LAYOUT_COL_${_j}" '%d' "$_pill_col"
+        printf -v "_SHQL_PILL_LAYOUT_W_${_j}"   '%d' "${#_pill}"
+        printf -v "_SHQL_PILL_LAYOUT_EXPR_${_j}" '%s' "$_pill"
+        (( _j++ ))
+        _cursor=$(( _pill_col + ${#_pill} ))
+
+        # If more pills remain and they won't fit, mark [>] now
+        if (( _more_after > 0 )); then
+            local _avail_after=$(( _pl_right - _cursor - 1 - 4 ))
+            if (( _avail_after < 5 )); then
+                _SHQL_PILL_LAYOUT_HAS_NEXT=1
+                _SHQL_PILL_LAYOUT_NEXT_COL=$(( _pl_right - 3 ))
+                break
+            fi
+        fi
+    done
+
+    _SHQL_PILL_LAYOUT_N="$_j"
+
+    # If all pills shown but there were more, ensure [>] is set
+    if (( _j < _total - _scroll && ! _SHQL_PILL_LAYOUT_HAS_NEXT )); then
+        _SHQL_PILL_LAYOUT_HAS_NEXT=1
+        _SHQL_PILL_LAYOUT_NEXT_COL=$(( _pl_right - 3 ))
+    fi
+}
+
+# ── _shql_where_pills_render ──────────────────────────────────────────────────
+# Renders all visible filter pills into the framebuffer at the given row.
+# Also calls _shql_where_pills_layout to populate layout globals.
+
+_shql_where_pills_render() {
+    local _pr_ctx="$1" _pr_row="$2" _pr_left="$3" _pr_right="$4"
+    local _pr_style="$5" _pr_focus_style="${6:-}"
+    local _gray="${SHELLFRAME_GRAY:-}"
+
+    _shql_where_pills_layout "$_pr_ctx" "$_pr_left" "$_pr_right"
+
+    if (( _SHQL_PILL_LAYOUT_TOTAL == 0 )); then
+        return
+    fi
+
+    if (( _SHQL_PILL_LAYOUT_HAS_PREV )); then
+        shellframe_fb_print "$_pr_row" "$_SHQL_PILL_LAYOUT_PREV_COL" \
+            "[<]" "${_pr_style}${_gray}"
+    fi
+
+    local _j
+    for (( _j=0; _j<_SHQL_PILL_LAYOUT_N; _j++ )); do
+        local _jcol_v="_SHQL_PILL_LAYOUT_COL_${_j}"
+        local _jw_v="_SHQL_PILL_LAYOUT_W_${_j}"
+        local _jexpr_v="_SHQL_PILL_LAYOUT_EXPR_${_j}"
+        local _jcol="${!_jcol_v}" _jw="${!_jw_v}" _jexpr="${!_jexpr_v}"
+        # Body (everything except trailing " x)") is the edit target
+        shellframe_fb_print "$_pr_row" "$_jcol" \
+            "${_jexpr:0:$(( _jw - 3 ))}" "${_pr_style}${_pr_focus_style}"
+        shellframe_fb_print "$_pr_row" "$(( _jcol + _jw - 3 ))" \
+            " x)" "${_pr_style}${_gray}"
+    done
+
+    if (( _SHQL_PILL_LAYOUT_HAS_NEXT )); then
+        shellframe_fb_print "$_pr_row" "$_SHQL_PILL_LAYOUT_NEXT_COL" \
+            "[>]" "${_pr_style}${_gray}"
+    fi
 }
 
 # ── _shql_where_open ──────────────────────────────────────────────────────────
-# _fresh=1 → always start with empty fields (for "add new filter" action)
-# _fresh=0 (default) → pre-fill from applied filter (for "edit" action)
+# edit_idx=-1  → open blank form for a new filter
+# edit_idx>=0  → pre-fill from stored filter at that index
 
 _shql_where_open() {
-    local _table="$1" _tab_ctx="$2" _fresh="${3:-0}"
+    local _table="$1" _tab_ctx="$2" _edit_idx="${3:--1}"
     _SHQL_WHERE_TABLE="$_table"
     _SHQL_WHERE_TAB_CTX="$_tab_ctx"
+    _SHQL_WHERE_EDIT_IDX="$_edit_idx"
     _SHQL_WHERE_FOCUS=0
 
     shellframe_field_init "${_SHQL_WHERE_CTX}_col"
     shellframe_field_init "${_SHQL_WHERE_CTX}_val"
 
-    local _applied_var="_SHQL_WHERE_APPLIED_${_tab_ctx}"
-    if (( ! _fresh )) && [[ -n "${!_applied_var:-}" ]]; then
-        local _wcol _wop _wval
-        IFS=$'\t' read -r _wcol _wop _wval <<< "${!_applied_var}"
-        shellframe_cur_init "${_SHQL_WHERE_CTX}_col" "$_wcol"
+    if (( _edit_idx >= 0 )); then
+        _shql_where_filter_get "$_tab_ctx" "$_edit_idx"
+        shellframe_cur_init "${_SHQL_WHERE_CTX}_col" "$_SHQL_WHERE_RESULT_COL"
         _SHQL_WHERE_OP_IDX=0
-        local _i
-        for (( _i=0; _i<${#_SHQL_WHERE_OPERATORS[@]}; _i++ )); do
-            if [[ "${_SHQL_WHERE_OPERATORS[$_i]}" == "$_wop" ]]; then
-                _SHQL_WHERE_OP_IDX=$_i
+        local _oi
+        for (( _oi=0; _oi<${#_SHQL_WHERE_OPERATORS[@]}; _oi++ )); do
+            if [[ "${_SHQL_WHERE_OPERATORS[$_oi]}" == "$_SHQL_WHERE_RESULT_OP" ]]; then
+                _SHQL_WHERE_OP_IDX=$_oi
                 break
             fi
         done
-        shellframe_cur_init "${_SHQL_WHERE_CTX}_val" "$_wval"
+        shellframe_cur_init "${_SHQL_WHERE_CTX}_val" "$_SHQL_WHERE_RESULT_VAL"
     else
         shellframe_cur_init "${_SHQL_WHERE_CTX}_col" ""
         _SHQL_WHERE_OP_IDX=0
@@ -113,36 +389,54 @@ _shql_where_open() {
 }
 
 # ── _shql_where_apply ────────────────────────────────────────────────────────
-# Reads current field values, stores the applied filter, forces grid reload.
-# Empty column → clears the filter.
+# Reads current field values and stores/updates/deletes the filter.
+# IMPORTANT: _wapply_col and _wapply_val must NOT be declared local —
+# shellframe_cur_text uses printf -v which sets globals; a local declaration
+# here would shadow the global, making the variable always appear empty.
 
 _shql_where_apply() {
-    # Use unique names — shellframe_cur_text uses printf -v which can't reach
-    # a local declared in this function if the names clash.
-    local _wapply_col _wapply_val
+    _wapply_col=""
+    _wapply_val=""
     shellframe_cur_text "${_SHQL_WHERE_CTX}_col" _wapply_col
     shellframe_cur_text "${_SHQL_WHERE_CTX}_val" _wapply_val
     local _op="${_SHQL_WHERE_OPERATORS[$_SHQL_WHERE_OP_IDX]}"
 
-    # Trim column name
+    # Trim leading/trailing whitespace from column name
     _wapply_col="${_wapply_col#"${_wapply_col%%[! ]*}"}"
     _wapply_col="${_wapply_col%"${_wapply_col##*[! ]}"}"
 
     if [[ -z "$_wapply_col" ]]; then
-        printf -v "_SHQL_WHERE_APPLIED_${_SHQL_WHERE_TAB_CTX}" '%s' ""
+        # Empty column: delete the filter we were editing (if any); new = noop
+        if (( _SHQL_WHERE_EDIT_IDX >= 0 )); then
+            _shql_where_filter_del "$_SHQL_WHERE_TAB_CTX" "$_SHQL_WHERE_EDIT_IDX"
+        fi
+    elif (( _SHQL_WHERE_EDIT_IDX >= 0 )); then
+        _shql_where_filter_set "$_SHQL_WHERE_TAB_CTX" "$_SHQL_WHERE_EDIT_IDX" \
+            "$_wapply_col" "$_op" "$_wapply_val"
     else
-        printf -v "_SHQL_WHERE_APPLIED_${_SHQL_WHERE_TAB_CTX}" '%s' \
-            "${_wapply_col}"$'\t'"${_op}"$'\t'"${_wapply_val}"
+        _shql_where_filter_add "$_SHQL_WHERE_TAB_CTX" \
+            "$_wapply_col" "$_op" "$_wapply_val"
     fi
     _SHQL_BROWSER_GRID_OWNER_CTX=""
     _SHQL_WHERE_ACTIVE=0
 }
 
 # ── _shql_where_clear ────────────────────────────────────────────────────────
+# Clears ALL filters for the given tab (or current tab if omitted).
 
 _shql_where_clear() {
     local _tab_ctx="${1:-$_SHQL_WHERE_TAB_CTX}"
     printf -v "_SHQL_WHERE_APPLIED_${_tab_ctx}" '%s' ""
+    _SHQL_BROWSER_GRID_OWNER_CTX=""
+    _SHQL_WHERE_ACTIVE=0
+}
+
+# ── _shql_where_clear_one ────────────────────────────────────────────────────
+# Removes the single filter at idx for the given tab.
+
+_shql_where_clear_one() {
+    local _tab_ctx="$1" _idx="$2"
+    _shql_where_filter_del "$_tab_ctx" "$_idx"
     _SHQL_BROWSER_GRID_OWNER_CTX=""
     _SHQL_WHERE_ACTIVE=0
 }
@@ -193,7 +487,7 @@ _shql_where_on_key() {
         return 0
     fi
 
-    # Value field is hidden when op has no value — consume keystroke
+    # Value field hidden when op has no value — consume keystroke
     if (( _SHQL_WHERE_FOCUS == 2 && ! _has_value )); then
         return 0
     fi
@@ -234,10 +528,12 @@ _shql_where_render() {
     local _focus_color="${SHQL_THEME_QUERY_PANEL_COLOR:-}"
     SHELLFRAME_PANEL_CELL_ATTRS="${_cbg}${_focus_color}"
     SHELLFRAME_PANEL_STYLE="${SHQL_THEME_PANEL_STYLE_FOCUSED:-double}"
-    local _applied_var="_SHQL_WHERE_APPLIED_${_SHQL_WHERE_TAB_CTX}"
-    local _active_marker=""
-    [[ -n "${!_applied_var:-}" ]] && _active_marker=" *"
-    SHELLFRAME_PANEL_TITLE="Filter — ${_SHQL_WHERE_TABLE}${_active_marker}"
+    _shql_where_filter_count "$_SHQL_WHERE_TAB_CTX"
+    local _filter_count="$_SHQL_WHERE_RESULT_COUNT"
+    local _edit_marker=""
+    (( _SHQL_WHERE_EDIT_IDX >= 0 )) && \
+        _edit_marker=" [$(( _SHQL_WHERE_EDIT_IDX + 1 ))/${_filter_count}]"
+    SHELLFRAME_PANEL_TITLE="Filter — ${_SHQL_WHERE_TABLE}${_edit_marker}"
     SHELLFRAME_PANEL_TITLE_ALIGN="left"
     SHELLFRAME_PANEL_FOCUSED=1
     shellframe_panel_render "$_pt" "$_pl" "$_pw" "$_ph"

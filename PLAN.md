@@ -380,4 +380,9 @@ Completed 2026-03-23 (ptyunit consumer migration):
 - **611/611 assertions passing**
 - **PR #35 updated** with all fixes; shellql#32 ✓ closed
 
+**Completed 2026-04-01 (WHERE filter pills UX + overlay reset bug fix):**
+- `src/screens/where.sh` — pills layout rewritten: newest pill is rightmost (closest to `+ Filter`); scroll direction flipped (`[<]` reveals older pills on the left, `[>]` reveals newer on the right); pill scroll reset to 0 on `_shql_where_apply` so the new pill is always visible; pill scroll comment updated to clarify semantics
+- `src/screens/table.sh` — `_shql_TABLE_tabbar_on_mouse`: `+ Filter` click now guarded by `_SHQL_WHERE_ACTIVE` — clicking while the overlay is already open no longer resets the cursor/state (was silently clearing in-progress filter values); scroll direction math corrected (increment/decrement swapped)
+- **611/611 assertions passing**
+
 **Next:** shellql#29 (Export CSV), shellframe#38 (autocomplete layer)

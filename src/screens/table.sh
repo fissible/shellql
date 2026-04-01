@@ -1501,7 +1501,7 @@ _shql_TABLE_content_render() {
                 shellframe_grid_render "$_top" "$_left" "$_grid_w" "$_height"
                 _shql_grid_restore_last
                 # Sort indicators + header focus highlight (overlaid on header row)
-                _shql_sort_overlay_headers "$_top" "$_left" "$_grid_w" "$_ctx"
+                _shql_sort_overlay_headers "$_top" "$_left" "$_grid_w" "$_ctx_active"
                 # Scrollbar in rightmost column (data rows start 2 below _top: headers + hint)
                 if (( _sb_col > 0 )); then
                     local _sb_top=$(( _top + 2 ))

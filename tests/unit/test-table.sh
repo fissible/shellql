@@ -74,6 +74,7 @@ _shql_sort_overlay_headers() { true; }
 _shql_sort_col_at_x()        { _SHQL_SORT_RESULT_IDX=-1; }
 _shql_sort_toggle()          { true; }
 _shql_sort_count()           { _SHQL_SORT_RESULT_COUNT=0; }
+_shql_sort_find()            { _SHQL_SORT_RESULT_DIR=""; }
 
 # Stubs for where.sh functions called by table.sh (avoids sourcing full module)
 _SHQL_WHERE_RESULT_COUNT=0
@@ -650,6 +651,29 @@ _SHQL_BROWSER_GRID_OWNER_CTX=""
 _shql_content_data_ensure
 assert_eq "1" "$_sort_build_called"
 _shql_sort_build_clause() { _SHQL_SORT_RESULT_CLAUSE=""; }  # restore stub
+
+ptyunit_test_begin "sort: content_data_ensure widens sorted column by 2"
+# Simulate col 0 ("id") sorted ASC; unsorted cols should be unchanged
+_shql_sort_count() { _SHQL_SORT_RESULT_COUNT=1; }
+_shql_sort_find()  {
+    if [[ "${2:-}" == "id" ]]; then _SHQL_SORT_RESULT_DIR="ASC"
+    else _SHQL_SORT_RESULT_DIR=""; fi
+}
+shql_browser_init
+_shql_tab_open "users" "data"
+_SHQL_BROWSER_GRID_OWNER_CTX=""
+_shql_content_data_ensure
+_w0_sorted="${SHELLFRAME_GRID_COL_WIDTHS[0]}"
+# Now reload without sort to get base width
+_shql_sort_count() { _SHQL_SORT_RESULT_COUNT=0; }
+_shql_sort_find()  { _SHQL_SORT_RESULT_DIR=""; }
+_SHQL_BROWSER_GRID_OWNER_CTX=""
+_shql_content_data_ensure
+_w0_base="${SHELLFRAME_GRID_COL_WIDTHS[0]}"
+assert_eq "$(( _w0_base + 2 ))" "$_w0_sorted"
+# restore stubs
+_shql_sort_count() { _SHQL_SORT_RESULT_COUNT=0; }
+_shql_sort_find()  { _SHQL_SORT_RESULT_DIR=""; }
 
 # ── Sort: header focus mode enters on ↑ at row 0 ─────────────────────────────
 

@@ -1279,6 +1279,19 @@ _shql_content_data_ensure() {
     done < <(shql_db_fetch "$SHQL_DB_PATH" "$_table" "" "" "$_where_arg" "$_order_arg" 2>"$_SHQL_STDERR_TTY")
 
     _shql_detect_grid_align
+    # Widen sorted columns by 2 to accommodate the ↑/↓ sort indicator without
+    # overlapping the column name.  This runs after all data-driven widths are
+    # final, and the cache is invalidated on every sort change so the widths
+    # always reflect current sort state.
+    _shql_sort_count "$_ctx"
+    if (( _SHQL_SORT_RESULT_COUNT > 0 )); then
+        local _sc
+        for (( _sc=0; _sc<SHELLFRAME_GRID_COLS; _sc++ )); do
+            _shql_sort_find "$_ctx" "${SHELLFRAME_GRID_HEADERS[$_sc]:-}"
+            [[ -n "$_SHQL_SORT_RESULT_DIR" ]] && \
+                SHELLFRAME_GRID_COL_WIDTHS[$_sc]=$(( ${SHELLFRAME_GRID_COL_WIDTHS[$_sc]} + 2 ))
+        done
+    fi
     shellframe_grid_init "${_ctx}_grid"
     _SHQL_BROWSER_GRID_OWNER_CTX="$_ctx"
 }

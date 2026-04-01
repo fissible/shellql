@@ -912,7 +912,9 @@ _shql_TABLE_tabbar_on_mouse() {
             local _filter_right=$(( _rleft + _rwidth ))
             local _filter_left=$(( _filter_right - ${#_filter_label} ))
             if (( _mcol >= _filter_left && _mcol < _filter_right )); then
-                _shql_where_open "$_gap_table" "$_gap_ctx" -1
+                if (( ! ${_SHQL_WHERE_ACTIVE:-0} )); then
+                    _shql_where_open "$_gap_table" "$_gap_ctx" -1
+                fi
                 shellframe_shell_focus_set "content"
                 shellframe_shell_mark_dirty
                 return 0
@@ -923,23 +925,23 @@ _shql_TABLE_tabbar_on_mouse() {
             local _pills_area_right=$(( _filter_left ))
             if (( _mcol >= _pills_area_left && _mcol < _pills_area_right )); then
                 _shql_where_pills_layout "$_gap_ctx" "$_pills_area_left" "$_pills_area_right"
-                # [<] scroll-left
+                # [<] scroll-left — reveal older pills (increment scroll)
                 if (( _SHQL_PILL_LAYOUT_HAS_PREV && \
                       _mcol >= _SHQL_PILL_LAYOUT_PREV_COL && \
                       _mcol < _SHQL_PILL_LAYOUT_PREV_COL + 3 )); then
                     local _sv="_SHQL_WHERE_PILL_SCROLL_${_gap_ctx}"
-                    local _sv_val=$(( ${!_sv:-0} - 1 ))
-                    (( _sv_val < 0 )) && _sv_val=0
+                    local _sv_val=$(( ${!_sv:-0} + 1 ))
                     printf -v "$_sv" '%d' "$_sv_val"
                     shellframe_shell_mark_dirty
                     return 0
                 fi
-                # [>] scroll-right
+                # [>] scroll-right — reveal newer pills (decrement scroll)
                 if (( _SHQL_PILL_LAYOUT_HAS_NEXT && \
                       _mcol >= _SHQL_PILL_LAYOUT_NEXT_COL && \
                       _mcol < _SHQL_PILL_LAYOUT_NEXT_COL + 3 )); then
                     local _sv="_SHQL_WHERE_PILL_SCROLL_${_gap_ctx}"
-                    local _sv_val=$(( ${!_sv:-0} + 1 ))
+                    local _sv_val=$(( ${!_sv:-0} - 1 ))
+                    (( _sv_val < 0 )) && _sv_val=0
                     printf -v "$_sv" '%d' "$_sv_val"
                     shellframe_shell_mark_dirty
                     return 0

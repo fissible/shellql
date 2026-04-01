@@ -8,7 +8,7 @@
 #                                     empty string = no filters
 #
 # Pill scroll state is stored per-tab:
-#   _SHQL_WHERE_PILL_SCROLL_${tab_ctx}  — index of first visible pill (default 0)
+#   _SHQL_WHERE_PILL_SCROLL_${tab_ctx}  — pills to skip from the right (0 = newest on right)
 #
 # ── State globals ──────────────────────────────────────────────────────────────
 #   _SHQL_WHERE_ACTIVE      — 0|1: overlay visible
@@ -251,7 +251,7 @@ _shql_where_pills_layout() {
 
     local _scroll_var="_SHQL_WHERE_PILL_SCROLL_${_pl_ctx}"
     local _scroll="${!_scroll_var:-0}"
-    # Clamp scroll
+    # Clamp scroll: 0 = newest pill on the right; higher = scroll left toward older pills
     (( _scroll >= _total )) && _scroll=$(( _total > 0 ? _total - 1 : 0 ))
     (( _scroll < 0 )) && _scroll=0
 
@@ -267,34 +267,45 @@ _shql_where_pills_layout() {
         return
     fi
 
-    local _cursor="$_pl_left"
+    # Rightmost visible pill: newest pill (index _total-1) offset by _scroll
+    local _end_idx=$(( _total - 1 - _scroll ))
+    (( _end_idx < 0 )) && _end_idx=0
 
-    # [<] scroll-left indicator
+    # [>] on the right when scroll > 0 (newer pills are hidden)
+    local _avail_right="$_pl_right"
     if (( _scroll > 0 )); then
-        _SHQL_PILL_LAYOUT_HAS_PREV=1
-        _SHQL_PILL_LAYOUT_PREV_COL="$_cursor"
-        _cursor=$(( _cursor + 4 ))  # "[<] "
+        _SHQL_PILL_LAYOUT_HAS_NEXT=1
+        _SHQL_PILL_LAYOUT_NEXT_COL=$(( _pl_right - 3 ))
+        _avail_right=$(( _pl_right - 4 ))  # 3 for "[>]" + 1 gap
     fi
 
+    # Collect pills right-to-left (newest first) into temp arrays, then reverse for rendering
+    local -a _tmp_idx _tmp_col _tmp_w _tmp_expr
+    _tmp_idx=(); _tmp_col=(); _tmp_w=(); _tmp_expr=()
     local _i _j=0
-    for (( _i=_scroll; _i<_total; _i++ )); do
+
+    for (( _i=_end_idx; _i>=0; _i-- )); do
         _shql_where_filter_get "$_pl_ctx" "$_i"
         local _expr="${_SHQL_WHERE_RESULT_COL} ${_SHQL_WHERE_RESULT_OP}"
         [[ "$_SHQL_WHERE_RESULT_OP" != "IS NULL" && \
            "$_SHQL_WHERE_RESULT_OP" != "IS NOT NULL" ]] && \
             _expr+=" ${_SHQL_WHERE_RESULT_VAL}"
 
-        # Space before this pill if not the first visible
-        local _sep=$(( _j > 0 ? 1 : 0 ))
-        # Available: right boundary minus cursor, minus separator, minus 4 for potential [>]
-        local _more_after=$(( _total - _i - 1 ))
-        local _avail=$(( _pl_right - _cursor - _sep - (_more_after > 0 ? 4 : 0) ))
+        # 1-char gap to the left of each pill after the first
+        if (( _j > 0 )); then
+            _avail_right=$(( _avail_right - 1 ))
+        fi
+
+        # Available: _avail_right minus _pl_left, minus 4 reserve for [<] if older pills exist
+        local _more_before="$_i"
+        local _left_reserve=$(( _more_before > 0 ? 4 : 0 ))
+        local _avail=$(( _avail_right - _pl_left - _left_reserve ))
         # Pill is "(expr x)" = expr + 4 chars; need at least 5 (1-char expr)
         local _max_expr=$(( _avail - 4 ))
         if (( _max_expr < 1 )); then
-            # Can't fit even a minimal pill — show [>] and stop
-            _SHQL_PILL_LAYOUT_HAS_NEXT=1
-            _SHQL_PILL_LAYOUT_NEXT_COL=$(( _pl_right - 3 ))
+            # Can't fit even a minimal pill — show [<] and stop
+            _SHQL_PILL_LAYOUT_HAS_PREV=1
+            _SHQL_PILL_LAYOUT_PREV_COL="$_pl_left"
             break
         fi
 
@@ -308,32 +319,47 @@ _shql_where_pills_layout() {
         fi
 
         local _pill="(${_expr} x)"
-        local _pill_col=$(( _cursor + _sep ))
-        printf -v "_SHQL_PILL_LAYOUT_IDX_${_j}" '%d' "$_i"
-        printf -v "_SHQL_PILL_LAYOUT_COL_${_j}" '%d' "$_pill_col"
-        printf -v "_SHQL_PILL_LAYOUT_W_${_j}"   '%d' "${#_pill}"
-        printf -v "_SHQL_PILL_LAYOUT_EXPR_${_j}" '%s' "$_pill"
+        local _pill_w="${#_pill}"
+        local _pill_col=$(( _avail_right - _pill_w ))
+        _tmp_idx+=( "$_i" )
+        _tmp_col+=( "$_pill_col" )
+        _tmp_w+=( "$_pill_w" )
+        _tmp_expr+=( "$_pill" )
         (( _j++ ))
-        _cursor=$(( _pill_col + ${#_pill} ))
+        _avail_right="$_pill_col"
 
-        # If more pills remain and they won't fit, mark [>] now
-        if (( _more_after > 0 )); then
-            local _avail_after=$(( _pl_right - _cursor - 1 - 4 ))
-            if (( _avail_after < 5 )); then
-                _SHQL_PILL_LAYOUT_HAS_NEXT=1
-                _SHQL_PILL_LAYOUT_NEXT_COL=$(( _pl_right - 3 ))
+        # Look-ahead: if the next (older) pill won't fit, show [<] and stop
+        if (( _more_before > 0 )); then
+            local _next_avail_right=$(( _avail_right - 1 ))
+            local _next_left_reserve=$(( (_more_before - 1) > 0 ? 4 : 0 ))
+            local _next_avail=$(( _next_avail_right - _pl_left - _next_left_reserve ))
+            if (( _next_avail - 4 < 1 )); then
+                _SHQL_PILL_LAYOUT_HAS_PREV=1
+                _SHQL_PILL_LAYOUT_PREV_COL="$_pl_left"
                 break
             fi
         fi
     done
 
-    _SHQL_PILL_LAYOUT_N="$_j"
-
-    # If all pills shown but there were more, ensure [>] is set
-    if (( _j < _total - _scroll && ! _SHQL_PILL_LAYOUT_HAS_NEXT )); then
-        _SHQL_PILL_LAYOUT_HAS_NEXT=1
-        _SHQL_PILL_LAYOUT_NEXT_COL=$(( _pl_right - 3 ))
+    # If the oldest visible pill is not index 0, there are hidden older pills
+    if (( ! _SHQL_PILL_LAYOUT_HAS_PREV && _j > 0 )); then
+        local _oldest_shown="${_tmp_idx[$(( _j - 1 ))]}"
+        if (( _oldest_shown > 0 )); then
+            _SHQL_PILL_LAYOUT_HAS_PREV=1
+            _SHQL_PILL_LAYOUT_PREV_COL="$_pl_left"
+        fi
     fi
+
+    # Reverse temp arrays into layout globals (left-to-right order for rendering)
+    _SHQL_PILL_LAYOUT_N="$_j"
+    local _k
+    for (( _k=0; _k<_j; _k++ )); do
+        local _src=$(( _j - 1 - _k ))
+        printf -v "_SHQL_PILL_LAYOUT_IDX_${_k}" '%d' "${_tmp_idx[$_src]}"
+        printf -v "_SHQL_PILL_LAYOUT_COL_${_k}" '%d' "${_tmp_col[$_src]}"
+        printf -v "_SHQL_PILL_LAYOUT_W_${_k}"   '%d' "${_tmp_w[$_src]}"
+        printf -v "_SHQL_PILL_LAYOUT_EXPR_${_k}" '%s' "${_tmp_expr[$_src]}"
+    done
 }
 
 # ── _shql_where_pills_render ──────────────────────────────────────────────────
@@ -456,6 +482,8 @@ _shql_where_apply() {
     else
         _shql_where_filter_add "$_SHQL_WHERE_TAB_CTX" \
             "$_wapply_col" "$_op" "$_wapply_val"
+        # Reset scroll so the new pill (rightmost) is visible
+        printf -v "_SHQL_WHERE_PILL_SCROLL_${_SHQL_WHERE_TAB_CTX}" '%d' 0
     fi
     _SHQL_BROWSER_GRID_OWNER_CTX=""
     _SHQL_WHERE_ACTIVE=0

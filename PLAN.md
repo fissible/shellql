@@ -345,7 +345,7 @@ Completed 2026-03-23 (ptyunit consumer migration):
 | [shellql#27](https://github.com/fissible/shellql/issues/27) | Drop table/view | S | confirm.sh (exists) |
 | [shellql#28](https://github.com/fissible/shellql/issues/28) | Create table (SQL template) | S | none |
 | [shellql#29](https://github.com/fissible/shellql/issues/29) | Export CSV | S–M | none |
-| [shellql#32](https://github.com/fissible/shellql/issues/32) | First data tab focus bug | XS–S | none |
+| [shellql#32](https://github.com/fissible/shellql/issues/32) | First data tab focus bug | XS–S | none | ✓ 2026-03-31 |
 | [shellframe#38](https://github.com/fissible/shellframe/issues/38) | Autocomplete layer | M | input-field, context-menu |
 | [shellql#30](https://github.com/fissible/shellql/issues/30) | SQL type-ahead | L | shellframe#38 |
 | [shellql#31](https://github.com/fissible/shellql/issues/31) | Enrich context menus | XS | all DML/DDL above |
@@ -371,4 +371,13 @@ Completed 2026-03-23 (ptyunit consumer migration):
 - `tests/unit/test-table.sh` — where.sh stubs added; 111 assertions
 - **533/533 assertions passing**
 
-**Next:** shellql#32 (first data tab focus bug), then shellql#29 (CSV export), shellframe#38 (autocomplete)
+**Completed 2026-03-31 (Sort feature + bug fixes — shellql#36, #32):**
+- `src/screens/sort.sh` (new) — per-tab ORDER BY state: `_shql_sort_{count,get,find,toggle,build_clause,clear,col_at_x,overlay_headers}`; header keyboard focus state (`_SHQL_HEADER_FOCUSED`, `_SHQL_HEADER_FOCUSED_COL`); `_SHQL_SORT_VISIBLE_END_COL` for scroll-right gating
+- `src/db.sh` — `shql_db_fetch` 6th `_order` param; ORDER BY placed before LIMIT/OFFSET
+- `src/screens/table.sh` — header click handler (sort toggle + cache-bust); keyboard header focus mode (←/→/↑/↓/Enter/Esc/Tab); overlay call after grid render; footer hint dynamic in header mode; sorted columns widened by 2 in `_shql_content_data_ensure`; `SHELLFRAME_GRID_FOCUSED` suppressed in header focus mode; `_SHQL_TABLE_BODY_FOCUSED` synced in `content_on_focus` (shellql#32 fix)
+- `tests/unit/test-sort.sh` (new, 38 assertions); `tests/unit/test-table.sh` (+32 assertions, 143 total)
+- Bug fixes: `_ctx` → `_ctx_active` in overlay call (crash on table open); separator accounting (+1) in overlay/hit-test loops (indicator placement drift); `_k_enter=$'\r'` → `SHELLFRAME_KEY_ENTER` + `\r` fallback (Enter was opening inspector instead of sorting)
+- **611/611 assertions passing**
+- **PR #35 updated** with all fixes; shellql#32 ✓ closed
+
+**Next:** shellql#29 (Export CSV), shellframe#38 (autocomplete layer)

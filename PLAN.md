@@ -344,7 +344,7 @@ Completed 2026-03-23 (ptyunit consumer migration):
 | [shellql#26](https://github.com/fissible/shellql/issues/26) | Truncate table | XS | confirm.sh (exists) |
 | [shellql#27](https://github.com/fissible/shellql/issues/27) | Drop table/view | S | confirm.sh (exists) |
 | [shellql#28](https://github.com/fissible/shellql/issues/28) | Create table (SQL template) | S | none |
-| [shellql#29](https://github.com/fissible/shellql/issues/29) | Export CSV | S–M | none |
+| [shellql#29](https://github.com/fissible/shellql/issues/29) | Export CSV | S–M | none | ✓ 2026-04-01 |
 | [shellql#32](https://github.com/fissible/shellql/issues/32) | First data tab focus bug | XS–S | none | ✓ 2026-03-31 |
 | [shellframe#38](https://github.com/fissible/shellframe/issues/38) | Autocomplete layer | M | input-field, context-menu |
 | [shellql#30](https://github.com/fissible/shellql/issues/30) | SQL type-ahead | L | shellframe#38 |
@@ -385,4 +385,12 @@ Completed 2026-03-23 (ptyunit consumer migration):
 - `src/screens/table.sh` — `_shql_TABLE_tabbar_on_mouse`: `+ Filter` click now guarded by `_SHQL_WHERE_ACTIVE` — clicking while the overlay is already open no longer resets the cursor/state (was silently clearing in-progress filter values); scroll direction math corrected (increment/decrement swapped)
 - **611/611 assertions passing**
 
-**Next:** shellql#29 (Export CSV), shellframe#38 (autocomplete layer)
+**Completed 2026-04-01 (Export CSV/SQL dump — shellql#29):**
+- `src/screens/export.sh` (new) — `_shql_csv_quote_field` (RFC 4180); `_shql_export_open/close`; `_shql_export_on_key` (Tab=format toggle, Enter=execute, Esc=cancel, others→field widget); `_shql_export_do_csv` (2× fetch_limit re-query for data tabs with cached WHERE/ORDER, or dumps loaded grid data for query tabs); `_shql_export_do_sql_dump` (`sqlite3 .dump`); `_shql_export_render` (centered panel overlay with format selector + path field + status line + key hints)
+- `src/screens/table.sh` — `_SHQL_EXPORT_ACTIVE` state flag; `_SHQL_QUERY_WHERE_<ctx>` / `_SHQL_QUERY_ORDER_<ctx>` caches written at end of `_shql_content_data_ensure`; `x` key in data and query branches opens export overlay; export routing at top of `_shql_TABLE_content_on_key`; export render call between content and toast in `_shql_TABLE_content_render`; `[x] Export` added to footer hint
+- `bin/shql` — `source export.sh` added
+- `tests/unit/test-export.sh` (new, 21 assertions) — RFC 4180 quoting, default path derivation, open/close state management
+- **632/632 assertions passing**
+- **shellql#29 closed**
+
+**Next:** shellframe#38 (autocomplete layer), then shellql#30 (SQL type-ahead), then shellql#31 (enrich context menus)

@@ -341,9 +341,9 @@ Completed 2026-03-23 (ptyunit consumer migration):
 
 | Issue | Feature | Effort | Deps |
 |-------|---------|--------|------|
-| [shellql#26](https://github.com/fissible/shellql/issues/26) | Truncate table | XS | confirm.sh (exists) |
-| [shellql#27](https://github.com/fissible/shellql/issues/27) | Drop table/view | S | confirm.sh (exists) |
-| [shellql#28](https://github.com/fissible/shellql/issues/28) | Create table (SQL template) | S | none |
+| [shellql#26](https://github.com/fissible/shellql/issues/26) | Truncate table | XS | confirm.sh (exists) | ✓ 2026-03-31 |
+| [shellql#27](https://github.com/fissible/shellql/issues/27) | Drop table/view | S | confirm.sh (exists) | ✓ 2026-03-31 |
+| [shellql#28](https://github.com/fissible/shellql/issues/28) | Create table (SQL template) | S | none | ✓ 2026-03-31 |
 | [shellql#29](https://github.com/fissible/shellql/issues/29) | Export CSV | S–M | none | ✓ 2026-04-01 |
 | [shellql#32](https://github.com/fissible/shellql/issues/32) | First data tab focus bug | XS–S | none | ✓ 2026-03-31 |
 | [shellframe#38](https://github.com/fissible/shellframe/issues/38) | Autocomplete layer | M | input-field, context-menu |

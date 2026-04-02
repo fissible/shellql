@@ -80,6 +80,11 @@ _SHQL_CMENU_PREV_FOCUS=""     # region that had focus before the menu opened
 _SHQL_HEADER_FOCUSED=0      # 1 while keyboard is navigating column headers
 _SHQL_HEADER_FOCUSED_COL=0  # absolute column index of the focused header
 
+# ── Export overlay state ──────────────────────────────────────────────────────
+# (export logic lives in src/screens/export.sh; flag declared here so table.sh
+#  can reference it without a forward-declaration dependency.)
+_SHQL_EXPORT_ACTIVE=0
+
 # ── TTY for stderr passthrough ────────────────────────────────────────────────
 # Use /dev/tty when available (interactive terminal); fall back to /dev/null in
 # test environments where no controlling terminal exists.
@@ -89,6 +94,11 @@ if ( exec 9>/dev/tty ) 2>/dev/null; then
 else
     _SHQL_STDERR_TTY=/dev/null
 fi
+
+# ── Virtual scrolling ─────────────────────────────────────────────────────────
+# Number of rows fetched per SQL query.  Small enough for fast initial load;
+# large enough to cover many viewports before the next fetch is needed.
+_SHQL_PAGE_SIZE=200
 
 # ── Footer hint strings ────────────────────────────────────────────────────────
 
@@ -101,7 +111,7 @@ _SHQL_TABLE_FOOTER_HINTS_INSPECTOR="[↑↓] Scroll  [PgUp/PgDn] Page  [Enter/Es
 
 _SHQL_BROWSER_FOOTER_HINTS_SIDEBAR="[↑↓] Navigate  [Enter] Data  [s] Schema  [c] New Table  [n] Query  [X] Drop  [→/Tab] Focus  [q] Back"
 _SHQL_BROWSER_FOOTER_HINTS_TABBAR="[←→] Switch tab  [↓/Enter] Content  [w] Close  [n] New query  [Tab] Sidebar"
-_SHQL_BROWSER_FOOTER_HINTS_DATA="[↑↓] Navigate  [←→] Scroll  [Enter] Inspect  [f] Filter  [[/]] Tabs  [Tab] Sidebar  [q] Back"
+_SHQL_BROWSER_FOOTER_HINTS_DATA="[↑↓] Navigate  [←→] Scroll  [Enter] Inspect  [f] Filter  [x] Export  [[/]] Tabs  [Tab] Sidebar  [q] Back"
 _SHQL_BROWSER_FOOTER_HINTS_SCHEMA="[↑↓] Scroll  [Tab] DDL/exit  [q] Back"
 # Documentation constant only — runtime hint is built dynamically by _shql_query_footer_hint
 _SHQL_BROWSER_FOOTER_HINTS_QUERY_BUTTON="[Enter] Edit  [Tab] Results  [Esc] Tab bar"
@@ -1293,7 +1303,7 @@ _shql_content_data_ensure() {
             (( SHELLFRAME_GRID_ROWS++ ))
         fi
         (( _idx++ ))
-    done < <(shql_db_fetch "$SHQL_DB_PATH" "$_table" "" "" "$_where_arg" "$_order_arg" 2>"$_SHQL_STDERR_TTY")
+    done < <(shql_db_fetch "$SHQL_DB_PATH" "$_table" "$_SHQL_PAGE_SIZE" "0" "$_where_arg" "$_order_arg" 2>"$_SHQL_STDERR_TTY")
 
     _shql_detect_grid_align
     # Widen sorted columns by 2 to accommodate the ↑/↓ sort indicator without
@@ -1315,6 +1325,11 @@ _shql_content_data_ensure() {
     shellframe_grid_init "${_ctx}_grid"
     (( _prev_scroll_left > 0 )) && \
         shellframe_scroll_move "${_ctx}_grid" right "$_prev_scroll_left" 2>/dev/null || true
+    # Cache the WHERE/ORDER used for this load so export.sh can re-query with
+    # the same predicates without duplicating the clause-building logic.
+    printf -v "_SHQL_QUERY_WHERE_${_ctx}" '%s' "$_where_arg"
+    printf -v "_SHQL_QUERY_ORDER_${_ctx}" '%s' "$_order_arg"
+
     _SHQL_BROWSER_GRID_OWNER_CTX="$_ctx"
 }
 
@@ -1589,6 +1604,11 @@ _shql_TABLE_content_render() {
             ;;
     esac
 
+    # Export overlay (below toast)
+    if (( ${_SHQL_EXPORT_ACTIVE:-0} )); then
+        _shql_export_render "$_top" "$_left" "$_width" "$_height"
+    fi
+
     # Toast overlay (always topmost)
     shellframe_toast_render "$_top" "$_left" "$_width" "$_height"
 }
@@ -1601,6 +1621,12 @@ _shql_TABLE_content_on_key() {
     local _k_down="${SHELLFRAME_KEY_DOWN:-$'\033[B'}"
     local _k_enter="${SHELLFRAME_KEY_ENTER:-$'\n'}"
     local _k_tab=$'\t'
+
+    # Route to export overlay when active
+    if (( ${_SHQL_EXPORT_ACTIVE:-0} )); then
+        _shql_export_on_key "$_key"
+        return $?
+    fi
 
     # Route to WHERE filter overlay when active
     if (( ${_SHQL_WHERE_ACTIVE:-0} )); then
@@ -1776,6 +1802,11 @@ _shql_TABLE_content_on_key() {
                 shellframe_shell_mark_dirty
                 return 0
             fi
+            if [[ "$_key" == 'x' ]]; then
+                _shql_export_open
+                shellframe_shell_mark_dirty
+                return 0
+            fi
             SHELLFRAME_GRID_CTX="${_ctx}_grid"
             shellframe_grid_on_key "$_key"
             return $?
@@ -1786,6 +1817,11 @@ _shql_TABLE_content_on_key() {
             ;;
         query)
             local _ctx="${_SHQL_TABS_CTX[$_SHQL_TAB_ACTIVE]}"
+            if [[ "$_key" == 'x' ]]; then
+                _shql_export_open
+                shellframe_shell_mark_dirty
+                return 0
+            fi
             _shql_query_on_key_ctx "$_ctx" "$_key"
             return $?
             ;;

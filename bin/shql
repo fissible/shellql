@@ -68,6 +68,7 @@ source "$_SHQL_ROOT/src/screens/inspector.sh"
 source "$_SHQL_ROOT/src/screens/dml.sh"
 source "$_SHQL_ROOT/src/screens/where.sh"
 source "$_SHQL_ROOT/src/screens/sort.sh"
+source "$_SHQL_ROOT/src/screens/export.sh"
 
 # ── Argument parsing ──────────────────────────────────────────────────────────
 

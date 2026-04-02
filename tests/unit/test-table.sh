@@ -202,7 +202,7 @@ assert_eq -1 "$_result"
 ptyunit_test_begin "tab_find: returns -1 for wrong type"
 _SHQL_TABS_TYPE=("data")
 _SHQL_TABS_TABLE=("users")
-_SHQL_TABS_LABEL=("users·Data")
+_SHQL_TABS_LABEL=("users")
 _SHQL_TABS_CTX=("t0")
 _shql_tab_find "users" "schema" _result
 assert_eq -1 "$_result"
@@ -210,7 +210,7 @@ assert_eq -1 "$_result"
 ptyunit_test_begin "tab_find: finds correct index"
 _SHQL_TABS_TYPE=("data" "schema")
 _SHQL_TABS_TABLE=("users" "users")
-_SHQL_TABS_LABEL=("users·Data" "users·Schema")
+_SHQL_TABS_LABEL=("users" "users·Schema")
 _SHQL_TABS_CTX=("t0" "t1")
 _shql_tab_find "users" "schema" _result
 assert_eq 1 "$_result"
@@ -221,7 +221,7 @@ _shql_tab_open "users" "data"
 assert_eq 1 "${#_SHQL_TABS_TYPE[@]}"
 assert_eq "data" "${_SHQL_TABS_TYPE[0]}"
 assert_eq "users" "${_SHQL_TABS_TABLE[0]}"
-assert_eq "users·Data" "${_SHQL_TABS_LABEL[0]}"
+assert_eq "users" "${_SHQL_TABS_LABEL[0]}"
 assert_eq 0 "$_SHQL_TAB_ACTIVE"
 
 ptyunit_test_begin "tab_open: deduplicates — switches to existing tab"
@@ -259,7 +259,7 @@ assert_eq -1 "$_SHQL_TAB_ACTIVE"
 
 ptyunit_test_begin "tab_capacity: fits within available width"
 shql_table_init_browser
-_shql_tab_open "users" "data"     # label "users·Data" = 10 chars + 2 padding = 12
+_shql_tab_open "users" "data"     # label "users" = 10 chars + 2 padding = 12
 _shql_tab_open "orders" "schema"  # label "orders·Schema" = 13 + 2 = 15
 # +SQL = 5; separators = 2
 # total used: 12+1+15+1+5 = 34 → fits in width 80
@@ -322,7 +322,7 @@ _shql_tab_open "users" "data"
 _shql_tab_open "orders" "schema"
 _SHQL_TAB_ACTIVE=0
 _shql_tabbar_build_line 80 _line
-assert_contains "$_line" "users·Data"
+assert_contains "$_line" "users"
 assert_contains "$_line" "orders·Schema"
 
 ptyunit_test_begin "content_dispatch: empty state hint shown when ACTIVE=-1"
@@ -445,10 +445,13 @@ assert_eq "sidebar" "$_SHQL_CMENU_SOURCE"
 ptyunit_test_begin "cmenu: sidebar right-click sets menu items"
 shql_browser_init
 _shql_TABLE_sidebar_on_mouse 2 "press" 4 5 2 1 20 22
-assert_eq "3" "${#SHELLFRAME_CMENU_ITEMS[@]}"
-assert_eq "Open Data" "${SHELLFRAME_CMENU_ITEMS[0]}"
-assert_eq "Open Schema" "${SHELLFRAME_CMENU_ITEMS[1]}"
-assert_eq "New Query" "${SHELLFRAME_CMENU_ITEMS[2]}"
+assert_eq "7" "${#SHELLFRAME_CMENU_ITEMS[@]}"
+assert_contains "${SHELLFRAME_CMENU_ITEMS[0]}" "Open Data"
+assert_contains "${SHELLFRAME_CMENU_ITEMS[1]}" "Open Schema"
+assert_contains "${SHELLFRAME_CMENU_ITEMS[2]}" "New Query"
+assert_contains "${SHELLFRAME_CMENU_ITEMS[4]}" "New Table"
+assert_contains "${SHELLFRAME_CMENU_ITEMS[5]}" "Truncate Table"
+assert_contains "${SHELLFRAME_CMENU_ITEMS[6]}" "Drop Table"
 
 ptyunit_test_begin "cmenu: sidebar left-click does not open context menu"
 shql_browser_init
@@ -496,8 +499,14 @@ ptyunit_test_begin "cmenu: data content right-click menu items"
 shql_browser_init
 _shql_tab_open "users" "data"
 _shql_TABLE_content_on_mouse 2 "press" 6 30 4 21 59 20
-assert_eq "1" "${#SHELLFRAME_CMENU_ITEMS[@]}"
-assert_eq "Inspect Row" "${SHELLFRAME_CMENU_ITEMS[0]}"
+assert_eq "8" "${#SHELLFRAME_CMENU_ITEMS[@]}"
+assert_contains "${SHELLFRAME_CMENU_ITEMS[0]}" "Inspect Row"
+assert_contains "${SHELLFRAME_CMENU_ITEMS[1]}" "Edit Row"
+assert_contains "${SHELLFRAME_CMENU_ITEMS[2]}" "Delete Row"
+assert_contains "${SHELLFRAME_CMENU_ITEMS[4]}" "Insert Row"
+assert_contains "${SHELLFRAME_CMENU_ITEMS[5]}" "Refresh"
+assert_contains "${SHELLFRAME_CMENU_ITEMS[6]}" "Filter"
+assert_contains "${SHELLFRAME_CMENU_ITEMS[7]}" "Export"
 
 # ── Context menu: dismiss restores state ─────────────────────────────────────
 

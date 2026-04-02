@@ -173,10 +173,10 @@ _shql_inspector_open
 _SHQL_INSPECTOR_ACTIVE=1
 shellframe_fb_frame_start 24 80
 _shql_inspector_render 1 1 60 20
-assert_eq 1 $(( ${#_SF_FRAME_DIRTY[@]} > 0 )) "render: framebuffer has dirty cells"
+assert_eq 1 $(( ${#_SF_DIRTY_ROWS[@]} > 0 )) "render: framebuffer has dirty rows"
 
-ptyunit_test_begin "inspector_render: panel title contains 'Record'"
-assert_contains "$SHELLFRAME_PANEL_TITLE" "Record" "render: PANEL_TITLE set to Record..."
+ptyunit_test_begin "inspector_render: panel title contains 'View Row'"
+assert_contains "$SHELLFRAME_PANEL_TITLE" "View Row" "render: PANEL_TITLE set to View Row..."
 
 # ── _shql_word_wrap unit tests ────────────────────────────────────────────────
 

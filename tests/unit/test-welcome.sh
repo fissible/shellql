@@ -227,12 +227,9 @@ source "$SHQL_ROOT/src/screens/header.sh"
 
 # Helper: extract stripped text from a framebuffer row
 _fb_row_text() {
-    local _row="$1" _out="" _i _cols="${_SF_FRAME_COLS:-80}"
-    for (( _i=0; _i<_cols; _i++ )); do
-        local _idx=$(( (_row-1)*_cols + _i ))
-        _out+="${_SF_FRAME_CURR[${_idx}]:-}"
-    done
-    printf '%s' "$_out" | sed $'s/\033\\[[0-9;]*[A-Za-z]//g' | tr -d $'\033'
+    local _row="$1"
+    local _raw="${_SF_ROW_CURR[$_row]:-}"
+    printf '%s' "$_raw" | sed $'s/\033\\[[0-9;]*[A-Za-z]//g' | tr -d $'\033'
 }
 
 ptyunit_test_begin "header_render: row contains 'ShellQL'"

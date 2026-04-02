@@ -50,7 +50,7 @@ SHQL_THEME_GRID_HEADER_BG=$'\033[48;5;237m'           # 237 — shade lighter th
 SHQL_THEME_GRID_HEADER_BORDER=1
 
 # ── Tab bar ──────────────────────────────────────────────────────────────────
-SHQL_THEME_TAB_ACTIVE=""                              # uses CONTENT_BG
+SHQL_THEME_TAB_ACTIVE_COLOR=$'\033[97m\033[1m'        # bright white + bold
 SHQL_THEME_TAB_INACTIVE_BG=$'\033[48;5;238m\033[37m'  # medium gray bg + light gray text
 
 # ── Footer / status bar ─────────────────────────────────────────────────────

@@ -166,12 +166,9 @@ shellframe_list_on_key() { return 1; }
 
 # Helper: extract stripped text from a framebuffer row
 _fb_schema_row_text() {
-    local _row="$1" _out="" _i _cols="${_SF_FRAME_COLS:-80}"
-    for (( _i=0; _i<_cols; _i++ )); do
-        local _idx=$(( (_row-1)*_cols + _i ))
-        _out+="${_SF_FRAME_CURR[${_idx}]:-}"
-    done
-    printf '%s' "$_out" | sed $'s/\033\\[[0-9;]*[A-Za-z]//g' | tr -d $'\033'
+    local _row="$1"
+    local _raw="${_SF_ROW_CURR[$_row]:-}"
+    printf '%s' "$_raw" | sed $'s/\033\\[[0-9;]*[A-Za-z]//g' | tr -d $'\033'
 }
 
 # ── Test: _shql_schema_current_table ─────────────────────────────────────────
@@ -312,7 +309,7 @@ ptyunit_test_begin "schema_header_render: writes cells to framebuffer"
 shellframe_fb_frame_start 24 80
 SHQL_DRIVER=sqlite SHQL_DB_PATH="/data/test.db"
 _shql_SCHEMA_header_render 1 1 80
-assert_eq 1 $(( ${#_SF_FRAME_DIRTY[@]} > 0 ))
+assert_eq 1 $(( ${#_SF_DIRTY_ROWS[@]} > 0 ))
 
 # ── Test: _shql_SCHEMA_sidebar_render (fb render) ─────────────────────────────
 
@@ -335,7 +332,7 @@ ptyunit_test_begin "schema_columns_render: renders columns to framebuffer"
 shellframe_fb_frame_start 24 80
 _SHQL_SCHEMA_COLUMNS=("id	INTEGER	PK" "name	TEXT	NN")
 _shql_SCHEMA_columns_render 1 1 30 20
-assert_eq 1 $(( ${#_SF_FRAME_DIRTY[@]} > 0 ))
+assert_eq 1 $(( ${#_SF_DIRTY_ROWS[@]} > 0 ))
 
 # ── Test: _shql_SCHEMA_detail_render (fb render) ──────────────────────────────
 
@@ -347,6 +344,6 @@ _SHQL_SCHEMA_DDL_LINES=("CREATE TABLE users (" "  id INTEGER PRIMARY KEY" ");")
 shellframe_scroll_init "$_SHQL_SCHEMA_DDL_CTX" 3 1 5 1
 _SHQL_SCHEMA_DETAIL_FOCUSED=0
 _shql_SCHEMA_detail_render 1 1 40 20
-assert_eq 1 $(( ${#_SF_FRAME_DIRTY[@]} > 0 ))
+assert_eq 1 $(( ${#_SF_DIRTY_ROWS[@]} > 0 ))
 
 ptyunit_test_summary

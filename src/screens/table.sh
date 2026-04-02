@@ -37,7 +37,7 @@ _SHQL_TABLE_BODY_FOCUSED=0
 
 _SHQL_TABS_TYPE=()    # "data" | "schema" | "query"
 _SHQL_TABS_TABLE=()   # table name; empty string for query tabs
-_SHQL_TABS_LABEL=()   # display label: "users·Data", "Query 1"
+_SHQL_TABS_LABEL=()   # display label: "users", "users·Schema", "Query 1"
 _SHQL_TABS_CTX=()     # unique context id: "t0", "t1", …
 _SHQL_TAB_ACTIVE=-1   # index of active tab (-1 = no tabs open)
 _SHQL_TAB_CTX_SEQ=0   # ever-incrementing; never reused
@@ -109,7 +109,7 @@ _SHQL_TABLE_FOOTER_HINTS_INSPECTOR="[↑↓] Scroll  [PgUp/PgDn] Page  [Enter/Es
 
 # ── Browser footer hint strings ───────────────────────────────────────────────
 
-_SHQL_BROWSER_FOOTER_HINTS_SIDEBAR="[↑↓] Navigate  [Enter] Data  [s] Schema  [c] New Table  [n] Query  [X] Drop  [→/Tab] Focus  [q] Back"
+_SHQL_BROWSER_FOOTER_HINTS_SIDEBAR="[↑↓] Navigate  [Enter] Data  [s] Schema  [c] New Table  [n] Query  [T] Truncate  [X] Drop  [→/Tab] Focus  [q] Back"
 _SHQL_BROWSER_FOOTER_HINTS_TABBAR="[←→] Switch tab  [↓/Enter] Content  [w] Close  [n] New query  [Tab] Sidebar"
 _SHQL_BROWSER_FOOTER_HINTS_DATA="[↑↓] Navigate  [←→] Scroll  [Enter] Inspect  [r] Refresh  [f] Filter  [x] Export  [[/]] Tabs  [Tab] Sidebar  [q] Back"
 _SHQL_BROWSER_FOOTER_HINTS_SCHEMA="[↑↓] Scroll  [Tab] DDL/exit  [q] Back"
@@ -237,7 +237,7 @@ _shql_tab_open() {
         (( _SHQL_TAB_QUERY_N++ ))
         _label="Query ${_SHQL_TAB_QUERY_N}"
     elif [[ "$_type" == "data" ]]; then
-        _label="${_table}·Data"
+        _label="${_table}"
     else
         _label="${_table}·Schema"
     fi
@@ -518,6 +518,18 @@ _shql_TABLE_sidebar_on_key() {
             fi
             shellframe_shell_mark_dirty
             return 0 ;;
+        T)
+            local _cursor=0
+            shellframe_sel_cursor "$_SHQL_BROWSER_SIDEBAR_CTX" _cursor 2>/dev/null || true
+            if (( _cursor < ${#_SHQL_BROWSER_TABLES[@]} )); then
+                local _ttype="${_SHQL_BROWSER_OBJECT_TYPES[$_cursor]:-table}"
+                if [[ "$_ttype" == "table" ]]; then
+                    local _tname="${_SHQL_BROWSER_TABLES[$_cursor]}"
+                    _shql_dml_truncate_open "$_tname"
+                    shellframe_shell_mark_dirty
+                fi
+            fi
+            return 0 ;;
         X)
             local _cursor=0
             shellframe_sel_cursor "$_SHQL_BROWSER_SIDEBAR_CTX" _cursor 2>/dev/null || true
@@ -555,8 +567,14 @@ _shql_TABLE_sidebar_on_mouse() {
         local _n=${#_SHQL_BROWSER_SIDEBAR_ITEMS[@]}
         if (( _item_idx >= 0 && _item_idx < _n && _item_idx < ${#_SHQL_BROWSER_TABLES[@]} )); then
             shellframe_sel_set "$_SHQL_BROWSER_SIDEBAR_CTX" "$_item_idx"
-            _shql_cmenu_open "sidebar" "$_item_idx" "$_mrow" "$_mcol" \
-                "Open Data" "Open Schema" "New Query"
+            local _obj_type="${_SHQL_BROWSER_OBJECT_TYPES[$_item_idx]:-table}"
+            local _items=("Open Data       (Enter)" "Open Schema         (s)" "New Query           (n)" "────────────────────" "New Table           (c)")
+            if [[ "$_obj_type" == "table" ]]; then
+                _items+=("Truncate Table      (T)" "Drop Table          (X)")
+            else
+                _items+=("Drop View           (X)")
+            fi
+            _shql_cmenu_open "sidebar" "$_item_idx" "$_mrow" "$_mcol" "${_items[@]}"
         fi
         return 0
     fi
@@ -773,11 +791,11 @@ _shql_TABLE_tabbar_render() {
             _SHQL_TABBAR_ACTIVE_X0=$_col
             _SHQL_TABBAR_ACTIVE_X1=$(( _col + _tab_w ))
             local _tab_bg="${SHQL_THEME_CONTENT_BG:-}"
-            local _focus_color=""
+            local _tab_color="${SHQL_THEME_TAB_ACTIVE_COLOR:-$_bold}"
             if (( _SHQL_BROWSER_TABBAR_FOCUSED && ! _SHQL_BROWSER_TABBAR_ON_SQL )); then
-                _focus_color="${SHQL_THEME_QUERY_PANEL_COLOR:-$_bold}"
+                _tab_color="${SHQL_THEME_QUERY_PANEL_COLOR:-$_bold}"
             fi
-            shellframe_fb_print "$_top" "$_col" "$_label" "${_tab_bg}${_focus_color}"
+            shellframe_fb_print "$_top" "$_col" "$_label" "${_tab_bg}${_tab_color}"
             shellframe_fb_print "$_top" "$(( _col + ${#_label} ))" "x " "${_tab_bg}${_gray}"
         else
             local _itab_style="${SHQL_THEME_TAB_INACTIVE_BG:-${SHQL_THEME_TABBAR_BG:-$_inv}}"
@@ -1883,7 +1901,13 @@ _shql_TABLE_content_on_mouse() {
 
             # Right-click or Shift+click on data grid → context menu
             if (( _button == 2 || (_button == 0 && ${SHELLFRAME_MOUSE_SHIFT:-0}) )); then
-                _shql_cmenu_open "content" 0 "$_mrow" "$_mcol" "Inspect Row"
+                # Move cursor to the clicked row before opening the menu
+                shellframe_grid_on_mouse 0 "press" "$_mrow" "$_mcol" \
+                    "$_rtop" "$_rleft" "$_rwidth" "$_rheight" 2>/dev/null || true
+                local _click_cursor=0
+                shellframe_sel_cursor "${_ctx}_grid" _click_cursor 2>/dev/null || true
+                local _data_items=("Inspect Row   (Enter)" "Edit Row          (e)" "Delete Row        (d)" "────────────────────" "Insert Row        (i)" "Refresh           (r)" "Filter            (f)" "Export            (x)")
+                _shql_cmenu_open "content" "$_click_cursor" "$_mrow" "$_mcol" "${_data_items[@]}"
                 return 0
             fi
 
@@ -1954,7 +1978,17 @@ _shql_TABLE_content_on_mouse() {
 
             # Right-click or Shift+click in results pane → context menu
             if (( (_button == 2 || (_button == 0 && ${SHELLFRAME_MOUSE_SHIFT:-0})) && _mrow >= _results_top )); then
-                _shql_cmenu_open "content" 0 "$_mrow" "$_mcol" "View Details"
+                # Move cursor to clicked row (use panel inner bounds, same as left-click)
+                local _rh=$(( _rheight - _editor_rows ))
+                SHELLFRAME_PANEL_STYLE="${SHQL_THEME_PANEL_STYLE:-single}"
+                local _rit=0 _ril=0 _riw=0 _rih=0
+                shellframe_panel_inner "$_results_top" "$_rleft" "$_rwidth" "$_rh" \
+                    _rit _ril _riw _rih
+                SHELLFRAME_GRID_CTX="${_ctx}_results"
+                shellframe_grid_on_mouse 0 "press" "$_mrow" "$_mcol" \
+                    "$_rit" "$_ril" "$_riw" "$_rih" 2>/dev/null || true
+                _shql_cmenu_open "content" 0 "$_mrow" "$_mcol" \
+                    "View Details  (Enter)" "────────────────────" "Re-run        (r)" "Export        (x)"
                 return 0
             fi
 
@@ -2220,7 +2254,8 @@ _shql_cmenu_dispatch() {
 
     case "$_source" in
         sidebar)
-            # 0=Open Data, 1=Open Schema, 2=New Query
+            # 0=Open Data, 1=Open Schema, 2=New Query, 3=separator,
+            # 4=New Table, 5=Truncate Table (table) or Drop View (view), 6=Drop Table (table only)
             case "$_result" in
                 0) shellframe_sel_set "$_SHQL_BROWSER_SIDEBAR_CTX" "$_idx"
                    _shql_TABLE_sidebar_action ;;
@@ -2234,6 +2269,21 @@ _shql_cmenu_dispatch() {
                        _shql_tab_open "" "query"
                        shellframe_shell_focus_set "content"
                    fi ;;
+                3) ;; # separator — no-op
+                4) _shql_TABLE_sidebar_action_create_table ;;
+                5) # Truncate (table) or Drop (view)
+                   local _ttype="${_SHQL_BROWSER_OBJECT_TYPES[$_idx]:-table}"
+                   if [[ "$_ttype" == "table" ]]; then
+                       local _tname="${_SHQL_BROWSER_TABLES[$_idx]:-}"
+                       [[ -n "$_tname" ]] && _shql_dml_truncate_open "$_tname"
+                   else
+                       local _tname="${_SHQL_BROWSER_TABLES[$_idx]:-}"
+                       [[ -n "$_tname" ]] && _shql_drop_confirm "$_tname" "$_ttype"
+                   fi ;;
+                6) # Drop Table
+                   local _tname="${_SHQL_BROWSER_TABLES[$_idx]:-}"
+                   local _ttype="${_SHQL_BROWSER_OBJECT_TYPES[$_idx]:-table}"
+                   [[ -n "$_tname" ]] && _shql_drop_confirm "$_tname" "$_ttype" ;;
             esac ;;
         tabbar)
             # 0=Close Tab, 1=New Query
@@ -2252,15 +2302,48 @@ _shql_cmenu_dispatch() {
             local _type; _shql_content_type _type
             case "$_type" in
                 data)
-                    # 0=Inspect Row
-                    if (( _result == 0 )); then
-                        _shql_inspector_open
-                    fi ;;
+                    # 0=Inspect, 1=Edit, 2=Delete, 3=sep, 4=Insert, 5=Refresh, 6=Filter, 7=Export
+                    # _idx = grid row that was right-clicked (cursor was set before menu opened)
+                    local _dml_table="${_SHQL_TABS_TABLE[$_SHQL_TAB_ACTIVE]:-}"
+                    local _ctx="${_SHQL_TABS_CTX[$_SHQL_TAB_ACTIVE]:-}"
+                    case "$_result" in
+                        0) _shql_inspector_open ;;
+                        1) if [[ -n "$_dml_table" ]] && (( SHELLFRAME_GRID_ROWS > 0 )); then
+                               _shql_dml_update_open "$_dml_table" "$_idx"
+                           fi ;;
+                        2) if [[ -n "$_dml_table" ]] && (( SHELLFRAME_GRID_ROWS > 0 )); then
+                               _shql_dml_delete_open "$_dml_table" "$_idx"
+                           fi ;;
+                        3) ;; # separator
+                        4) [[ -n "$_dml_table" ]] && _shql_dml_insert_open "$_dml_table" ;;
+                        5) _SHQL_BROWSER_GRID_OWNER_CTX=""  ;; # refresh
+                        6) [[ -n "$_dml_table" ]] && _shql_where_open "$_dml_table" "$_ctx" -1 ;;
+                        7) _shql_export_open ;;
+                    esac ;;
                 query)
-                    # 0=View Details
-                    if (( _result == 0 )); then
-                        _shql_query_detail_open
-                    fi ;;
+                    # 0=View Details, 1=sep, 2=Re-run, 3=Export
+                    # Hydrate query ctx globals so functions see the right state
+                    local _ctx="${_SHQL_TABS_CTX[$_SHQL_TAB_ACTIVE]:-}"
+                    _SHQL_QUERY_EDITOR_CTX="${_ctx}_editor"
+                    _SHQL_QUERY_GRID_CTX="${_ctx}_results"
+                    SHELLFRAME_GRID_CTX="${_ctx}_results"
+                    local _hr_var="_SHQL_QUERY_CTX_HAS_RESULTS_${_ctx}"
+                    _SHQL_QUERY_HAS_RESULTS="${!_hr_var:-0}"
+                    local _ls_var="_SHQL_QUERY_CTX_LAST_SQL_${_ctx}"
+                    _SHQL_QUERY_LAST_SQL="${!_ls_var:-}"
+                    case "$_result" in
+                        0) _shql_query_detail_open
+                           printf -v "_SHQL_QUERY_CTX_DETAIL_ACTIVE_${_ctx}" '%d' "$_SHQL_QUERY_DETAIL_ACTIVE" ;;
+                        1) ;; # separator
+                        2) local _sql
+                           shellframe_editor_get_text "${_ctx}_editor" _sql
+                           _shql_query_run "$_sql"
+                           printf -v "_SHQL_QUERY_CTX_STATUS_${_ctx}" '%s' "$_SHQL_QUERY_STATUS"
+                           printf -v "_SHQL_QUERY_CTX_ERROR_${_ctx}" '%s' "$_SHQL_QUERY_ERROR"
+                           printf -v "_SHQL_QUERY_CTX_HAS_RESULTS_${_ctx}" '%d' "$_SHQL_QUERY_HAS_RESULTS"
+                           printf -v "_SHQL_QUERY_CTX_LAST_SQL_${_ctx}" '%s' "$_SHQL_QUERY_LAST_SQL" ;;
+                        3) _shql_export_open ;;
+                    esac ;;
             esac ;;
     esac
     shellframe_shell_mark_dirty

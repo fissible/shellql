@@ -144,6 +144,8 @@ _shql_inspector_render() {
     local _val_left=$(( _pl + _kw + 2 ))
 
     local _kc="${SHQL_THEME_KEY_COLOR:-}"
+    local _vc="${SHQL_THEME_VALUE_COLOR:-}"
+    local _null_style="${SHELLFRAME_GRAY:-}"
     local _n_pairs=${#_SHQL_INSPECTOR_PAIRS[@]}
 
     # Build display-row map: word-wrap values; each wrapped line = one display row.
@@ -182,8 +184,14 @@ _shql_inspector_render() {
         else
             printf -v _key_padded '%-*s' "$_kw" ""
         fi
+        local _vstyle
+        if [[ "$_val_chunk" == "(null)" ]]; then
+            _vstyle="${_ibg}${_null_style}"
+        else
+            _vstyle="${_ibg}${_vc}"
+        fi
         shellframe_fb_print "$_row" "$_pl"       "$_key_padded" "${_ibg}${_kc}"
         shellframe_fb_fill  "$_row" "$(( _pl + _kw ))" 2 " " "$_ibg"
-        shellframe_fb_print "$_row" "$_val_left" "$_val_chunk" "$_ibg"
+        shellframe_fb_print "$_row" "$_val_left" "$_val_chunk" "$_vstyle"
     done
 }

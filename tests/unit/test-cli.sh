@@ -103,6 +103,23 @@ _q_sql=$(printf "STDIN SQL" | bash -c "
 ")
 assert_eq "ARG SQL" "$_q_sql" "-q wins over pipe: SQL from arg not stdin"
 
+# ── -h → help ────────────────────────────────────────────────────────────────
+shql_cli_parse -h
+assert_eq "help" "$_SHQL_CLI_MODE" "-h: mode=help"
+
+# ── --help → help ────────────────────────────────────────────────────────────
+shql_cli_parse --help
+assert_eq "help" "$_SHQL_CLI_MODE" "--help: mode=help"
+
+# ── --help + other args → help (short-circuits) ─────────────────────────────
+shql_cli_parse mydb.sqlite --help -q "SELECT 1"
+assert_eq "help" "$_SHQL_CLI_MODE" "--help+args: mode=help (short-circuits)"
+
+# ── help text is non-empty ───────────────────────────────────────────────────
+_help_out="$(shql_cli_help)"
+assert_contains "$_help_out" "shql" "help text mentions shql"
+assert_contains "$_help_out" "Usage" "help text contains Usage section"
+
 # ── error: unknown flag ───────────────────────────────────────────────────────
 _err=$(shql_cli_parse --foo 2>&1); _rc=$?
 assert_eq "1" "$_rc" "unknown flag: returns 1"

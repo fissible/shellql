@@ -160,3 +160,15 @@ Each file sources `"$PTYUNIT_HOME/assert.sh"` and ends with `ptyunit_test_summar
 
 - shellframe: https://github.com/fissible/shellframe
 - macbin: https://github.com/fissible/macbin (binary distribution)
+
+# Tome Context Store
+This project uses Tome (`.tome.db`) for structured context.
+- Before responding, extract topic keywords from the user's message and call `tome_lookup`.
+- If another project is mentioned by name, also call `tome_cross_lookup`.
+- When you learn a durable truth about this project (architectural decisions, conventions,
+  gotchas, dependency relationships), call `tome_store` to save it.
+- Prefer `kind='decision'` for choices with rationale, `kind='gotcha'` for non-obvious
+  pitfalls, `kind='convention'` for patterns to follow, and `kind='fact'` for everything
+  else (including dependency relationships).
+- For gotchas and dependency facts, save automatically. For decisions, conventions,
+  and architectural facts, ask the user first.

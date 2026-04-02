@@ -381,6 +381,8 @@ _shql_query_detail_render() {
     (( _max_kw > 20 )) && _max_kw=20
 
     local _kc="${SHQL_THEME_KEY_COLOR:-}"
+    local _vc="${SHQL_THEME_VALUE_COLOR:-}"
+    local _null_style="${SHELLFRAME_GRAY:-}"
     local _val_avail=$(( _iw - _max_kw - 3 ))  # key + "  " gap
     (( _val_avail < 1 )) && _val_avail=1
 
@@ -422,9 +424,15 @@ _shql_query_detail_render() {
         else
             printf -v _key_padded '%-*s' "$_max_kw" ""
         fi
+        local _vstyle
+        if [[ "$_val_chunk" == "(null)" ]]; then
+            _vstyle="${_ibg}${_null_style}"
+        else
+            _vstyle="${_ibg}${_vc}"
+        fi
         shellframe_fb_print "$_row" "$(( _il + 1 ))" "$_key_padded" "${_ibg}${_kc}"
         shellframe_fb_fill  "$_row" "$(( _il + 1 + _max_kw ))" 2 " " "$_ibg"
-        shellframe_fb_print "$_row" "$(( _il + 1 + _max_kw + 2 ))" "$_val_chunk" "$_ibg"
+        shellframe_fb_print "$_row" "$(( _il + 1 + _max_kw + 2 ))" "$_val_chunk" "$_vstyle"
     done
 }
 

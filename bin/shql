@@ -74,6 +74,11 @@ source "$_SHQL_ROOT/src/screens/export.sh"
 
 shql_cli_parse "$@" || exit $?
 
+if [[ "$_SHQL_CLI_MODE" == "help" ]]; then
+    shql_cli_help
+    exit 0
+fi
+
 # ── Name resolution ───────────────────────────────────────────────────────────
 # If _SHQL_CLI_DB is set but is not an existing path, attempt to resolve it as
 # a short name (e.g. "chinook") from the connection registry.

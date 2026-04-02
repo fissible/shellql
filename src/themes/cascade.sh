@@ -15,9 +15,9 @@ SHQL_THEME_PANEL_STYLE="single"
 SHQL_THEME_PANEL_STYLE_FOCUSED="double"
 
 # ── Text colors ───────────────────────────────────────────────────────────────
-SHQL_THEME_KEY_COLOR="${SHELLFRAME_BOLD:-}"
-SHQL_THEME_VALUE_COLOR="${SHELLFRAME_RESET:-}"
-SHQL_THEME_VALUE_ACCENT_COLOR="${SHELLFRAME_BOLD:-}"
+SHQL_THEME_KEY_COLOR=$'\033[38;5;140m\033[1m'   # muted purple (grid header color) + bold
+SHQL_THEME_VALUE_COLOR=$'\033[97m'              # bright white
+SHQL_THEME_VALUE_ACCENT_COLOR=$'\033[38;5;135m\033[1m'  # bright purple + bold
 SHQL_THEME_RESET=$'\033[0m'
 
 # ── Header bar: dark purple background, white text ────────────────────────────

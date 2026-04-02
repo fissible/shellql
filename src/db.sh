@@ -156,8 +156,12 @@ shql_db_query() {
     _limit=$(shql_config_get_fetch_limit)
 
     # Wrap SELECT/WITH queries; pass others through unwrapped (DDL, DML, EXPLAIN).
+    # For DML (INSERT/UPDATE/DELETE/REPLACE), append SELECT changes() so the
+    # caller can report affected row count.
     if [[ "$_sql" =~ ^[[:space:]]*([Ss][Ee][Ll][Ee][Cc][Tt]|[Ww][Ii][Tt][Hh])[[:space:]] ]]; then
         _sql="SELECT * FROM ($_sql) LIMIT $_limit"
+    elif [[ "$_sql" =~ ^[[:space:]]*([Ii][Nn][Ss][Ee][Rr][Tt]|[Uu][Pp][Dd][Aa][Tt][Ee]|[Dd][Ee][Ll][Ee][Tt][Ee]|[Rr][Ee][Pp][Ll][Aa][Cc][Ee])[[:space:]] ]]; then
+        _sql="${_sql}; SELECT changes() AS rows_affected"
     fi
 
     local _tmpfile

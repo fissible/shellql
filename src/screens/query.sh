@@ -181,12 +181,30 @@ _shql_query_run() {
     _SHQL_QUERY_HAS_RESULTS=1
     _SHQL_BROWSER_GRID_OWNER_CTX="$_SHQL_QUERY_GRID_CTX"
     _SHQL_QUERY_LAST_SQL="$_sql"
-    if [[ -n "$_warning" ]]; then
+
+    # Detect DML result: shql_db_query appends SELECT changes() for DML
+    # statements, producing a 1-row/1-col grid with header "rows_affected".
+    local _is_dml=0
+    if (( SHELLFRAME_GRID_COLS == 1 && SHELLFRAME_GRID_ROWS == 1 )) \
+        && [[ "${SHELLFRAME_GRID_HEADERS[0]:-}" == "rows_affected" ]]; then
+        _is_dml=1
+    fi
+
+    if (( _is_dml )); then
+        local _affected="${SHELLFRAME_GRID_DATA[0]:-0}"
+        if (( _affected == 1 )); then
+            _SHQL_QUERY_STATUS="1 row affected"
+        else
+            _SHQL_QUERY_STATUS="${_affected} rows affected"
+        fi
+        _SHQL_BROWSER_QUERY_STATUS="$_SHQL_QUERY_STATUS (${_elapsed_ms}ms)"
+    elif [[ -n "$_warning" ]]; then
         _SHQL_QUERY_STATUS="${SHELLFRAME_GRID_ROWS} rows — $_warning"
+        _SHQL_BROWSER_QUERY_STATUS="Query returned ${SHELLFRAME_GRID_ROWS} rows in ${_elapsed_ms}ms"
     else
         _SHQL_QUERY_STATUS="${SHELLFRAME_GRID_ROWS} rows"
+        _SHQL_BROWSER_QUERY_STATUS="Query returned ${SHELLFRAME_GRID_ROWS} rows in ${_elapsed_ms}ms"
     fi
-    _SHQL_BROWSER_QUERY_STATUS="Query returned ${SHELLFRAME_GRID_ROWS} rows in ${_elapsed_ms}ms"
 }
 
 # ── _shql_query_footer_hint ───────────────────────────────────────────────────
@@ -205,9 +223,9 @@ _shql_query_footer_hint() {
 
     if [[ "$_SHQL_QUERY_FOCUSED_PANE" == "results" ]]; then
         if [[ -n "$_status" ]]; then
-            printf -v "$_out_var" '%s  [↑↓] Navigate  [Tab] Editor  [q] Back' "$_status"
+            printf -v "$_out_var" '%s  [↑↓] Navigate  [r] Re-run  [Tab] Editor  [q] Back' "$_status"
         else
-            printf -v "$_out_var" '%s' "[↑↓] Navigate  [Tab] Editor  [q] Back"
+            printf -v "$_out_var" '%s' "[↑↓] Navigate  [r] Re-run  [Tab] Editor  [q] Back"
         fi
     elif (( _SHQL_QUERY_EDITOR_ACTIVE )); then
         # Typing state
@@ -215,9 +233,9 @@ _shql_query_footer_hint() {
     else
         # Button state
         if [[ -n "$_status" ]]; then
-            printf -v "$_out_var" '%s  [Enter] Edit  [Tab] Results  [Esc] Tab bar' "$_status"
+            printf -v "$_out_var" '%s  [Ctrl-D] Run  [Enter] Edit  [Tab] Results  [Esc] Tab bar' "$_status"
         else
-            printf -v "$_out_var" '%s' "[Enter] Edit  [Tab] Results  [Esc] Tab bar"
+            printf -v "$_out_var" '%s' "[Ctrl-D] Run  [Enter] Edit  [Tab] Results  [Esc] Tab bar"
         fi
     fi
 }
@@ -462,8 +480,18 @@ _shql_query_on_key() {
 
     if [[ "$_SHQL_QUERY_FOCUSED_PANE" == "editor" ]]; then
         if (( ! _SHQL_QUERY_EDITOR_ACTIVE )); then
-            # Button state: arrow keys for spatial nav
+            # Button state: arrow keys for spatial nav; Ctrl-D runs query
             case "$_key" in
+                "$_k_ctrl_d")
+                    local _sql
+                    shellframe_editor_get_text "$_SHQL_QUERY_EDITOR_CTX" _sql
+                    _shql_query_run "$_sql"
+                    if [[ -z "$_SHQL_QUERY_ERROR" ]]; then
+                        _SHQL_QUERY_FOCUSED_PANE="results"
+                    fi
+                    shellframe_shell_mark_dirty
+                    return 0
+                    ;;
                 "$_k_enter"|"$_k_newline")
                     _SHQL_QUERY_EDITOR_ACTIVE=1
                     shellframe_shell_mark_dirty
@@ -542,7 +570,7 @@ _shql_query_on_key() {
         _SHQL_QUERY_FOCUSED_PANE="editor"
         shellframe_shell_mark_dirty
         return 0
-    elif [[ "$_key" == "$_k_ctrl_d" ]]; then
+    elif [[ "$_key" == "$_k_ctrl_d" || "$_key" == "r" ]]; then
         local _sql
         shellframe_editor_get_text "$_SHQL_QUERY_EDITOR_CTX" _sql
         _shql_query_run "$_sql"

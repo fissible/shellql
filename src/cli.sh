@@ -54,6 +54,8 @@ Environment:
 Keyboard (TUI):
   Tab / Shift-Tab   Switch focus between sidebar, tabs, and content
   Enter             Open table / run query / inspect row
+  Ctrl-D            Run query (works in edit and focus mode)
+  r                 Refresh data tab / re-run query (from results)
   Esc               Back / close overlay / return to tab bar
   i / e / d         Insert / edit / delete row (data tab)
   T                 Truncate table

@@ -107,15 +107,17 @@ shql_db_fetch() {
     fi
     rm -f "$_tmpfile"
 
-    printf '%s\n' "$_out"
+    # Single pass: emit each line and count data rows simultaneously.
+    # Avoids a second full scan of $_out for the truncation check.
+    local _row_count=0 _line
+    while IFS= read -r _line; do
+        printf '%s\n' "$_line"
+        [[ -n "$_line" ]] && (( _row_count++ ))
+    done <<< "$_out"
+    _out=""  # free the captured string
 
-    # Count data rows (output lines minus header) to decide whether to warn.
     # Only warn when the limit came from config, not an explicit caller arg.
     if (( _use_config_limit )); then
-        local _row_count=0 _line
-        while IFS= read -r _line; do
-            [[ -n "$_line" ]] && (( _row_count++ ))
-        done <<< "$_out"
         (( _row_count > 0 )) && (( _row_count-- ))  # subtract header
         if (( _row_count == _limit )); then
             printf 'warning: result truncated at %d rows. Set a higher fetch limit or refine your query.\n' \
@@ -175,16 +177,19 @@ shql_db_query() {
     _stderr_content=$(cat "$_tmpfile")
     rm -f "$_tmpfile"
 
-    printf '%s\n' "$_out"
-
     if [[ -n "$_stderr_content" ]]; then
         printf '%s\n' "$_stderr_content" >&2
     fi
+
+    # Single pass: emit each line and count data rows simultaneously.
     local _row_count=0 _line
     while IFS= read -r _line; do
+        printf '%s\n' "$_line"
         [[ -n "$_line" ]] && (( _row_count++ ))
     done <<< "$_out"
-    (( _row_count > 0 )) && (( _row_count-- ))
+    _out=""  # free the captured string
+
+    (( _row_count > 0 )) && (( _row_count-- ))  # subtract header
     if (( _row_count == _limit )); then
         printf 'warning: result truncated at %d rows. Set a higher fetch limit or refine your query.\n' \
             "$_limit" >&2

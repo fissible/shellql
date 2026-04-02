@@ -159,7 +159,7 @@ _shql_sort_col_at_x() {
     local _x="$_rleft" _c
     for (( _c = _scroll_left; _c < _ncols; _c++ )); do
         local _cw="${SHELLFRAME_GRID_COL_WIDTHS[$_c]:-8}"
-        if (( _x + _cw > _rleft + _rwidth )); then break; fi
+        if (( _x >= _rleft + _rwidth )); then break; fi   # column left edge past region
         if (( _scr_x >= _x && _scr_x < _x + _cw )); then
             _SHQL_SORT_RESULT_IDX=$_c
             return 0
@@ -200,8 +200,11 @@ _shql_sort_overlay_headers() {
 
     for (( _c = _scroll_left; _c < _ncols; _c++ )); do
         local _cw="${SHELLFRAME_GRID_COL_WIDTHS[$_c]:-8}"
-        if (( _x + _cw > _left + _width )); then break; fi
-        _SHQL_SORT_VISIBLE_END_COL=$_c
+        if (( _x >= _left + _width )); then break; fi   # column left edge past region
+        local _partial=$(( _x + _cw > _left + _width ))
+
+        # Only fully-visible columns count as the "end" for keyboard scroll-right gating
+        (( ! _partial )) && _SHQL_SORT_VISIBLE_END_COL=$_c
 
         local _col="${SHELLFRAME_GRID_HEADERS[$_c]:-}"
         local _indicator=""
@@ -212,14 +215,15 @@ _shql_sort_overlay_headers() {
         fi
 
         if (( _SHQL_HEADER_FOCUSED && _c == _SHQL_HEADER_FOCUSED_COL )); then
-            # Highlight the entire focused cell
+            # Highlight the entire focused cell (clipped to region boundary)
             local _focus_bg="${_cursor_bg:-${_hdr_bg}}"
-            shellframe_fb_fill "$_top" "$_x" "$_cw" " " "${_focus_bg}${_cursor_bold}"
+            local _fill_w=$(( _partial ? _left + _width - _x : _cw ))
+            shellframe_fb_fill "$_top" "$_x" "$_fill_w" " " "${_focus_bg}${_cursor_bold}"
             local _label=" ${_col}"
             [[ -n "$_indicator" ]] && _label+=" ${_indicator}"
             shellframe_fb_print "$_top" "$_x" "$_label" "${_focus_bg}${_cursor_bold}"
-        elif [[ -n "$_indicator" ]]; then
-            # Overlay indicator near the right edge of this cell
+        elif [[ -n "$_indicator" ]] && (( ! _partial )); then
+            # Overlay indicator near the right edge of a fully-visible cell
             local _ind_x=$(( _x + _cw - 2 ))
             (( _ind_x >= _left )) && \
                 shellframe_fb_print "$_top" "$_ind_x" "$_indicator" "${_hdr_bg}${_hdr_style}"

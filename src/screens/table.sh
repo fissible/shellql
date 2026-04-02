@@ -1127,6 +1127,8 @@ _shql_detect_grid_align() {
     SHELLFRAME_GRID_COL_ALIGN=()
     (( _ncols == 0 )) && return 0
 
+    local _scan_rows=$(( _nrows < 200 ? _nrows : 200 ))
+
     local -a _all_num _all_bool _any_val
     local _c
     for (( _c=0; _c<_ncols; _c++ )); do
@@ -1136,7 +1138,7 @@ _shql_detect_grid_align() {
     done
 
     local _r _cell
-    for (( _r=0; _r<_nrows; _r++ )); do
+    for (( _r=0; _r<_scan_rows; _r++ )); do
         for (( _c=0; _c<_ncols; _c++ )); do
             _cell="${SHELLFRAME_GRID_DATA[$(( _r * _ncols + _c ))]:-}"
             [[ -z "$_cell" ]] && continue
@@ -1252,6 +1254,10 @@ _shql_content_data_ensure() {
     SHELLFRAME_GRID_PK_COLS=1
 
     local _maxcw="${SHQL_MAX_COL_WIDTH:-30}"
+    # Scan column widths only for the first N data rows; the rest are stored but
+    # not measured.  The visible viewport is at most ~50 rows, so 200 rows gives
+    # comfortable coverage for initial scroll positions without an O(N) scan.
+    local _width_scan_limit=200
     local _idx=0 _c _cell _cw _hw _cv
     local _row=()
     while IFS=$'\t' read -r -a _row; do
@@ -1267,14 +1273,23 @@ _shql_content_data_ensure() {
                 SHELLFRAME_GRID_COL_WIDTHS+=("$_cw")
             done
         else
-            for (( _c=0; _c<SHELLFRAME_GRID_COLS; _c++ )); do
-                _cell="${_row[$_c]:-}"
-                SHELLFRAME_GRID_DATA+=("$_cell")
-                _cv=$(( ${#_cell} + 2 ))
-                (( _cv > _maxcw )) && _cv=$_maxcw
-                (( _cv > SHELLFRAME_GRID_COL_WIDTHS[$_c] )) && \
-                    SHELLFRAME_GRID_COL_WIDTHS[$_c]=$_cv
-            done
+            if (( _idx <= _width_scan_limit )); then
+                for (( _c=0; _c<SHELLFRAME_GRID_COLS; _c++ )); do
+                    _cell="${_row[$_c]:-}"
+                    SHELLFRAME_GRID_DATA+=("$_cell")
+                    _cv=$(( ${#_cell} + 2 ))
+                    (( _cv > _maxcw )) && _cv=$_maxcw
+                    (( _cv > SHELLFRAME_GRID_COL_WIDTHS[$_c] )) && \
+                        SHELLFRAME_GRID_COL_WIDTHS[$_c]=$_cv
+                done
+            else
+                # Fast path: pad row to SHELLFRAME_GRID_COLS and bulk-append
+                local _r_c
+                for (( _r_c = ${#_row[@]}; _r_c < SHELLFRAME_GRID_COLS; _r_c++ )); do
+                    _row[$_r_c]=""
+                done
+                SHELLFRAME_GRID_DATA+=("${_row[@]:0:$SHELLFRAME_GRID_COLS}")
+            fi
             (( SHELLFRAME_GRID_ROWS++ ))
         fi
         (( _idx++ ))
@@ -1294,7 +1309,12 @@ _shql_content_data_ensure() {
                 SHELLFRAME_GRID_COL_WIDTHS[$_sc]=$(( ${SHELLFRAME_GRID_COL_WIDTHS[$_sc]} + 2 ))
         done
     fi
+    # Preserve horizontal scroll position across reloads (e.g. sort toggle)
+    local _prev_scroll_left=0
+    shellframe_scroll_left "${_ctx}_grid" _prev_scroll_left 2>/dev/null || true
     shellframe_grid_init "${_ctx}_grid"
+    (( _prev_scroll_left > 0 )) && \
+        shellframe_scroll_move "${_ctx}_grid" right "$_prev_scroll_left" 2>/dev/null || true
     _SHQL_BROWSER_GRID_OWNER_CTX="$_ctx"
 }
 

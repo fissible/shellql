@@ -373,6 +373,7 @@ _shql_tab_fits() {
 # ── shql_browser_init ─────────────────────────────────────────────────────────
 # Load tables list and reset browser state. Call before entering TABLE screen.
 shql_browser_init() {
+    _shql_ac_rebuild 2>/dev/null || true
     shql_table_init_browser
     _SHQL_BROWSER_TABLES=()
     _SHQL_BROWSER_SIDEBAR_FOCUSED=1
@@ -503,7 +504,7 @@ _shql_TABLE_sidebar_on_key() {
 
     case "$_key" in
         "$_k_right") shellframe_shell_focus_set "tabbar"; shellframe_shell_mark_dirty; return 0 ;;
-        $'\033'|q)   _shql_quit_confirm; return 0 ;;
+        $'\033'|q|$'\x11') _shql_quit_confirm; return 0 ;;
         $'\r'|$'\n') _shql_TABLE_sidebar_action; shellframe_shell_mark_dirty; return 0 ;;
         s)           _shql_TABLE_sidebar_action_schema; shellframe_shell_mark_dirty; return 0 ;;
         c)           _shql_TABLE_sidebar_action_create_table; shellframe_shell_mark_dirty; return 0 ;;
@@ -899,6 +900,7 @@ _shql_TABLE_tabbar_on_key() {
             shellframe_shell_focus_set "sidebar"
             shellframe_shell_mark_dirty
             return 0 ;;
+        $'\x11') _shql_quit_confirm; return 0 ;;
     esac
     return 1
 }
@@ -1288,6 +1290,7 @@ _shql_content_data_ensure() {
     local _width_scan_limit=200
     local _idx=0 _c _cell _cw _hw _cv
     local _row=()
+    local _t0=$SECONDS
     while IFS=$'\t' read -r -a _row; do
         [[ ${#_row[@]} -eq 0 ]] && continue
         if (( _idx == 0 )); then
@@ -1347,6 +1350,10 @@ _shql_content_data_ensure() {
     # the same predicates without duplicating the clause-building logic.
     printf -v "_SHQL_QUERY_WHERE_${_ctx}" '%s' "$_where_arg"
     printf -v "_SHQL_QUERY_ORDER_${_ctx}" '%s' "$_order_arg"
+
+    local _elapsed_ms=$(( (SECONDS - _t0) * 1000 ))
+    (( _elapsed_ms == 0 )) && _elapsed_ms=1
+    _SHQL_BROWSER_QUERY_STATUS="${SHELLFRAME_GRID_ROWS} rows in ${_elapsed_ms}ms"
 
     _SHQL_BROWSER_GRID_OWNER_CTX="$_ctx"
 }
@@ -1639,6 +1646,12 @@ _shql_TABLE_content_on_key() {
     local _k_down="${SHELLFRAME_KEY_DOWN:-$'\033[B'}"
     local _k_enter="${SHELLFRAME_KEY_ENTER:-$'\n'}"
     local _k_tab=$'\t'
+
+    # Ctrl-q: global quit from any content state
+    if [[ "$_key" == $'\x11' ]]; then
+        _shql_quit_confirm
+        return 0
+    fi
 
     # Route to export overlay when active
     if (( ${_SHQL_EXPORT_ACTIVE:-0} )); then
@@ -2626,6 +2639,7 @@ _shql_TABLE_dropconfirm_action() {
     if (( _qrc == 0 )); then
         local _label="Table"; [[ "$_type" == "view" ]] && _label="View"
         shellframe_toast_show "${_label} dropped" success
+        _shql_ac_rebuild 2>/dev/null || true
         _shql_tabs_close_by_table "$_table"
         _shql_browser_reload_sidebar
         if (( _SHQL_TAB_ACTIVE < 0 )); then

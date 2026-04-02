@@ -182,6 +182,13 @@ _shql_query_run() {
     _SHQL_BROWSER_GRID_OWNER_CTX="$_SHQL_QUERY_GRID_CTX"
     _SHQL_QUERY_LAST_SQL="$_sql"
 
+    # Rebuild autocomplete cache after DDL that creates or drops schema objects
+    if printf '%s' "$_sql" | grep -qiE \
+        '^[[:space:]]*(CREATE[[:space:]]+(TABLE|VIEW)|DROP[[:space:]]+(TABLE|VIEW))'; then
+        _shql_ac_rebuild 2>/dev/null || true
+        _shql_browser_reload_sidebar 2>/dev/null || true
+    fi
+
     # Detect DML result: shql_db_query appends SELECT changes() for DML
     # statements, producing a 1-row/1-col grid with header "rows_affected".
     local _is_dml=0
@@ -516,13 +523,20 @@ _shql_query_on_key() {
             return 1
         fi
 
-        # Typing state: Esc returns to button state; Ctrl-D submits; else → editor
+        # Typing state: autocomplete takes priority, then Esc, then editor
+        # AC handles Enter/Tab/Esc/Up/Down when popup is active.
+        SHELLFRAME_EDITOR_CTX="$_SHQL_QUERY_EDITOR_CTX"
+        shellframe_ac_on_key "$_key"
+        if (( $? == 0 )); then
+            shellframe_shell_mark_dirty
+            return 0
+        fi
+
         if [[ "$_key" == "$_k_escape" ]]; then
             _SHQL_QUERY_EDITOR_ACTIVE=0
             shellframe_shell_mark_dirty
             return 0
         fi
-        SHELLFRAME_EDITOR_CTX="$_SHQL_QUERY_EDITOR_CTX"
         shellframe_editor_on_key "$_key"
         local _rc=$?
         if (( _rc == 2 )); then
@@ -539,6 +553,13 @@ _shql_query_on_key() {
             return 0
         fi
         if (( _rc == 0 )); then
+            # After editor handles a key, update autocomplete popup.
+            shellframe_ac_on_key_after
+            # If popup just became active, skip fast-path and do a full redraw.
+            if (( _SHELLFRAME_AC_ACTIVE )); then
+                shellframe_shell_mark_dirty
+                return 0
+            fi
             # Fast-path: re-render editor directly to fd3, skip full draw cycle.
             # The editor already called mark_dirty — suppress it so the shell
             # event loop doesn't trigger an expensive full-screen redraw.
@@ -623,6 +644,11 @@ _shql_query_render() {
     local _top="$1" _left="$2" _width="$3" _height="$4"
     local _gray="${SHELLFRAME_GRAY:-}"
 
+    # Attach autocomplete to this editor context (re-attaches on tab switch)
+    if [[ "${_SHELLFRAME_AC_CTX:-}" != "$_SHQL_QUERY_EDITOR_CTX" ]]; then
+        shellframe_ac_attach "$_SHQL_QUERY_EDITOR_CTX" "editor"
+    fi
+
     # Lazy widget init: requires viewport dimensions, so deferred from _shql_query_init.
     if (( ! _SHQL_QUERY_INITIALIZED )); then
         SHELLFRAME_EDITOR_LINES=()
@@ -695,6 +721,21 @@ _shql_query_render() {
         SHELLFRAME_EDITOR_FG=$'\033[38;5;245m'   # muted gray — visually "disabled"
     fi
     shellframe_editor_render "$_it" "$_il" "$_iw" "$_ih"
+
+    # Render autocomplete popup when editor is active and popup has matches
+    if (( _editor_pane_focused && _SHQL_QUERY_EDITOR_ACTIVE && _SHELLFRAME_AC_ACTIVE )); then
+        local _ac_lrow _ac_lcol _ac_vtop _ac_crow _ac_ccol
+        _ac_lrow="$(shellframe_editor_row "$_SHQL_QUERY_EDITOR_CTX" 2>/dev/null)" || _ac_lrow=0
+        _ac_lcol="$(shellframe_editor_col "$_SHQL_QUERY_EDITOR_CTX" 2>/dev/null)" || _ac_lcol=0
+        _ac_vtop="$(shellframe_editor_vtop "$_SHQL_QUERY_EDITOR_CTX" 2>/dev/null)" || _ac_vtop=0
+        _ac_crow=$(( _it + _ac_lrow - _ac_vtop ))
+        (( _ac_crow < _it )) && _ac_crow=$_it
+        (( _ac_crow >= _it + _ih )) && _ac_crow=$(( _it + _ih - 1 ))
+        _ac_ccol=$(( _il + _ac_lcol ))
+        (( _ac_ccol < _il )) && _ac_ccol=$_il
+        shellframe_ac_render 1 1 "${_SF_FRAME_COLS:-80}" "${_SF_FRAME_ROWS:-24}" \
+            "$_ac_crow" "$_ac_ccol"
+    fi
 
     # Button state: show placeholder hint when editor is empty
     if (( _editor_pane_focused && ! _SHQL_QUERY_EDITOR_ACTIVE )); then

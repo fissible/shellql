@@ -58,6 +58,8 @@ fi
 source "$_SHQL_ROOT/src/theme.sh"
 shql_theme_load "${SHQL_THEME:-basic}"
 
+source "$_SHQL_ROOT/src/autocomplete.sh"
+
 # screens (util.sh first — shared helpers; header.sh before welcome/table)
 source "$_SHQL_ROOT/src/screens/util.sh"
 source "$_SHQL_ROOT/src/screens/header.sh"

@@ -105,7 +105,9 @@ def test_sidebar_shows_table_names():
     """Opening a database populates the sidebar with table names."""
     script = _make_launch_script(extra_args=f'"{_DEMO_DB}"', env_overrides={"SHQL_MOCK": "0"})
     try:
-        with PTYSession(script, cols=120, rows=30, timeout=10.0) as session:
+        # stable_window=0.3: the default 50ms window can fire before the DB-driven
+        # sidebar render completes on slower CI runners.
+        with PTYSession(script, cols=120, rows=30, timeout=10.0, stable_window=0.3) as session:
             # The sidebar should contain at least one of the known demo tables
             output = "\n".join(session.screen.row(r) for r in range(30))
             found = any(
@@ -121,7 +123,7 @@ def test_enter_opens_data_tab():
     """Pressing Enter on a sidebar table opens a data tab."""
     script = _make_launch_script(extra_args=f'"{_DEMO_DB}"', env_overrides={"SHQL_MOCK": "0"})
     try:
-        with PTYSession(script, cols=120, rows=30, timeout=10.0) as session:
+        with PTYSession(script, cols=120, rows=30, timeout=10.0, stable_window=0.3) as session:
             session.send("ENTER")
             # After Enter, a data tab should be active — look for the tab bar indicator
             output = "\n".join(session.screen.row(r) for r in range(30))

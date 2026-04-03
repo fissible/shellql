@@ -346,8 +346,8 @@ Completed 2026-03-23 (ptyunit consumer migration):
 | [shellql#28](https://github.com/fissible/shellql/issues/28) | Create table (SQL template) | S | none | ✓ 2026-03-31 |
 | [shellql#29](https://github.com/fissible/shellql/issues/29) | Export CSV | S–M | none | ✓ 2026-04-01 |
 | [shellql#32](https://github.com/fissible/shellql/issues/32) | First data tab focus bug | XS–S | none | ✓ 2026-03-31 |
-| [shellframe#38](https://github.com/fissible/shellframe/issues/38) | Autocomplete layer | M | input-field, context-menu |
-| [shellql#30](https://github.com/fissible/shellql/issues/30) | SQL type-ahead | L | shellframe#38 |
+| [shellframe#38](https://github.com/fissible/shellframe/issues/38) | Autocomplete layer | M | input-field, context-menu | ✓ 2026-04-01 |
+| [shellql#30](https://github.com/fissible/shellql/issues/30) | SQL type-ahead | L | shellframe#38 | ✓ 2026-04-02 |
 | [shellql#31](https://github.com/fissible/shellql/issues/31) | Enrich context menus | XS | all DML/DDL above |
 
 **Build order:**
@@ -393,4 +393,27 @@ Completed 2026-03-23 (ptyunit consumer migration):
 - **632/632 assertions passing**
 - **shellql#29 closed**
 
-**Next:** shellframe#38 (autocomplete layer), then shellql#30 (SQL type-ahead), then shellql#31 (enrich context menus)
+**Completed 2026-04-01 (Autocomplete + v1 test polish — shellql#30):**
+- `src/autocomplete.sh` — pure-bash `_shql_tolower`/`_shql_toupper` (zero subshells via `printf -v`); `_shql_ac_sql_context` uses `[[ =~ ]]` with local pattern variables (no `printf|grep`); `_shql_ac_provider` inner loops use `_shql_tolower` instead of `printf|tr`; net ~100+ subshells/keystroke → ~3
+- `src/screens/query.sh` — backspace key: calls `shellframe_ac_dismiss` instead of `shellframe_ac_on_key_after` (keeps AC dismissed while deleting)
+- `src/db.sh`, `src/db_mock.sh`, `src/screens/export.sh`, `src/screens/table.sh`, `src/screens/query.sh` — field separator changed from `\t` to `\x1f` (ASCII Unit Separator) throughout to prevent bash IFS whitespace-collapsing of NULL/empty fields (fixes column-shift bug on rows with empty cells)
+- `src/screens/table.sh` — `_shql_content_data_ensure` sets `_SHQL_BROWSER_QUERY_STATUS` with row count + elapsed ms after fetch (fixes `[r]` refresh status bar)
+- **Test improvements (758/758 assertions across 23 files):**
+  - Migrated `test-where.sh`, `test-autocomplete.sh`, `test-sort.sh`, `test-cli.sh`, `test-db-mock.sh` to `describe`/`test_that`/`test_each` (ptyunit 1.5)
+  - New `tests/unit/test-db.sh` (20 assertions): `ptyunit_mock sqlite3` covers SELECT wrapping, DML `rows_affected` append, semicolon stripping, `\x1f` separator, error propagation
+  - New `tests/integration/test_pty_shql.py` (6 assertions): PTY smoke tests via `PTYSession` — welcome screen, connection tiles, `q` quits, sidebar tables, Enter opens data tab, `--query` flag
+  - New `tests/integration/setUp.sh`: auto-detects `SHELLFRAME_DIR`, skips if absent
+  - Fixed `tests/integration/test-db.sh`: `cut -f1` → `cut -d $'\x1f' -f1`
+  - Fixed `tests/integration/test-integration.sh`: source `where.sh`+`sort.sh` before `table.sh`
+- **Blocker:** shellql#30 cannot be closed via API (401); close manually on GitHub
+- **Remaining v1 work:** shellql#31 (enrich context menus) — all DML/DDL actions now exist
+
+**Remaining v1 issues:**
+
+| Issue | Feature | Effort | Status |
+|-------|---------|--------|--------|
+| [shellql#31](https://github.com/fissible/shellql/issues/31) | Enrich context menus | XS | open |
+
+**Inspector text hierarchy spec** is written (`docs/superpowers/specs/2026-04-01-inspector-text-hierarchy-design.md`) — covers panel FG bleed fix and inspector key/value visual distinction. Could be a follow-up v1 polish item.
+
+**Next:** shellql#31 (enrich context menus — add all available actions to the right-click context menu now that DML/DDL/export are complete)

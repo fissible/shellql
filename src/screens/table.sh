@@ -1876,7 +1876,8 @@ _shql_TABLE_content_on_key() {
             ;;
         query)
             local _ctx="${_SHQL_TABS_CTX[$_SHQL_TAB_ACTIVE]}"
-            if [[ "$_key" == 'x' ]]; then
+            local _ea_var="_SHQL_QUERY_CTX_EDITOR_ACTIVE_${_ctx}"
+            if [[ "$_key" == 'x' ]] && (( ! ${!_ea_var:-0} )); then
                 _shql_export_open
                 shellframe_shell_mark_dirty
                 return 0

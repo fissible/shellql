@@ -506,7 +506,7 @@ _shql_TABLE_sidebar_on_key() {
     case "$_key" in
         "$_k_right") shellframe_shell_focus_set "tabbar"; shellframe_shell_mark_dirty; return 0 ;;
         $'\033'|q) _shql_quit_confirm "WELCOME"; return 0 ;;
-        $'\x11')   _shql_quit_confirm "__QUIT__"; return 0 ;;
+        $'\x11')   _SHELLFRAME_SHELL_NEXT="__QUIT__"; return 0 ;;
         $'\r'|$'\n') _shql_TABLE_sidebar_action; shellframe_shell_mark_dirty; return 0 ;;
         s)           _shql_TABLE_sidebar_action_schema; shellframe_shell_mark_dirty; return 0 ;;
         c)           _shql_TABLE_sidebar_action_create_table; shellframe_shell_mark_dirty; return 0 ;;
@@ -1661,9 +1661,9 @@ _shql_TABLE_content_on_key() {
     local _k_enter="${SHELLFRAME_KEY_ENTER:-$'\n'}"
     local _k_tab=$'\t'
 
-    # Ctrl-q: global quit from any content state (skip welcome, exit process)
+    # Ctrl-q: global quit from any content state — exit immediately, no confirm
     if [[ "$_key" == $'\x11' ]]; then
-        _shql_quit_confirm "__QUIT__"
+        _SHELLFRAME_SHELL_NEXT="__QUIT__"
         return 0
     fi
 
@@ -2499,7 +2499,7 @@ _shql_TABLE_footer_render() {
 # ── _shql_TABLE_quit ──────────────────────────────────────────────────────────
 
 _shql_TABLE_quit() {
-    _SHELLFRAME_SHELL_NEXT="WELCOME"
+    _shql_quit_confirm "WELCOME"
 }
 
 # ── _shql_quit_confirm ────────────────────────────────────────────────────────
@@ -2530,7 +2530,7 @@ _shql_TABLE_quitconfirm_render() {
     local _dl=$(( _left + (_width  - _dw) / 2 ))
 
     SHELLFRAME_PANEL_STYLE="${SHQL_THEME_PANEL_STYLE_FOCUSED:-double}"
-    SHELLFRAME_PANEL_TITLE="Quit?"
+    SHELLFRAME_PANEL_TITLE="Close database?"
     SHELLFRAME_PANEL_TITLE_ALIGN="center"
     SHELLFRAME_PANEL_FOCUSED=1
     SHELLFRAME_PANEL_CELL_ATTRS="${_cbg}${_focus_color}"
@@ -2549,9 +2549,9 @@ _shql_TABLE_quitconfirm_render() {
 
     local _mid=$(( _it + _ih / 2 ))
     shellframe_fb_print "$(( _mid - 1 ))" "$(( _il + 2 ))" \
-        "Quit ShellQL?" "${_ibg}"
+        "Close and go back to database list?" "${_ibg}"
     shellframe_fb_print "$(( _it + _ih - 1 ))" "$_il" \
-        " [y] Quit  [n/Esc] Stay" "${_ibg}${_gray}"
+        " [y] Close  [n/Esc] Stay" "${_ibg}${_gray}"
 }
 
 # ── _shql_TABLE_quitconfirm_on_key ───────────────────────────────────────────

@@ -50,3 +50,42 @@ jobs:
         env:
           SHELLFRAME_DIR: ${{ github.workspace }}/shellframe
         run: bash tests/run.sh
+
+  bash-compat:
+    name: bash ${{ matrix.bash }} / docker
+    runs-on: ubuntu-latest
+    container: bash:${{ matrix.bash }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - bash: "4.4"
+          - bash: "5.0"
+          - bash: "5.2"
+
+    steps:
+      - name: Install dependencies
+        run: apk add --no-cache git sqlite
+
+      - name: Checkout repo
+        uses: actions/checkout@v4.2.2
+        with:
+          path: repo
+
+      - name: Checkout ptyunit
+        uses: actions/checkout@v4.2.2
+        with:
+          repository: fissible/ptyunit
+          path: ptyunit
+
+      - name: Checkout shellframe
+        uses: actions/checkout@v4.2.2
+        with:
+          repository: fissible/shellframe
+          path: shellframe
+
+      - name: Run unit tests
+        working-directory: repo
+        env:
+          SHELLFRAME_DIR: ${{ github.workspace }}/shellframe
+        run: bash tests/run.sh --unit

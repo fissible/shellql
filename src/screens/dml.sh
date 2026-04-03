@@ -36,6 +36,7 @@ _SHQL_DML_DELETE_PK_VAL=""
 _SHQL_DML_ROW_IDX=-1
 _SHQL_DML_GRID_CTX=""
 _SHQL_DML_CALLER="grid"
+_SHQL_DML_INSPECTOR_RESTORE=0
 
 # ── _shql_dml_quote_val ───────────────────────────────────────────────────────
 # Produce a SQLite-safe quoted value string.
@@ -317,6 +318,7 @@ _shql_dml_refresh_grid() {
     if [[ "$_SHQL_DML_CALLER" == "inspector" ]]; then
         _SHQL_INSPECTOR_ACTIVE=1
         _SHQL_INSPECTOR_ROW_IDX="$_SHQL_DML_ROW_IDX"
+        _SHQL_DML_INSPECTOR_RESTORE=1
     fi
     # Force reload on next render by clearing the grid owner context
     _SHQL_BROWSER_GRID_OWNER_CTX=""

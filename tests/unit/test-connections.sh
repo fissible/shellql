@@ -100,10 +100,12 @@ export XDG_DATA_HOME="$_fail_dir"
 source "$SHQL_ROOT/src/state.sh"
 shql_conn_init
 printf '/tmp/c.sqlite\n' > "$SHQL_DATA_DIR/recent"
-chmod 444 "$SHQL_DATA_DIR/shellql.db"   # make DB unwritable → force failure
+# Force failure via a sqlite3 stub that always exits non-zero.
+# (chmod-based approach fails in Docker where the process runs as root.)
+_SHQL_SQLITE3="false"
 shql_conn_migrate 2>/dev/null           # suppress expected error message
+_SHQL_SQLITE3=""
 _intact=$( [ -f "$SHQL_DATA_DIR/recent" ] && printf 1 || printf 0 )
-chmod 644 "$SHQL_DATA_DIR/shellql.db"   # restore for cleanup
 assert_eq "1" "$_intact"
 rm -rf "$_mig_dir" "$_fail_dir"
 export XDG_DATA_HOME="$_data_dir"   # restore so subsequent test sections start clean

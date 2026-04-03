@@ -78,15 +78,14 @@ def test_welcome_screen_shows_branding():
 
 
 def test_welcome_screen_shows_connection_tiles():
-    """Welcome screen shows connection tile panels."""
+    """Welcome screen shows the '+ New' tile (always present, even with no recent connections)."""
     script = _make_launch_script()
     try:
         with PTYSession(script, cols=120, rows=30, timeout=10.0) as session:
-            # Mock mode populates recent connections — look for at least one tile border
-            found = session.screen.find_row("Recent Connections") is not None or \
-                    session.screen.find_row("╔") is not None or \
-                    session.screen.find_row("┌") is not None
-            assert found, "Expected tile borders or 'Recent Connections' header on welcome screen"
+            output = "\n".join(session.screen.row(r) for r in range(30))
+            # '+ New' tile is always rendered regardless of connection history
+            found = "+ New" in output or "New" in output
+            assert found, "Expected '+ New' tile on welcome screen"
     finally:
         os.unlink(script)
 

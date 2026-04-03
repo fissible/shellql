@@ -408,6 +408,4 @@ Completed 2026-03-23 (ptyunit consumer migration):
 - **Blocker:** shellql#30 cannot be closed via API (401); close manually on GitHub
 - **Remaining v1 work:** shellql#31 (enrich context menus) — all DML/DDL actions now exist
 
-**All v1 issues are closed. Ready to cut v1.0 release.**
-
-**Next:** Run `bash release.sh` to cut v1.0.
+**v1.0.0 released 2026-04-02.** PR #35 merged to main. Tag `v1.0.0` pushed — GitHub Release created by CI.

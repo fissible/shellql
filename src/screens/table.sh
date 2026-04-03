@@ -1629,14 +1629,30 @@ _shql_TABLE_content_render() {
             _shql_query_render_ctx "$_ctx" "$_top" "$_left" "$_width" "$_height"
             ;;
         *)
-            # Empty state — fill with content bg only; footer hint provides guidance.
-            # (A center hint using multi-byte chars like ↑↓ ghosts when a tab opens
-            #  because shellframe_fb_print maps bytes not glyphs, leaving stale cells.)
+            # Empty state — fill with content bg, then centered splash.
+            # All splash strings are ASCII-only so byte count == column count,
+            # avoiding the stale-cell ghosting that multi-byte chars cause here.
             local _cbg="${SHQL_THEME_CONTENT_BG:-}"
             local _r
             for (( _r=0; _r<_height; _r++ )); do
                 shellframe_fb_fill "$(( _top + _r ))" "$_left" "$_width" " " "$_cbg"
             done
+            if (( _height >= 5 )); then
+                local _s1="ShellQL"
+                local _s2="SQLite Workbench"
+                local _s3="Select a table to begin"
+                local _mid=$(( _top + _height / 2 ))
+                local _c1=$(( _left + (_width - ${#_s1}) / 2 ))
+                local _c2=$(( _left + (_width - ${#_s2}) / 2 ))
+                local _c3=$(( _left + (_width - ${#_s3}) / 2 ))
+                (( _c1 < _left )) && _c1=$_left
+                (( _c2 < _left )) && _c2=$_left
+                (( _c3 < _left )) && _c3=$_left
+                local _hint_color="${SHQL_THEME_FOOTER_HINT_COLOR:-${SHELLFRAME_GRAY:-}}"
+                shellframe_fb_print "$(( _mid - 1 ))" "$_c1" "$_s1" "${_cbg}${SHQL_THEME_VALUE_ACCENT_COLOR:-}"
+                shellframe_fb_print "$_mid"           "$_c2" "$_s2" "${_cbg}${SHQL_THEME_KEY_COLOR:-}"
+                shellframe_fb_print "$(( _mid + 2 ))" "$_c3" "$_s3" "${_cbg}${_hint_color}"
+            fi
             ;;
     esac
 
@@ -2418,7 +2434,7 @@ _shql_TABLE_cmenu_on_focus() {
 
 _shql_TABLE_footer_render() {
     local _top="$1" _left="$2" _width="$3" _height="${4:-2}"
-    local _gray="${SHELLFRAME_GRAY:-}"
+    local _gray="${SHQL_THEME_FOOTER_HINT_COLOR:-${SHELLFRAME_GRAY:-}}"
     local _fbg="${SHQL_THEME_FOOTER_BG:-}"
 
     # Row 1: Status bar — connection info (left) + query timing (right)

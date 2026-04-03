@@ -19,18 +19,18 @@ jobs:
 
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4.2.2
         with:
           path: repo
 
       - name: Checkout ptyunit
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4.2.2
         with:
           repository: fissible/ptyunit
           path: ptyunit
 
       - name: Checkout shellframe
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4.2.2
         with:
           repository: fissible/shellframe
           path: shellframe

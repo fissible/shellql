@@ -1344,6 +1344,13 @@ _shql_content_data_ensure() {
     local _prev_scroll_left=0
     shellframe_scroll_left "${_ctx}_grid" _prev_scroll_left 2>/dev/null || true
     shellframe_grid_init "${_ctx}_grid"
+    # Restore cursor to the row that was being edited (after DML save)
+    if [[ -n "${_SHQL_DML_GRID_CTX:-}" && "${_SHQL_DML_GRID_CTX:-}" == "${_ctx}_grid" \
+            && "${_SHQL_DML_ROW_IDX:--1}" -ge 0 ]]; then
+        shellframe_sel_set "${_ctx}_grid" "$_SHQL_DML_ROW_IDX"
+        _SHQL_DML_ROW_IDX=-1
+        _SHQL_DML_GRID_CTX=""
+    fi
     (( _prev_scroll_left > 0 )) && \
         shellframe_scroll_move "${_ctx}_grid" right "$_prev_scroll_left" 2>/dev/null || true
     # Cache the WHERE/ORDER used for this load so export.sh can re-query with
@@ -1679,6 +1686,7 @@ _shql_TABLE_content_on_key() {
             if [[ -n "$_e_table" ]]; then
                 _SHQL_INSPECTOR_ACTIVE=0
                 _shql_dml_update_open "$_e_table" "$_SHQL_INSPECTOR_ROW_IDX"
+                _SHQL_DML_CALLER="inspector"
                 shellframe_shell_mark_dirty
                 return 0
             fi
@@ -2479,7 +2487,7 @@ _shql_TABLE_footer_render() {
 # ── _shql_TABLE_quit ──────────────────────────────────────────────────────────
 
 _shql_TABLE_quit() {
-    _SHELLFRAME_SHELL_NEXT="WELCOME"
+    _SHELLFRAME_SHELL_NEXT="__QUIT__"
 }
 
 # ── _shql_quit_confirm ────────────────────────────────────────────────────────
@@ -2508,7 +2516,7 @@ _shql_TABLE_quitconfirm_render() {
     local _dl=$(( _left + (_width  - _dw) / 2 ))
 
     SHELLFRAME_PANEL_STYLE="${SHQL_THEME_PANEL_STYLE_FOCUSED:-double}"
-    SHELLFRAME_PANEL_TITLE="Close file?"
+    SHELLFRAME_PANEL_TITLE="Quit?"
     SHELLFRAME_PANEL_TITLE_ALIGN="center"
     SHELLFRAME_PANEL_FOCUSED=1
     SHELLFRAME_PANEL_CELL_ATTRS="${_cbg}${_focus_color}"
@@ -2527,11 +2535,9 @@ _shql_TABLE_quitconfirm_render() {
 
     local _mid=$(( _it + _ih / 2 ))
     shellframe_fb_print "$(( _mid - 1 ))" "$(( _il + 2 ))" \
-        "Close database and return to the" "${_ibg}"
-    shellframe_fb_print "$_mid" "$(( _il + 2 ))" \
-        "file picker?" "${_ibg}"
+        "Quit ShellQL?" "${_ibg}"
     shellframe_fb_print "$(( _it + _ih - 1 ))" "$_il" \
-        " [y] Close  [n/Esc] Stay" "${_ibg}${_gray}"
+        " [y] Quit  [n/Esc] Stay" "${_ibg}${_gray}"
 }
 
 # ── _shql_TABLE_quitconfirm_on_key ───────────────────────────────────────────

@@ -33,6 +33,9 @@ _SHQL_DML_CTX="dml_form"
 _SHQL_DML_ROW_VALS=()
 _SHQL_DML_DELETE_PK_LABEL=""
 _SHQL_DML_DELETE_PK_VAL=""
+_SHQL_DML_ROW_IDX=-1
+_SHQL_DML_GRID_CTX=""
+_SHQL_DML_CALLER="grid"
 
 # ── _shql_dml_quote_val ───────────────────────────────────────────────────────
 # Produce a SQLite-safe quoted value string.
@@ -200,6 +203,9 @@ _shql_dml_update_open() {
     local _table="$1" _row_idx="$2"
     _SHQL_DML_TABLE="$_table"
     _SHQL_DML_MODE="update"
+    _SHQL_DML_ROW_IDX="$_row_idx"
+    _SHQL_DML_GRID_CTX="${_SHQL_TABS_CTX[${_SHQL_TAB_ACTIVE:-0}]:-}_grid"
+    _SHQL_DML_CALLER="grid"
     _shql_dml_load_cols "$_table"
     _shql_dml_setup_form_fields
     # Pre-fill all fields from current grid row
@@ -307,6 +313,11 @@ _shql_dml_execute_delete() {
 # ── _shql_dml_refresh_grid ────────────────────────────────────────────────────
 
 _shql_dml_refresh_grid() {
+    # Restore inspector if the form was opened from there
+    if [[ "$_SHQL_DML_CALLER" == "inspector" ]]; then
+        _SHQL_INSPECTOR_ACTIVE=1
+        _SHQL_INSPECTOR_ROW_IDX="$_SHQL_DML_ROW_IDX"
+    fi
     # Force reload on next render by clearing the grid owner context
     _SHQL_BROWSER_GRID_OWNER_CTX=""
     _SHQL_DML_ACTIVE=0

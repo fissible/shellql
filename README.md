@@ -3,7 +3,7 @@
 A terminal database workbench for SQLite, built on [shellframe](https://github.com/fissible/shellframe).
 
 Browse schemas, query data, insert/edit/delete rows, sort, filter, and export
--- all from your terminal. Pure bash, no dependencies beyond `sqlite3`.
+-- all from your terminal. No runtime dependencies beyond bash and sqlite3 — both available on most systems.
 
 ## Installation
 

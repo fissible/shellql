@@ -2442,7 +2442,7 @@ _shql_TABLE_footer_render() {
     local _time_str="$_SHQL_FOOTER_TIME_CACHE"
     local _right_info="$_time_str"
     if [[ -n "${_SHQL_BROWSER_QUERY_STATUS:-}" ]]; then
-        _right_info="${_time_str}  —  ${_SHQL_BROWSER_QUERY_STATUS}"
+        _right_info="${_SHQL_BROWSER_QUERY_STATUS} @ ${_time_str}"
     fi
     local _rlen=${#_right_info}
     local _rcol=$(( _left + _width - _rlen ))

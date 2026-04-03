@@ -409,3 +409,23 @@ Completed 2026-03-23 (ptyunit consumer migration):
 - **Remaining v1 work:** shellql#31 (enrich context menus) — all DML/DDL actions now exist
 
 **v1.0.0 released 2026-04-02.** PR #35 merged to main. Tag `v1.0.0` pushed — GitHub Release created by CI.
+
+---
+
+**Session handoff — 2026-04-03**
+
+**v1.1.0 released.**
+
+Completed this session:
+- `src/screens/dml.sh` + `src/screens/table.sh` — cursor restore after DML save; inspector re-opened with fresh data via `_SHQL_DML_INSPECTOR_RESTORE` flag
+- `src/screens/table.sh` — `[q]` shows "Close database?" confirm → WELCOME; `Ctrl+Q` quits immediately (no dialog)
+- `shellframe/src/screen.sh` — `shellframe_raw_enter` adds `-ixon` (disables XON/XOFF flow control so Ctrl+Q reaches the app)
+- `shellframe/src/shell.sh` — Ctrl+Q (`\x11`) intercepted globally before focus dispatch → unconditional `__QUIT__`
+- `tests/integration/test_pty_shql.py` — `stable_window` bumped to 0.5s for bash 3.2 / macOS-latest CI stability
+- `homebrew-tap/Formula/shellql.rb` — bumped shellframe to v0.5.0, shellql to v1.1.0
+
+**shellframe** bumped to v0.5.0 (stripe bleed fix, `-ixon` raw mode, global Ctrl+Q).
+
+**Next:** No open v1.x issues tracked. Candidates for v1.2:
+- 80-column responsive layout (noted as v1.1 candidate but not implemented — only a warning was added)
+- shellql#31 (enrich context menus) — all DML/DDL actions now exist, menus not yet wired

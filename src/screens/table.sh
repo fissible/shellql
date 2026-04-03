@@ -2477,11 +2477,13 @@ _shql_TABLE_footer_render() {
         fi
     fi
 
-    # Row 2: Key hints
+    # Row 2: Key hints (left) + version (right)
     local _hints_row=$(( _top + 1 ))
     shellframe_fb_fill "$_hints_row" "$_left" "$_width" " " "$_fbg"
     local _hint; _shql_browser_footer_hint _hint
     shellframe_fb_print "$_hints_row" "$_left" "$_hint" "${_fbg}${_gray}"
+    local _ver="v${SHQL_VERSION:-dev}"
+    shellframe_fb_print "$_hints_row" $(( _left + _width - ${#_ver} )) "$_ver" "${_fbg}${_gray}"
 }
 
 # ── _shql_TABLE_quit ──────────────────────────────────────────────────────────

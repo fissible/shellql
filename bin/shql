@@ -33,6 +33,8 @@ export SHQL_DEBUG="${SHQL_DEBUG:-}"
 
 _SHQL_BIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 _SHQL_ROOT="$(cd "$_SHQL_BIN_DIR/.." && pwd)"
+SHQL_VERSION="$(cat "$_SHQL_ROOT/VERSION" 2>/dev/null || printf 'dev')"
+export SHQL_VERSION
 
 if [[ -n "${SHELLFRAME_DIR:-}" ]]; then
     _SHELLFRAME_ENTRY="$SHELLFRAME_DIR/shellframe.sh"

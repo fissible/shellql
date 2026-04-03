@@ -70,7 +70,7 @@ def test_welcome_screen_shows_branding():
     """Welcome screen renders the ShellQL branding."""
     script = _make_launch_script()
     try:
-        with PTYSession(script, cols=120, rows=30, timeout=10.0, stable_window=0.3) as session:
+        with PTYSession(script, cols=120, rows=30, timeout=10.0, stable_window=0.5) as session:
             row = session.screen.find_row("ShellQL")
             assert row is not None, "Expected 'ShellQL' somewhere on screen"
     finally:
@@ -81,7 +81,7 @@ def test_welcome_screen_shows_connection_tiles():
     """Welcome screen shows the '+ New' tile (always present, even with no recent connections)."""
     script = _make_launch_script()
     try:
-        with PTYSession(script, cols=120, rows=30, timeout=10.0, stable_window=0.3) as session:
+        with PTYSession(script, cols=120, rows=30, timeout=10.0, stable_window=0.5) as session:
             output = "\n".join(session.screen.row(r) for r in range(30))
             # '+ New' tile is always rendered regardless of connection history
             found = "+ New" in output or "New" in output
@@ -94,7 +94,7 @@ def test_q_quits_from_welcome():
     """Pressing 'q' on the welcome screen exits cleanly (exit code 0)."""
     script = _make_launch_script()
     try:
-        with PTYSession(script, cols=120, rows=30, timeout=10.0, stable_window=0.3) as session:
+        with PTYSession(script, cols=120, rows=30, timeout=10.0, stable_window=0.5) as session:
             session.send("q")
         assert session.exit_code == 0, f"Expected exit 0, got {session.exit_code}"
     finally:
@@ -105,9 +105,9 @@ def test_sidebar_shows_table_names():
     """Opening a database populates the sidebar with table names."""
     script = _make_launch_script(extra_args=f'"{_DEMO_DB}"', env_overrides={"SHQL_MOCK": "0"})
     try:
-        # stable_window=0.3: the default 50ms window can fire before the DB-driven
+        # stable_window=0.5: the default 50ms window can fire before the DB-driven
         # sidebar render completes on slower CI runners.
-        with PTYSession(script, cols=120, rows=30, timeout=10.0, stable_window=0.3) as session:
+        with PTYSession(script, cols=120, rows=30, timeout=10.0, stable_window=0.5) as session:
             # The sidebar should contain at least one of the known demo tables
             output = "\n".join(session.screen.row(r) for r in range(30))
             found = any(
@@ -123,7 +123,7 @@ def test_enter_opens_data_tab():
     """Pressing Enter on a sidebar table opens a data tab."""
     script = _make_launch_script(extra_args=f'"{_DEMO_DB}"', env_overrides={"SHQL_MOCK": "0"})
     try:
-        with PTYSession(script, cols=120, rows=30, timeout=10.0, stable_window=0.3) as session:
+        with PTYSession(script, cols=120, rows=30, timeout=10.0, stable_window=0.5) as session:
             session.send("ENTER")
             # After Enter, a data tab should be active — look for the tab bar indicator
             output = "\n".join(session.screen.row(r) for r in range(30))
@@ -144,7 +144,7 @@ def test_query_flag_launches_query_tui():
         env_overrides={"SHQL_MOCK": "0"},
     )
     try:
-        with PTYSession(script, cols=120, rows=30, timeout=10.0, stable_window=0.3) as session:
+        with PTYSession(script, cols=120, rows=30, timeout=10.0, stable_window=0.5) as session:
             output = "\n".join(session.screen.row(r) for r in range(30))
             # Query TUI shows an editor panel — look for SQL prompt hint or panel border
             found = (

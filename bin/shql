@@ -9,6 +9,21 @@
 
 set -uo pipefail
 
+# ── Terminal capability check ─────────────────────────────────────────────────
+# Warn early for dumb/missing TERM. Only applies to TUI modes; pipe/query-out
+# modes write to stdout and don't need a capable terminal.
+case "${1:-}" in
+    -q|--porcelain|databases) ;;   # non-TUI flags — skip check
+    *)
+        case "${TERM:-}" in
+            dumb|"")
+                printf 'warning: TERM=%s — ShellQL requires a 256-color terminal (xterm-256color or equivalent).\n' \
+                    "${TERM:-unset}" >&2
+                ;;
+        esac
+        ;;
+esac
+
 # Crash diagnostic: set SHQL_DEBUG=1 and run with 2>/tmp/shql-crash.log
 # to capture the exact command that crashes.  ERR trap is installed inside
 # shellframe_shell when SHQL_DEBUG is set.

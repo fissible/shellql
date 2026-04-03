@@ -39,6 +39,9 @@ jobs:
         working-directory: repo
         run: bash bootstrap.sh
 
+      - name: Install pytest
+        run: python3 -m pip install pytest --quiet
+
       - name: Run tests
         working-directory: repo
         env:

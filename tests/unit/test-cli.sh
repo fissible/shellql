@@ -8,184 +8,213 @@ SHQL_ROOT="$(cd "$TESTS_DIR/.." && pwd)"
 source "$PTYUNIT_HOME/assert.sh"
 source "$SHQL_ROOT/src/cli.sh"
 
-ptyunit_test_begin "cli-parse"
+# ── cli-parse ─────────────────────────────────────────────────────────────────
 
-# ── no args → welcome ────────────────────────────────────────────────────────
+describe "cli parse"
+
+describe "mode dispatch"
+
+test_that "no args → welcome"
 shql_cli_parse
-assert_eq "welcome" "$_SHQL_CLI_MODE"    "no args: mode=welcome"
-assert_eq ""        "$_SHQL_CLI_DB"      "no args: DB empty"
+assert_eq "welcome" "$_SHQL_CLI_MODE"
+assert_eq ""        "$_SHQL_CLI_DB"
 
-# ── db path → open ───────────────────────────────────────────────────────────
+test_that "db path only → open"
 shql_cli_parse mydb.sqlite
-assert_eq "open"         "$_SHQL_CLI_MODE" "db path: mode=open"
-assert_eq "mydb.sqlite"  "$_SHQL_CLI_DB"   "db path: DB set"
+assert_eq "open"        "$_SHQL_CLI_MODE"
+assert_eq "mydb.sqlite" "$_SHQL_CLI_DB"
 
-# ── db + table → table ───────────────────────────────────────────────────────
+test_that "db + table → table"
 shql_cli_parse mydb.sqlite users
-assert_eq "table"        "$_SHQL_CLI_MODE"  "db+table: mode=table"
-assert_eq "mydb.sqlite"  "$_SHQL_CLI_DB"    "db+table: DB set"
-assert_eq "users"        "$_SHQL_CLI_TABLE" "db+table: TABLE set"
+assert_eq "table"       "$_SHQL_CLI_MODE"
+assert_eq "mydb.sqlite" "$_SHQL_CLI_DB"
+assert_eq "users"       "$_SHQL_CLI_TABLE"
 
-# ── db + --query → query-tui ─────────────────────────────────────────────────
+test_that "db + --query → query-tui"
 shql_cli_parse mydb.sqlite --query
-assert_eq "query-tui"    "$_SHQL_CLI_MODE" "db+--query: mode=query-tui"
-assert_eq "mydb.sqlite"  "$_SHQL_CLI_DB"   "db+--query: DB set"
+assert_eq "query-tui"   "$_SHQL_CLI_MODE"
+assert_eq "mydb.sqlite" "$_SHQL_CLI_DB"
 
-# ── db + -q SQL → query-out ──────────────────────────────────────────────────
+test_that "db + -q SQL → query-out"
 shql_cli_parse mydb.sqlite -q "SELECT 1"
-assert_eq "query-out"    "$_SHQL_CLI_MODE" "db+-q: mode=query-out"
-assert_eq "mydb.sqlite"  "$_SHQL_CLI_DB"   "db+-q: DB set"
-assert_eq "SELECT 1"     "$_SHQL_CLI_SQL"  "db+-q: SQL set"
+assert_eq "query-out"   "$_SHQL_CLI_MODE"
+assert_eq "mydb.sqlite" "$_SHQL_CLI_DB"
+assert_eq "SELECT 1"    "$_SHQL_CLI_SQL"
 
-# ── databases → databases ────────────────────────────────────────────────────
+test_that "'databases' keyword → databases mode"
 shql_cli_parse databases
-assert_eq "databases"    "$_SHQL_CLI_MODE" "databases: mode=databases"
-assert_eq ""             "$_SHQL_CLI_DB"   "databases: DB empty"
+assert_eq "databases" "$_SHQL_CLI_MODE"
+assert_eq ""          "$_SHQL_CLI_DB"
 
-# ── databases + extra args → extra args silently ignored ─────────────────────
+test_that "'databases' + extra arg → extra arg ignored"
 shql_cli_parse databases extra.sqlite
-assert_eq "databases"    "$_SHQL_CLI_MODE" "databases+extra: mode still databases"
-assert_eq ""             "$_SHQL_CLI_DB"   "databases+extra: DB still empty"
+assert_eq "databases" "$_SHQL_CLI_MODE"
+assert_eq ""          "$_SHQL_CLI_DB"
 
-# ── db.sqlite databases → table mode (db path collected first) ───────────────
+test_that "db + 'databases' → table mode (db collected first)"
 shql_cli_parse mydb.sqlite databases
-assert_eq "table"        "$_SHQL_CLI_MODE"  "db+databases: mode=table (not databases)"
-assert_eq "databases"    "$_SHQL_CLI_TABLE" "db+databases: TABLE=databases"
+assert_eq "table"     "$_SHQL_CLI_MODE"
+assert_eq "databases" "$_SHQL_CLI_TABLE"
 
-# ── --porcelain sets flag (after -q) ─────────────────────────────────────────
+test_that "-h → help"
+shql_cli_parse -h
+assert_eq "help" "$_SHQL_CLI_MODE"
+
+test_that "--help → help"
+shql_cli_parse --help
+assert_eq "help" "$_SHQL_CLI_MODE"
+
+test_that "--help + other args → help (short-circuits)"
+shql_cli_parse mydb.sqlite --help -q "SELECT 1"
+assert_eq "help" "$_SHQL_CLI_MODE"
+
+end_describe
+
+describe "--porcelain flag"
+
+test_that "--porcelain after -q sets flag"
 shql_cli_parse mydb.sqlite -q "SELECT 1" --porcelain
-assert_eq "1"            "$_SHQL_CLI_PORCELAIN" "--porcelain after -q: flag set"
+assert_eq "1" "$_SHQL_CLI_PORCELAIN"
 
-# ── --porcelain any position (before db path) ────────────────────────────────
+test_that "--porcelain before db path sets flag"
 shql_cli_parse --porcelain mydb.sqlite -q "SELECT 1"
-assert_eq "1"            "$_SHQL_CLI_PORCELAIN" "--porcelain before db: flag set"
-assert_eq "query-out"    "$_SHQL_CLI_MODE"      "--porcelain before db: mode correct"
+assert_eq "1"         "$_SHQL_CLI_PORCELAIN"
+assert_eq "query-out" "$_SHQL_CLI_MODE"
 
-# ── --porcelain parsed for TUI mode (silently) ───────────────────────────────
+test_that "--porcelain parsed silently in TUI mode"
 shql_cli_parse mydb.sqlite --query --porcelain
-assert_eq "query-tui"    "$_SHQL_CLI_MODE"      "--porcelain+TUI: mode=query-tui"
-assert_eq "1"            "$_SHQL_CLI_PORCELAIN"  "--porcelain+TUI: flag set"
+assert_eq "query-tui" "$_SHQL_CLI_MODE"
+assert_eq "1"         "$_SHQL_CLI_PORCELAIN"
 
-# ── globals reset between successive calls ───────────────────────────────────
-shql_cli_parse mydb.sqlite users   # sets table mode + TABLE
-shql_cli_parse                     # second call with no args
-assert_eq "welcome"  "$_SHQL_CLI_MODE"  "reset: mode=welcome on second call"
-assert_eq ""         "$_SHQL_CLI_TABLE" "reset: TABLE cleared on second call"
-assert_eq "0"        "$_SHQL_CLI_PORCELAIN" "reset: PORCELAIN cleared"
+end_describe
 
-# ── pipe mode: stdin is a pipe (FIFO) ───────────────────────────────────────
+describe "globals reset between calls"
+
+test_that "successive calls reset mode and table"
+shql_cli_parse mydb.sqlite users
+shql_cli_parse
+assert_eq "welcome" "$_SHQL_CLI_MODE"
+assert_eq ""        "$_SHQL_CLI_TABLE"
+assert_eq "0"       "$_SHQL_CLI_PORCELAIN"
+
+end_describe
+
+describe "pipe mode"
+
+test_that "stdin pipe → mode=pipe"
 _pipe_mode=$(printf "SELECT 1" | bash -c "
     source '${SHQL_ROOT}/src/cli.sh'
     shql_cli_parse mydb.sqlite 2>/dev/null
     printf '%s' \"\$_SHQL_CLI_MODE\"
 ")
-assert_eq "pipe" "$_pipe_mode" "pipe: mode=pipe when stdin is a pipe"
+assert_eq "pipe" "$_pipe_mode"
 
+test_that "stdin pipe → SQL read from stdin"
 _pipe_sql=$(printf "SELECT 1" | bash -c "
     source '${SHQL_ROOT}/src/cli.sh'
     shql_cli_parse mydb.sqlite 2>/dev/null
     printf '%s' \"\$_SHQL_CLI_SQL\"
 ")
-assert_eq "SELECT 1" "$_pipe_sql" "pipe: SQL read from stdin"
+assert_eq "SELECT 1" "$_pipe_sql"
 
-# ── -q wins over piped stdin ─────────────────────────────────────────────────
+test_that "-q wins over piped stdin (mode)"
 _q_mode=$(printf "STDIN SQL" | bash -c "
     source '${SHQL_ROOT}/src/cli.sh'
     shql_cli_parse mydb.sqlite -q 'ARG SQL' 2>/dev/null
     printf '%s' \"\$_SHQL_CLI_MODE\"
 ")
-assert_eq "query-out" "$_q_mode" "-q wins over pipe: mode=query-out"
+assert_eq "query-out" "$_q_mode"
 
+test_that "-q wins over piped stdin (SQL)"
 _q_sql=$(printf "STDIN SQL" | bash -c "
     source '${SHQL_ROOT}/src/cli.sh'
     shql_cli_parse mydb.sqlite -q 'ARG SQL' 2>/dev/null
     printf '%s' \"\$_SHQL_CLI_SQL\"
 ")
-assert_eq "ARG SQL" "$_q_sql" "-q wins over pipe: SQL from arg not stdin"
+assert_eq "ARG SQL" "$_q_sql"
 
-# ── -h → help ────────────────────────────────────────────────────────────────
-shql_cli_parse -h
-assert_eq "help" "$_SHQL_CLI_MODE" "-h: mode=help"
+end_describe
 
-# ── --help → help ────────────────────────────────────────────────────────────
-shql_cli_parse --help
-assert_eq "help" "$_SHQL_CLI_MODE" "--help: mode=help"
+describe "error handling"
 
-# ── --help + other args → help (short-circuits) ─────────────────────────────
-shql_cli_parse mydb.sqlite --help -q "SELECT 1"
-assert_eq "help" "$_SHQL_CLI_MODE" "--help+args: mode=help (short-circuits)"
-
-# ── help text is non-empty ───────────────────────────────────────────────────
-_help_out="$(shql_cli_help)"
-assert_contains "$_help_out" "shql" "help text mentions shql"
-assert_contains "$_help_out" "Usage" "help text contains Usage section"
-
-# ── error: unknown flag ───────────────────────────────────────────────────────
+test_that "unknown flag returns 1 with 'unknown' in stderr"
 _err=$(shql_cli_parse --foo 2>&1); _rc=$?
-assert_eq "1" "$_rc" "unknown flag: returns 1"
-assert_contains "$_err" "unknown" "unknown flag: stderr mentions unknown"
+assert_eq "1" "$_rc"
+assert_contains "$_err" "unknown"
 
-# ── error: -q with no SQL arg ────────────────────────────────────────────────
+test_that "-q without SQL arg returns 1"
 shql_cli_parse mydb.sqlite -q 2>/dev/null; _rc=$?
-assert_eq "1" "$_rc" "-q missing SQL: returns 1"
+assert_eq "1" "$_rc"
 
-# ── error: --query with no db path ───────────────────────────────────────────
+test_that "--query without db path returns 1"
 shql_cli_parse --query 2>/dev/null; _rc=$?
-assert_eq "1" "$_rc" "--query no db: returns 1"
+assert_eq "1" "$_rc"
 
-# ── error: pipe mode with no db path ─────────────────────────────────────────
+test_that "pipe mode without db path returns 1"
 _pipe_rc=$(printf "SELECT 1" | bash -c "
     source '${SHQL_ROOT}/src/cli.sh'
     shql_cli_parse 2>/dev/null
     printf '%d' \$?
 ")
-assert_eq "1" "$_pipe_rc" "pipe no db: returns 1"
+assert_eq "1" "$_pipe_rc"
 
-ptyunit_test_begin "cli-format"
+end_describe
 
-# ── basic box: 2 columns, 2 rows ─────────────────────────────────────────────
-# id width=2, name width=5 ("Alice"), separator=+----+-------+
+describe "help text"
+
+test_that "shql_cli_help output is non-empty"
+_help_out="$(shql_cli_help)"
+assert_contains "$_help_out" "shql"
+assert_contains "$_help_out" "Usage"
+
+end_describe
+
+end_describe  # cli parse
+
+# ── cli-format ────────────────────────────────────────────────────────────────
+
+describe "cli format"
+
+test_that "basic box: 2 columns, 2 rows"
 _tsv="$(printf 'id\tname\n1\tAlice\n2\tBob')"
 _expected="$(printf '+----+-------+\n| id | name  |\n+----+-------+\n| 1  | Alice |\n| 2  | Bob   |\n+----+-------+')"
 _actual="$(shql_cli_format_table "$_tsv")"
-assert_eq "$_expected" "$_actual" "basic box: 2-col 2-row"
+assert_eq "$_expected" "$_actual"
 
-# ── column width driven by data (wider than header) ──────────────────────────
-# header "id" (len 2), data "1000000" (len 7) → column_width=7
-# separator: +---------+  (7+2=9 dashes)
+test_that "column width driven by data wider than header"
 _tsv="$(printf 'id\n1000000')"
 _expected="$(printf '+---------+\n| id      |\n+---------+\n| 1000000 |\n+---------+')"
 _actual="$(shql_cli_format_table "$_tsv")"
-assert_eq "$_expected" "$_actual" "column width from data"
+assert_eq "$_expected" "$_actual"
 
-# ── header only (no data rows): double separator ─────────────────────────────
+test_that "header-only input produces double separator"
 _tsv="$(printf 'id\tname\temail')"
 _expected="$(printf '+----+------+-------+\n| id | name | email |\n+----+------+-------+\n+----+------+-------+')"
 _actual="$(shql_cli_format_table "$_tsv")"
-assert_eq "$_expected" "$_actual" "header only: double separator"
+assert_eq "$_expected" "$_actual"
 
-# ── single column ─────────────────────────────────────────────────────────────
+test_that "single column table"
 _tsv="$(printf 'val\nhello')"
 _expected="$(printf '+-------+\n| val   |\n+-------+\n| hello |\n+-------+')"
 _actual="$(shql_cli_format_table "$_tsv")"
-assert_eq "$_expected" "$_actual" "single column"
+assert_eq "$_expected" "$_actual"
 
-# ── empty cell: renders as spaces filling column width ───────────────────────
-# header "name" (len 4), data: "" (len 0) → column_width=4
-# Use $'name\n' to preserve the trailing newline ($(printf...) strips it).
+test_that "empty cell renders as spaces filling column width"
 _tsv=$'name\n'
 _expected="$(printf '+------+\n| name |\n+------+\n|      |\n+------+')"
 _actual="$(shql_cli_format_table "$_tsv")"
-assert_eq "$_expected" "$_actual" "empty cell"
+assert_eq "$_expected" "$_actual"
 
-# ── empty input: no output ────────────────────────────────────────────────────
+test_that "empty input produces no output"
 _actual="$(shql_cli_format_table "")"
-assert_eq "" "$_actual" "empty input: no output"
+assert_eq "" "$_actual"
 
-# ── --porcelain=1: format_table produces no output ───────────────────────────
+test_that "porcelain=1 suppresses box formatting"
 _SHQL_CLI_PORCELAIN=1
 _actual="$(shql_cli_format_table "$(printf 'id\n1')")"
-assert_eq "" "$_actual" "porcelain=1: no output from format_table"
+assert_eq "" "$_actual"
 _SHQL_CLI_PORCELAIN=0
+
+end_describe
 
 ptyunit_test_summary

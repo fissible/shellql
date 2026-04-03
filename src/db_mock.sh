@@ -148,7 +148,10 @@ shql_db_columns() {
 }
 
 # shql_db_fetch <db_path> <table> [limit] [offset] [where] [order]
-shql_db_fetch() {
+# Output uses $'\x1f' (ASCII Unit Separator) as field delimiter to match db.sh,
+# so IFS=$'\x1f' read -r -a correctly preserves empty (NULL) fields.
+shql_db_fetch() { _shql_mock_fetch "$@" | tr $'\t' $'\x1f'; }
+_shql_mock_fetch() {
     local _table="${2:-users}"
     case "$_table" in
         users)
@@ -271,8 +274,9 @@ shql_db_columns() {
 }
 
 # shql_db_query <db_path> <sql>
-# First line: tab-separated column headers. Subsequent lines: data rows.
-shql_db_query() {
+# Uses $'\x1f' as delimiter to match db.sh (preserves empty/NULL fields).
+shql_db_query() { _shql_mock_query "$@" | tr $'\t' $'\x1f'; }
+_shql_mock_query() {
     printf 'id\tname\temail\n'
     printf '1\tAlice\talice@example.com\n'
     printf '2\tBob\tbob@example.com\n'

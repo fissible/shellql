@@ -148,7 +148,7 @@ _shql_table_load_data() {
     local _maxcw="${SHQL_MAX_COL_WIDTH:-30}"
     local _idx=0 _c _cell _cw _hw _cv
     local _row=()
-    while IFS=$'\t' read -r -a _row; do
+    while IFS=$'\x1f' read -r -a _row; do
         [[ ${#_row[@]} -eq 0 ]] && continue
         if (( _idx == 0 )); then
             # Header row: set up column metadata
@@ -1291,7 +1291,7 @@ _shql_content_data_ensure() {
     local _idx=0 _c _cell _cw _hw _cv
     local _row=()
     local _t0=$SECONDS
-    while IFS=$'\t' read -r -a _row; do
+    while IFS=$'\x1f' read -r -a _row; do
         [[ ${#_row[@]} -eq 0 ]] && continue
         if (( _idx == 0 )); then
             SHELLFRAME_GRID_HEADERS=("${_row[@]}")

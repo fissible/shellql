@@ -97,7 +97,7 @@ shql_db_fetch() {
     _sql+=" LIMIT ${_limit} OFFSET ${_offset}"
 
     local _out
-    _out=$(sqlite3 -separator $'\t' -header "$_db" "$_sql" 2>"$_tmpfile")
+    _out=$(sqlite3 -separator $'\x1f' -header "$_db" "$_sql" 2>"$_tmpfile")
     local _rc=$?
 
     if (( _rc != 0 )); then
@@ -168,7 +168,7 @@ shql_db_query() {
     _tmpfile=$(mktemp)
 
     local _out
-    _out=$(sqlite3 -separator $'\t' -header "$_db" "$_sql" 2>"$_tmpfile")
+    _out=$(sqlite3 -separator $'\x1f' -header "$_db" "$_sql" 2>"$_tmpfile")
     local _rc=$?
 
     if (( _rc != 0 )); then

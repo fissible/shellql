@@ -149,7 +149,7 @@ _shql_query_run() {
 
     local _idx=0 _c _cell _cw _hw _cv
     local _row=()
-    while IFS=$'\t' read -r -a _row; do
+    while IFS=$'\x1f' read -r -a _row; do
         [[ ${#_row[@]} -eq 0 ]] && continue
         if (( _idx == 0 )); then
             SHELLFRAME_GRID_HEADERS=("${_row[@]}")
@@ -537,6 +537,9 @@ _shql_query_on_key() {
             shellframe_shell_mark_dirty
             return 0
         fi
+        local _key_is_bs=0
+        [[ "$_key" == $'\x7f' || "$_key" == $'\b' ]] && _key_is_bs=1
+
         shellframe_editor_on_key "$_key"
         local _rc=$?
         if (( _rc == 2 )); then
@@ -553,8 +556,13 @@ _shql_query_on_key() {
             return 0
         fi
         if (( _rc == 0 )); then
-            # After editor handles a key, update autocomplete popup.
-            shellframe_ac_on_key_after
+            # Backspace: dismiss popup and keep it dismissed.
+            # Any other key: update AC suggestions (pure-bash impl is fast enough).
+            if (( _key_is_bs )); then
+                shellframe_ac_dismiss
+            else
+                shellframe_ac_on_key_after
+            fi
             # If popup just became active, skip fast-path and do a full redraw.
             if (( _SHELLFRAME_AC_ACTIVE )); then
                 shellframe_shell_mark_dirty

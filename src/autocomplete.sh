@@ -35,6 +35,43 @@ _SHQL_AC_KEYWORDS=(
     INTEGER TEXT REAL BLOB
 )
 
+# ── _shql_tolower / _shql_toupper ─────────────────────────────────────────────
+# Pure-bash case conversion — no subshell at the call site.
+# Usage: _shql_tolower "$string" outvar   (sets outvar to lowercase string)
+#        _shql_toupper "$string" outvar   (sets outvar to uppercase string)
+
+_shql_tolower() {
+    local _s="$1" _v="$2" _r="" _i _c
+    for (( _i=0; _i < ${#_s}; _i++ )); do
+        _c="${_s:_i:1}"
+        case "$_c" in
+            A) _r+=a ;; B) _r+=b ;; C) _r+=c ;; D) _r+=d ;; E) _r+=e ;;
+            F) _r+=f ;; G) _r+=g ;; H) _r+=h ;; I) _r+=i ;; J) _r+=j ;;
+            K) _r+=k ;; L) _r+=l ;; M) _r+=m ;; N) _r+=n ;; O) _r+=o ;;
+            P) _r+=p ;; Q) _r+=q ;; R) _r+=r ;; S) _r+=s ;; T) _r+=t ;;
+            U) _r+=u ;; V) _r+=v ;; W) _r+=w ;; X) _r+=x ;; Y) _r+=y ;;
+            Z) _r+=z ;; *) _r+=$_c ;;
+        esac
+    done
+    printf -v "$_v" '%s' "$_r"
+}
+
+_shql_toupper() {
+    local _s="$1" _v="$2" _r="" _i _c
+    for (( _i=0; _i < ${#_s}; _i++ )); do
+        _c="${_s:_i:1}"
+        case "$_c" in
+            a) _r+=A ;; b) _r+=B ;; c) _r+=C ;; d) _r+=D ;; e) _r+=E ;;
+            f) _r+=F ;; g) _r+=G ;; h) _r+=H ;; i) _r+=I ;; j) _r+=J ;;
+            k) _r+=K ;; l) _r+=L ;; m) _r+=M ;; n) _r+=N ;; o) _r+=O ;;
+            p) _r+=P ;; q) _r+=Q ;; r) _r+=R ;; s) _r+=S ;; t) _r+=T ;;
+            u) _r+=U ;; v) _r+=V ;; w) _r+=W ;; x) _r+=X ;; y) _r+=Y ;;
+            z) _r+=Z ;; *) _r+=$_c ;;
+        esac
+    done
+    printf -v "$_v" '%s' "$_r"
+}
+
 # ── _shql_ac_rebuild ──────────────────────────────────────────────────────────
 # Rebuild the schema cache.  No-op when SHQL_DB_PATH is unset.
 _shql_ac_rebuild() {
@@ -91,20 +128,20 @@ _shql_ac_sql_context() {
     (( _pstart < 0 )) && _pstart=0
     _before="${_line:0:$_pstart}"
 
-    # Uppercase for keyword matching (no subprocess — use case-insensitive grep)
+    # Uppercase for keyword matching — pure bash, no subshell
     local _ub
-    _ub=$(printf '%s' "$_before" | tr '[:lower:]' '[:upper:]')
+    _shql_toupper "$_before" _ub
 
-    # Keywords that suggest table names follow
-    if printf '%s' "$_ub" | grep -qE \
-        '(FROM|JOIN|INTO|UPDATE|TABLE|DROP[[:space:]]+(TABLE|VIEW))[[:space:]]*$'; then
+    # Keywords that suggest table names follow — use [[ =~ ]] (no subshell)
+    local _tables_pat='(FROM|JOIN|INTO|UPDATE|TABLE|DROP[[:space:]]+(TABLE|VIEW))[[:space:]]*$'
+    if [[ "$_ub" =~ $_tables_pat ]]; then
         _SHQL_AC_SQL_CTX="tables"
         return 0
     fi
 
     # Keywords that suggest column names follow
-    if printf '%s' "$_ub" | grep -qE \
-        '(SELECT|WHERE|SET|ON|AND|OR|BY|HAVING|,)[[:space:]]*$'; then
+    local _cols_pat='(SELECT|WHERE|SET|ON|AND|OR|BY|HAVING|,)[[:space:]]*$'
+    if [[ "$_ub" =~ $_cols_pat ]]; then
         _SHQL_AC_SQL_CTX="cols"
         return 0
     fi
@@ -122,13 +159,12 @@ _shql_ac_provider() {
     eval "${_out}=()"
 
     # Require at least 2 characters to avoid triggering on single keystrokes.
-    # This also prevents the context-detection subshell calls on every key.
     [[ ${#_prefix} -lt 2 ]] && return 0
 
     _shql_ac_sql_context "$_prefix"
 
     local _lcp
-    _lcp=$(printf '%s' "$_prefix" | tr '[:upper:]' '[:lower:]')
+    _shql_tolower "$_prefix" _lcp
 
     local _lc _entry
 
@@ -136,12 +172,12 @@ _shql_ac_provider() {
     if [[ "$_SHQL_AC_SQL_CTX" == "cols_dot" ]]; then
         local _col_prefix="${_prefix#*.}"
         local _lcc
-        _lcc=$(printf '%s' "$_col_prefix" | tr '[:upper:]' '[:lower:]')
+        _shql_tolower "$_col_prefix" _lcc
         for _entry in "${_SHQL_AC_COLS[@]+"${_SHQL_AC_COLS[@]}"}"; do
             local _et="${_entry%%$'\t'*}"
             local _ec="${_entry#*$'\t'}"
             if [[ "$_et" == "$_SHQL_AC_COL_TABLE" ]]; then
-                _lc=$(printf '%s' "$_ec" | tr '[:upper:]' '[:lower:]')
+                _shql_tolower "$_ec" _lc
                 if [[ "$_lc" == "$_lcc"* ]]; then
                     eval "${_out}+=(\"${_et}.${_ec}\")"
                 fi
@@ -154,7 +190,7 @@ _shql_ac_provider() {
     if [[ "$_SHQL_AC_SQL_CTX" == "tables" ]]; then
         local _t
         for _t in "${_SHQL_AC_TABLES[@]+"${_SHQL_AC_TABLES[@]}"}"; do
-            _lc=$(printf '%s' "$_t" | tr '[:upper:]' '[:lower:]')
+            _shql_tolower "$_t" _lc
             if [[ "$_lc" == "$_lcp"* ]]; then
                 eval "${_out}+=(\"${_t}\")"
             fi
@@ -172,7 +208,7 @@ _shql_ac_provider() {
                 [[ "$_s" == "$_col" ]] && _already=1 && break
             done
             (( _already )) && continue
-            _lc=$(printf '%s' "$_col" | tr '[:upper:]' '[:lower:]')
+            _shql_tolower "$_col" _lc
             if [[ "$_lc" == "$_lcp"* ]]; then
                 eval "${_out}+=(\"${_col}\")"
                 _seen+=("$_col")
@@ -184,7 +220,7 @@ _shql_ac_provider() {
     # No schema context — suggest SQL keywords
     local _kw _lkw
     for _kw in "${_SHQL_AC_KEYWORDS[@]}"; do
-        _lkw=$(printf '%s' "$_kw" | tr '[:upper:]' '[:lower:]')
+        _shql_tolower "$_kw" _lkw
         if [[ "$_lkw" == "$_lcp"* ]]; then
             eval "${_out}+=(\"${_kw}\")"
         fi

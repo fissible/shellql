@@ -191,7 +191,7 @@ _shql_export_do_csv() {
         local _order="${!_order_var:-}"
 
         local _row=() _ri=0 _line
-        while IFS=$'\t' read -r -a _row; do
+        while IFS=$'\x1f' read -r -a _row; do
             [[ ${#_row[@]} -eq 0 ]] && continue
             (( _ri == 0 )) && { (( _ri++ )); continue; }  # skip header row from db
             local _data_line="" _rc

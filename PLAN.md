@@ -348,7 +348,7 @@ Completed 2026-03-23 (ptyunit consumer migration):
 | [shellql#32](https://github.com/fissible/shellql/issues/32) | First data tab focus bug | XS–S | none | ✓ 2026-03-31 |
 | [shellframe#38](https://github.com/fissible/shellframe/issues/38) | Autocomplete layer | M | input-field, context-menu | ✓ 2026-04-01 |
 | [shellql#30](https://github.com/fissible/shellql/issues/30) | SQL type-ahead | L | shellframe#38 | ✓ 2026-04-02 |
-| [shellql#31](https://github.com/fissible/shellql/issues/31) | Enrich context menus | XS | all DML/DDL above |
+| [shellql#31](https://github.com/fissible/shellql/issues/31) | Enrich context menus | XS | all DML/DDL above | ✓ 2026-04-01 |
 
 **Build order:**
 1. shellql#26 + #27 + #28 + #32 — parallel (DDL ops + focus bug, all short)
@@ -408,12 +408,6 @@ Completed 2026-03-23 (ptyunit consumer migration):
 - **Blocker:** shellql#30 cannot be closed via API (401); close manually on GitHub
 - **Remaining v1 work:** shellql#31 (enrich context menus) — all DML/DDL actions now exist
 
-**Remaining v1 issues:**
+**All v1 issues are closed. Ready to cut v1.0 release.**
 
-| Issue | Feature | Effort | Status |
-|-------|---------|--------|--------|
-| [shellql#31](https://github.com/fissible/shellql/issues/31) | Enrich context menus | XS | open |
-
-**Inspector text hierarchy spec** is written (`docs/superpowers/specs/2026-04-01-inspector-text-hierarchy-design.md`) — covers panel FG bleed fix and inspector key/value visual distinction. Could be a follow-up v1 polish item.
-
-**Next:** shellql#31 (enrich context menus — add all available actions to the right-click context menu now that DML/DDL/export are complete)
+**Next:** Run `bash release.sh` to cut v1.0.

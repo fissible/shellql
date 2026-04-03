@@ -149,7 +149,7 @@ _shql_query_run() {
 
     local _idx=0 _c _cell _cw _hw _cv
     local _row=()
-    while IFS=$'\t' read -r -a _row; do
+    while IFS=$'\x1f' read -r -a _row; do
         [[ ${#_row[@]} -eq 0 ]] && continue
         if (( _idx == 0 )); then
             SHELLFRAME_GRID_HEADERS=("${_row[@]}")
@@ -181,12 +181,37 @@ _shql_query_run() {
     _SHQL_QUERY_HAS_RESULTS=1
     _SHQL_BROWSER_GRID_OWNER_CTX="$_SHQL_QUERY_GRID_CTX"
     _SHQL_QUERY_LAST_SQL="$_sql"
-    if [[ -n "$_warning" ]]; then
+
+    # Rebuild autocomplete cache after DDL that creates or drops schema objects
+    if printf '%s' "$_sql" | grep -qiE \
+        '^[[:space:]]*(CREATE[[:space:]]+(TABLE|VIEW)|DROP[[:space:]]+(TABLE|VIEW))'; then
+        _shql_ac_rebuild 2>/dev/null || true
+        _shql_browser_reload_sidebar 2>/dev/null || true
+    fi
+
+    # Detect DML result: shql_db_query appends SELECT changes() for DML
+    # statements, producing a 1-row/1-col grid with header "rows_affected".
+    local _is_dml=0
+    if (( SHELLFRAME_GRID_COLS == 1 && SHELLFRAME_GRID_ROWS == 1 )) \
+        && [[ "${SHELLFRAME_GRID_HEADERS[0]:-}" == "rows_affected" ]]; then
+        _is_dml=1
+    fi
+
+    if (( _is_dml )); then
+        local _affected="${SHELLFRAME_GRID_DATA[0]:-0}"
+        if (( _affected == 1 )); then
+            _SHQL_QUERY_STATUS="1 row affected"
+        else
+            _SHQL_QUERY_STATUS="${_affected} rows affected"
+        fi
+        _SHQL_BROWSER_QUERY_STATUS="$_SHQL_QUERY_STATUS (${_elapsed_ms}ms)"
+    elif [[ -n "$_warning" ]]; then
         _SHQL_QUERY_STATUS="${SHELLFRAME_GRID_ROWS} rows — $_warning"
+        _SHQL_BROWSER_QUERY_STATUS="Query returned ${SHELLFRAME_GRID_ROWS} rows in ${_elapsed_ms}ms"
     else
         _SHQL_QUERY_STATUS="${SHELLFRAME_GRID_ROWS} rows"
+        _SHQL_BROWSER_QUERY_STATUS="Query returned ${SHELLFRAME_GRID_ROWS} rows in ${_elapsed_ms}ms"
     fi
-    _SHQL_BROWSER_QUERY_STATUS="Query returned ${SHELLFRAME_GRID_ROWS} rows in ${_elapsed_ms}ms"
 }
 
 # ── _shql_query_footer_hint ───────────────────────────────────────────────────
@@ -205,9 +230,9 @@ _shql_query_footer_hint() {
 
     if [[ "$_SHQL_QUERY_FOCUSED_PANE" == "results" ]]; then
         if [[ -n "$_status" ]]; then
-            printf -v "$_out_var" '%s  [↑↓] Navigate  [Tab] Editor  [q] Back' "$_status"
+            printf -v "$_out_var" '%s  [↑↓] Navigate  [r] Re-run  [Tab] Editor  [q] Back' "$_status"
         else
-            printf -v "$_out_var" '%s' "[↑↓] Navigate  [Tab] Editor  [q] Back"
+            printf -v "$_out_var" '%s' "[↑↓] Navigate  [r] Re-run  [Tab] Editor  [q] Back"
         fi
     elif (( _SHQL_QUERY_EDITOR_ACTIVE )); then
         # Typing state
@@ -215,9 +240,9 @@ _shql_query_footer_hint() {
     else
         # Button state
         if [[ -n "$_status" ]]; then
-            printf -v "$_out_var" '%s  [Enter] Edit  [Tab] Results  [Esc] Tab bar' "$_status"
+            printf -v "$_out_var" '%s  [Ctrl-D] Run  [Enter] Edit  [Tab] Results  [Esc] Tab bar' "$_status"
         else
-            printf -v "$_out_var" '%s' "[Enter] Edit  [Tab] Results  [Esc] Tab bar"
+            printf -v "$_out_var" '%s' "[Ctrl-D] Run  [Enter] Edit  [Tab] Results  [Esc] Tab bar"
         fi
     fi
 }
@@ -381,6 +406,8 @@ _shql_query_detail_render() {
     (( _max_kw > 20 )) && _max_kw=20
 
     local _kc="${SHQL_THEME_KEY_COLOR:-}"
+    local _vc="${SHQL_THEME_VALUE_COLOR:-}"
+    local _null_style="${SHELLFRAME_GRAY:-}"
     local _val_avail=$(( _iw - _max_kw - 3 ))  # key + "  " gap
     (( _val_avail < 1 )) && _val_avail=1
 
@@ -422,9 +449,15 @@ _shql_query_detail_render() {
         else
             printf -v _key_padded '%-*s' "$_max_kw" ""
         fi
+        local _vstyle
+        if [[ "$_val_chunk" == "(null)" ]]; then
+            _vstyle="${_ibg}${_null_style}"
+        else
+            _vstyle="${_ibg}${_vc}"
+        fi
         shellframe_fb_print "$_row" "$(( _il + 1 ))" "$_key_padded" "${_ibg}${_kc}"
         shellframe_fb_fill  "$_row" "$(( _il + 1 + _max_kw ))" 2 " " "$_ibg"
-        shellframe_fb_print "$_row" "$(( _il + 1 + _max_kw + 2 ))" "$_val_chunk" "$_ibg"
+        shellframe_fb_print "$_row" "$(( _il + 1 + _max_kw + 2 ))" "$_val_chunk" "$_vstyle"
     done
 }
 
@@ -454,8 +487,18 @@ _shql_query_on_key() {
 
     if [[ "$_SHQL_QUERY_FOCUSED_PANE" == "editor" ]]; then
         if (( ! _SHQL_QUERY_EDITOR_ACTIVE )); then
-            # Button state: arrow keys for spatial nav
+            # Button state: arrow keys for spatial nav; Ctrl-D runs query
             case "$_key" in
+                "$_k_ctrl_d")
+                    local _sql
+                    shellframe_editor_get_text "$_SHQL_QUERY_EDITOR_CTX" _sql
+                    _shql_query_run "$_sql"
+                    if [[ -z "$_SHQL_QUERY_ERROR" ]]; then
+                        _SHQL_QUERY_FOCUSED_PANE="results"
+                    fi
+                    shellframe_shell_mark_dirty
+                    return 0
+                    ;;
                 "$_k_enter"|"$_k_newline")
                     _SHQL_QUERY_EDITOR_ACTIVE=1
                     shellframe_shell_mark_dirty
@@ -480,13 +523,23 @@ _shql_query_on_key() {
             return 1
         fi
 
-        # Typing state: Esc returns to button state; Ctrl-D submits; else → editor
+        # Typing state: autocomplete takes priority, then Esc, then editor
+        # AC handles Enter/Tab/Esc/Up/Down when popup is active.
+        SHELLFRAME_EDITOR_CTX="$_SHQL_QUERY_EDITOR_CTX"
+        shellframe_ac_on_key "$_key"
+        if (( $? == 0 )); then
+            shellframe_shell_mark_dirty
+            return 0
+        fi
+
         if [[ "$_key" == "$_k_escape" ]]; then
             _SHQL_QUERY_EDITOR_ACTIVE=0
             shellframe_shell_mark_dirty
             return 0
         fi
-        SHELLFRAME_EDITOR_CTX="$_SHQL_QUERY_EDITOR_CTX"
+        local _key_is_bs=0
+        [[ "$_key" == $'\x7f' || "$_key" == $'\b' ]] && _key_is_bs=1
+
         shellframe_editor_on_key "$_key"
         local _rc=$?
         if (( _rc == 2 )); then
@@ -503,6 +556,18 @@ _shql_query_on_key() {
             return 0
         fi
         if (( _rc == 0 )); then
+            # Backspace: dismiss popup and keep it dismissed.
+            # Any other key: update AC suggestions (pure-bash impl is fast enough).
+            if (( _key_is_bs )); then
+                shellframe_ac_dismiss
+            else
+                shellframe_ac_on_key_after
+            fi
+            # If popup just became active, skip fast-path and do a full redraw.
+            if (( _SHELLFRAME_AC_ACTIVE )); then
+                shellframe_shell_mark_dirty
+                return 0
+            fi
             # Fast-path: re-render editor directly to fd3, skip full draw cycle.
             # The editor already called mark_dirty — suppress it so the shell
             # event loop doesn't trigger an expensive full-screen redraw.
@@ -534,7 +599,7 @@ _shql_query_on_key() {
         _SHQL_QUERY_FOCUSED_PANE="editor"
         shellframe_shell_mark_dirty
         return 0
-    elif [[ "$_key" == "$_k_ctrl_d" ]]; then
+    elif [[ "$_key" == "$_k_ctrl_d" || "$_key" == "r" ]]; then
         local _sql
         shellframe_editor_get_text "$_SHQL_QUERY_EDITOR_CTX" _sql
         _shql_query_run "$_sql"
@@ -587,6 +652,11 @@ _shql_query_render() {
     local _top="$1" _left="$2" _width="$3" _height="$4"
     local _gray="${SHELLFRAME_GRAY:-}"
 
+    # Attach autocomplete to this editor context (re-attaches on tab switch)
+    if [[ "${_SHELLFRAME_AC_CTX:-}" != "$_SHQL_QUERY_EDITOR_CTX" ]]; then
+        shellframe_ac_attach "$_SHQL_QUERY_EDITOR_CTX" "editor"
+    fi
+
     # Lazy widget init: requires viewport dimensions, so deferred from _shql_query_init.
     if (( ! _SHQL_QUERY_INITIALIZED )); then
         SHELLFRAME_EDITOR_LINES=()
@@ -594,6 +664,13 @@ _shql_query_render() {
         SHELLFRAME_GRID_CTX="$_SHQL_QUERY_GRID_CTX"
         shellframe_grid_init "$_SHQL_QUERY_GRID_CTX"
         _SHQL_QUERY_INITIALIZED=1
+        # Apply any pre-fill template (set before first render; consumed here).
+        local _tab_ctx="${_SHQL_QUERY_EDITOR_CTX%_editor}"
+        local _pf_var="_SHQL_QUERY_CTX_PREFILL_${_tab_ctx}"
+        if [[ -n "${!_pf_var:-}" ]]; then
+            shellframe_editor_set_text "$_SHQL_QUERY_EDITOR_CTX" "${!_pf_var}"
+            printf -v "$_pf_var" '%s' ""
+        fi
     fi
 
     # Compute split (panel consumes 2 border rows from editor budget)
@@ -652,6 +729,21 @@ _shql_query_render() {
         SHELLFRAME_EDITOR_FG=$'\033[38;5;245m'   # muted gray — visually "disabled"
     fi
     shellframe_editor_render "$_it" "$_il" "$_iw" "$_ih"
+
+    # Render autocomplete popup when editor is active and popup has matches
+    if (( _editor_pane_focused && _SHQL_QUERY_EDITOR_ACTIVE && _SHELLFRAME_AC_ACTIVE )); then
+        local _ac_lrow _ac_lcol _ac_vtop _ac_crow _ac_ccol
+        _ac_lrow="$(shellframe_editor_row "$_SHQL_QUERY_EDITOR_CTX" 2>/dev/null)" || _ac_lrow=0
+        _ac_lcol="$(shellframe_editor_col "$_SHQL_QUERY_EDITOR_CTX" 2>/dev/null)" || _ac_lcol=0
+        _ac_vtop="$(shellframe_editor_vtop "$_SHQL_QUERY_EDITOR_CTX" 2>/dev/null)" || _ac_vtop=0
+        _ac_crow=$(( _it + _ac_lrow - _ac_vtop ))
+        (( _ac_crow < _it )) && _ac_crow=$_it
+        (( _ac_crow >= _it + _ih )) && _ac_crow=$(( _it + _ih - 1 ))
+        _ac_ccol=$(( _il + _ac_lcol ))
+        (( _ac_ccol < _il )) && _ac_ccol=$_il
+        shellframe_ac_render 1 1 "${_SF_FRAME_COLS:-80}" "${_SF_FRAME_ROWS:-24}" \
+            "$_ac_crow" "$_ac_ccol"
+    fi
 
     # Button state: show placeholder hint when editor is empty
     if (( _editor_pane_focused && ! _SHQL_QUERY_EDITOR_ACTIVE )); then

@@ -77,7 +77,7 @@ shql_db_columns() {
 # constraint (explicit limit never triggers a warning).
 
 shql_db_fetch() {
-    local _db="$1" _table="$2" _limit="${3:-}" _offset="${4:-0}"
+    local _db="$1" _table="$2" _limit="${3:-}" _offset="${4:-0}" _where="${5:-}" _order="${6:-}"
     _shql_db_check_path "$_db" || return 1
 
     local _use_config_limit=0
@@ -91,9 +91,13 @@ shql_db_fetch() {
     local _tmpfile
     _tmpfile=$(mktemp)
 
+    local _sql="SELECT * FROM \"${_id}\""
+    [[ -n "$_where" ]] && _sql+=" WHERE ${_where}"
+    [[ -n "$_order" ]] && _sql+=" ORDER BY ${_order}"
+    _sql+=" LIMIT ${_limit} OFFSET ${_offset}"
+
     local _out
-    _out=$(sqlite3 -separator $'\t' -header "$_db" \
-        "SELECT * FROM \"$_id\" LIMIT $_limit OFFSET $_offset" 2>"$_tmpfile")
+    _out=$(sqlite3 -separator $'\x1f' -header "$_db" "$_sql" 2>"$_tmpfile")
     local _rc=$?
 
     if (( _rc != 0 )); then
@@ -103,15 +107,17 @@ shql_db_fetch() {
     fi
     rm -f "$_tmpfile"
 
-    printf '%s\n' "$_out"
+    # Single pass: emit each line and count data rows simultaneously.
+    # Avoids a second full scan of $_out for the truncation check.
+    local _row_count=0 _line
+    while IFS= read -r _line; do
+        printf '%s\n' "$_line"
+        [[ -n "$_line" ]] && (( _row_count++ ))
+    done <<< "$_out"
+    _out=""  # free the captured string
 
-    # Count data rows (output lines minus header) to decide whether to warn.
     # Only warn when the limit came from config, not an explicit caller arg.
     if (( _use_config_limit )); then
-        local _row_count=0 _line
-        while IFS= read -r _line; do
-            [[ -n "$_line" ]] && (( _row_count++ ))
-        done <<< "$_out"
         (( _row_count > 0 )) && (( _row_count-- ))  # subtract header
         if (( _row_count == _limit )); then
             printf 'warning: result truncated at %d rows. Set a higher fetch limit or refine your query.\n' \
@@ -150,15 +156,19 @@ shql_db_query() {
     _limit=$(shql_config_get_fetch_limit)
 
     # Wrap SELECT/WITH queries; pass others through unwrapped (DDL, DML, EXPLAIN).
+    # For DML (INSERT/UPDATE/DELETE/REPLACE), append SELECT changes() so the
+    # caller can report affected row count.
     if [[ "$_sql" =~ ^[[:space:]]*([Ss][Ee][Ll][Ee][Cc][Tt]|[Ww][Ii][Tt][Hh])[[:space:]] ]]; then
         _sql="SELECT * FROM ($_sql) LIMIT $_limit"
+    elif [[ "$_sql" =~ ^[[:space:]]*([Ii][Nn][Ss][Ee][Rr][Tt]|[Uu][Pp][Dd][Aa][Tt][Ee]|[Dd][Ee][Ll][Ee][Tt][Ee]|[Rr][Ee][Pp][Ll][Aa][Cc][Ee])[[:space:]] ]]; then
+        _sql="${_sql}; SELECT changes() AS rows_affected"
     fi
 
     local _tmpfile
     _tmpfile=$(mktemp)
 
     local _out
-    _out=$(sqlite3 -separator $'\t' -header "$_db" "$_sql" 2>"$_tmpfile")
+    _out=$(sqlite3 -separator $'\x1f' -header "$_db" "$_sql" 2>"$_tmpfile")
     local _rc=$?
 
     if (( _rc != 0 )); then
@@ -171,16 +181,19 @@ shql_db_query() {
     _stderr_content=$(cat "$_tmpfile")
     rm -f "$_tmpfile"
 
-    printf '%s\n' "$_out"
-
     if [[ -n "$_stderr_content" ]]; then
         printf '%s\n' "$_stderr_content" >&2
     fi
+
+    # Single pass: emit each line and count data rows simultaneously.
     local _row_count=0 _line
     while IFS= read -r _line; do
+        printf '%s\n' "$_line"
         [[ -n "$_line" ]] && (( _row_count++ ))
     done <<< "$_out"
-    (( _row_count > 0 )) && (( _row_count-- ))
+    _out=""  # free the captured string
+
+    (( _row_count > 0 )) && (( _row_count-- ))  # subtract header
     if (( _row_count == _limit )); then
         printf 'warning: result truncated at %d rows. Set a higher fetch limit or refine your query.\n' \
             "$_limit" >&2

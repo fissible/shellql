@@ -341,14 +341,14 @@ Completed 2026-03-23 (ptyunit consumer migration):
 
 | Issue | Feature | Effort | Deps |
 |-------|---------|--------|------|
-| [shellql#26](https://github.com/fissible/shellql/issues/26) | Truncate table | XS | confirm.sh (exists) |
-| [shellql#27](https://github.com/fissible/shellql/issues/27) | Drop table/view | S | confirm.sh (exists) |
-| [shellql#28](https://github.com/fissible/shellql/issues/28) | Create table (SQL template) | S | none |
-| [shellql#29](https://github.com/fissible/shellql/issues/29) | Export CSV | S–M | none |
-| [shellql#32](https://github.com/fissible/shellql/issues/32) | First data tab focus bug | XS–S | none |
-| [shellframe#38](https://github.com/fissible/shellframe/issues/38) | Autocomplete layer | M | input-field, context-menu |
-| [shellql#30](https://github.com/fissible/shellql/issues/30) | SQL type-ahead | L | shellframe#38 |
-| [shellql#31](https://github.com/fissible/shellql/issues/31) | Enrich context menus | XS | all DML/DDL above |
+| [shellql#26](https://github.com/fissible/shellql/issues/26) | Truncate table | XS | confirm.sh (exists) | ✓ 2026-03-31 |
+| [shellql#27](https://github.com/fissible/shellql/issues/27) | Drop table/view | S | confirm.sh (exists) | ✓ 2026-03-31 |
+| [shellql#28](https://github.com/fissible/shellql/issues/28) | Create table (SQL template) | S | none | ✓ 2026-03-31 |
+| [shellql#29](https://github.com/fissible/shellql/issues/29) | Export CSV | S–M | none | ✓ 2026-04-01 |
+| [shellql#32](https://github.com/fissible/shellql/issues/32) | First data tab focus bug | XS–S | none | ✓ 2026-03-31 |
+| [shellframe#38](https://github.com/fissible/shellframe/issues/38) | Autocomplete layer | M | input-field, context-menu | ✓ 2026-04-01 |
+| [shellql#30](https://github.com/fissible/shellql/issues/30) | SQL type-ahead | L | shellframe#38 | ✓ 2026-04-02 |
+| [shellql#31](https://github.com/fissible/shellql/issues/31) | Enrich context menus | XS | all DML/DDL above | ✓ 2026-04-01 |
 
 **Build order:**
 1. shellql#26 + #27 + #28 + #32 — parallel (DDL ops + focus bug, all short)
@@ -356,4 +356,58 @@ Completed 2026-03-23 (ptyunit consumer migration):
 3. shellql#30 — after shellframe#38
 4. shellql#31 — last, after all actions exist
 
-**Next:** shellql#26 + #27 + #28 + #32 (Session A — DDL + focus bug)
+**Completed 2026-03-31 (Truncate, Drop, Create Table + UX polish — shellql#26, #27, #28, PR #35):**
+- `src/screens/dml.sh` — `_shql_dml_truncate_open` + `_shql_dml_execute_truncate` + truncate confirm overlay (T/y confirms); `_shql_dml_on_key` truncate branch; `_shql_dml_render` truncate mode title + prompt
+- `src/screens/table.sh` — `T` key wires to truncate; footer hints updated; `[i] +Row` button replaced with `" New Row "` styled like `+SQL` in gap row between tab bar and content; DML hints moved below data grid in dark surface area; `shellframe_screen_clear` on query tab close (editor ghost fix); `c` key → `_shql_TABLE_sidebar_action_create_table`; empty-state center hint removed (multi-byte ghost fix)
+- `src/screens/query.sh` — prefill variable applied after editor lazy-init; `shellframe_editor_set_text` no longer needed at open time
+- `tests/unit/test-dml.sh` — 5 new assertions for truncate_open; 470/470 passing
+- **PR #35 open**: `feature/shellql-26-truncate-table`
+- **GitHub:** #26, #27, #28 ready to close once PR merges
+
+**Completed 2026-03-31 (WHERE filter — multi-filter + fix):**
+- `src/screens/where.sh` — full redesign: multi-filter storage (newline-delimited `col\top\tval` entries per tab); new helpers `_shql_where_filter_{count,get,set,add,del}`, `_shql_where_clear_one`, `_shql_where_pills_layout`, `_shql_where_pills_render`; all output via named globals to avoid `printf -v`/`local` scope clash; `_shql_where_open` takes `edit_idx` (-1=new, >=0=edit existing); `_shql_where_apply` fixed (removed `local` from output vars)
+- `src/screens/table.sh` — `_shql_content_data_ensure` iterates all filters with AND; gap row renders scrollable pills via `_shql_where_pills_render`; mouse handler updated for per-pill edit/close and [<]/[>] scroll; `+ Filter` and `f` key always open new filter (edit_idx=-1)
+- `tests/unit/test-where.sh` — updated for new API; 63 assertions
+- `tests/unit/test-table.sh` — where.sh stubs added; 111 assertions
+- **533/533 assertions passing**
+
+**Completed 2026-03-31 (Sort feature + bug fixes — shellql#36, #32):**
+- `src/screens/sort.sh` (new) — per-tab ORDER BY state: `_shql_sort_{count,get,find,toggle,build_clause,clear,col_at_x,overlay_headers}`; header keyboard focus state (`_SHQL_HEADER_FOCUSED`, `_SHQL_HEADER_FOCUSED_COL`); `_SHQL_SORT_VISIBLE_END_COL` for scroll-right gating
+- `src/db.sh` — `shql_db_fetch` 6th `_order` param; ORDER BY placed before LIMIT/OFFSET
+- `src/screens/table.sh` — header click handler (sort toggle + cache-bust); keyboard header focus mode (←/→/↑/↓/Enter/Esc/Tab); overlay call after grid render; footer hint dynamic in header mode; sorted columns widened by 2 in `_shql_content_data_ensure`; `SHELLFRAME_GRID_FOCUSED` suppressed in header focus mode; `_SHQL_TABLE_BODY_FOCUSED` synced in `content_on_focus` (shellql#32 fix)
+- `tests/unit/test-sort.sh` (new, 38 assertions); `tests/unit/test-table.sh` (+32 assertions, 143 total)
+- Bug fixes: `_ctx` → `_ctx_active` in overlay call (crash on table open); separator accounting (+1) in overlay/hit-test loops (indicator placement drift); `_k_enter=$'\r'` → `SHELLFRAME_KEY_ENTER` + `\r` fallback (Enter was opening inspector instead of sorting)
+- **611/611 assertions passing**
+- **PR #35 updated** with all fixes; shellql#32 ✓ closed
+
+**Completed 2026-04-01 (WHERE filter pills UX + overlay reset bug fix):**
+- `src/screens/where.sh` — pills layout rewritten: newest pill is rightmost (closest to `+ Filter`); scroll direction flipped (`[<]` reveals older pills on the left, `[>]` reveals newer on the right); pill scroll reset to 0 on `_shql_where_apply` so the new pill is always visible; pill scroll comment updated to clarify semantics
+- `src/screens/table.sh` — `_shql_TABLE_tabbar_on_mouse`: `+ Filter` click now guarded by `_SHQL_WHERE_ACTIVE` — clicking while the overlay is already open no longer resets the cursor/state (was silently clearing in-progress filter values); scroll direction math corrected (increment/decrement swapped)
+- **611/611 assertions passing**
+
+**Completed 2026-04-01 (Export CSV/SQL dump — shellql#29):**
+- `src/screens/export.sh` (new) — `_shql_csv_quote_field` (RFC 4180); `_shql_export_open/close`; `_shql_export_on_key` (Tab=format toggle, Enter=execute, Esc=cancel, others→field widget); `_shql_export_do_csv` (2× fetch_limit re-query for data tabs with cached WHERE/ORDER, or dumps loaded grid data for query tabs); `_shql_export_do_sql_dump` (`sqlite3 .dump`); `_shql_export_render` (centered panel overlay with format selector + path field + status line + key hints)
+- `src/screens/table.sh` — `_SHQL_EXPORT_ACTIVE` state flag; `_SHQL_QUERY_WHERE_<ctx>` / `_SHQL_QUERY_ORDER_<ctx>` caches written at end of `_shql_content_data_ensure`; `x` key in data and query branches opens export overlay; export routing at top of `_shql_TABLE_content_on_key`; export render call between content and toast in `_shql_TABLE_content_render`; `[x] Export` added to footer hint
+- `bin/shql` — `source export.sh` added
+- `tests/unit/test-export.sh` (new, 21 assertions) — RFC 4180 quoting, default path derivation, open/close state management
+- **632/632 assertions passing**
+- **shellql#29 closed**
+
+**Completed 2026-04-01 (Autocomplete + v1 test polish — shellql#30):**
+- `src/autocomplete.sh` — pure-bash `_shql_tolower`/`_shql_toupper` (zero subshells via `printf -v`); `_shql_ac_sql_context` uses `[[ =~ ]]` with local pattern variables (no `printf|grep`); `_shql_ac_provider` inner loops use `_shql_tolower` instead of `printf|tr`; net ~100+ subshells/keystroke → ~3
+- `src/screens/query.sh` — backspace key: calls `shellframe_ac_dismiss` instead of `shellframe_ac_on_key_after` (keeps AC dismissed while deleting)
+- `src/db.sh`, `src/db_mock.sh`, `src/screens/export.sh`, `src/screens/table.sh`, `src/screens/query.sh` — field separator changed from `\t` to `\x1f` (ASCII Unit Separator) throughout to prevent bash IFS whitespace-collapsing of NULL/empty fields (fixes column-shift bug on rows with empty cells)
+- `src/screens/table.sh` — `_shql_content_data_ensure` sets `_SHQL_BROWSER_QUERY_STATUS` with row count + elapsed ms after fetch (fixes `[r]` refresh status bar)
+- **Test improvements (758/758 assertions across 23 files):**
+  - Migrated `test-where.sh`, `test-autocomplete.sh`, `test-sort.sh`, `test-cli.sh`, `test-db-mock.sh` to `describe`/`test_that`/`test_each` (ptyunit 1.5)
+  - New `tests/unit/test-db.sh` (20 assertions): `ptyunit_mock sqlite3` covers SELECT wrapping, DML `rows_affected` append, semicolon stripping, `\x1f` separator, error propagation
+  - New `tests/integration/test_pty_shql.py` (6 assertions): PTY smoke tests via `PTYSession` — welcome screen, connection tiles, `q` quits, sidebar tables, Enter opens data tab, `--query` flag
+  - New `tests/integration/setUp.sh`: auto-detects `SHELLFRAME_DIR`, skips if absent
+  - Fixed `tests/integration/test-db.sh`: `cut -f1` → `cut -d $'\x1f' -f1`
+  - Fixed `tests/integration/test-integration.sh`: source `where.sh`+`sort.sh` before `table.sh`
+- **Blocker:** shellql#30 cannot be closed via API (401); close manually on GitHub
+- **Remaining v1 work:** shellql#31 (enrich context menus) — all DML/DDL actions now exist
+
+**All v1 issues are closed. Ready to cut v1.0 release.**
+
+**Next:** Run `bash release.sh` to cut v1.0.

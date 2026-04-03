@@ -455,10 +455,48 @@ _shql_dml_render() {
     # Hint row at bottom of inner area
     shellframe_fb_print "$(( _it + _ih - 1 ))" "$_il" " Tab next  Enter submit  Esc cancel" "${_ibg}${_gray}"
 
-    # Form fills inner area minus hint row
+    # Compute type hint column width from column definitions
+    local _type_col_w=0 _ti
+    local _n_cols=${#_SHQL_DML_COL_DEFS[@]}
+    for (( _ti=0; _ti<_n_cols; _ti++ )); do
+        local _cdef="${_SHQL_DML_COL_DEFS[$_ti]}"
+        local _ctype="${_cdef#*$'\t'}"
+        _ctype="${_ctype%%$'\t'*}"
+        local _cflags="${_cdef##*$'\t'}"
+        local _hint="$_ctype"
+        [[ "$_cflags" == *PK* ]] && _hint="${_hint} PK"
+        [[ "$_cflags" == *NN* && "$_cflags" != *PK* ]] && _hint="${_hint} NN"
+        (( ${#_hint} > _type_col_w )) && _type_col_w=${#_hint}
+    done
+    # Reserve space: type hint + 2 padding
+    local _type_reserve=0
+    if (( _type_col_w > 0 && _iw > 30 )); then
+        _type_reserve=$(( _type_col_w + 2 ))
+    fi
+
+    # Form fills inner area minus hint row, minus type column
     local _form_inner_h=$(( _ih - 1 ))
     (( _form_inner_h < 1 )) && _form_inner_h=1
+    local _form_w=$(( _iw - _type_reserve ))
     SHELLFRAME_FORM_BG="$_ibg"
-    shellframe_form_render "$_SHQL_DML_CTX" "$_it" "$_il" "$_iw" "$_form_inner_h"
+    shellframe_form_render "$_SHQL_DML_CTX" "$_it" "$_il" "$_form_w" "$_form_inner_h"
     SHELLFRAME_FORM_BG=""
+
+    # Render type hints to the right of each visible field row
+    if (( _type_reserve > 0 )); then
+        local _type_left=$(( _il + _form_w + 1 ))
+        local _scroll_var="_SHELLFRAME_FORM_${_SHQL_DML_CTX}_SCROLL"
+        local _form_scroll="${!_scroll_var:-0}"
+        for (( _ti=0; _ti<_form_inner_h && _ti + _form_scroll < _n_cols; _ti++ )); do
+            local _fi=$(( _form_scroll + _ti ))
+            local _cdef="${_SHQL_DML_COL_DEFS[$_fi]}"
+            local _ctype="${_cdef#*$'\t'}"
+            _ctype="${_ctype%%$'\t'*}"
+            local _cflags="${_cdef##*$'\t'}"
+            local _hint="$_ctype"
+            [[ "$_cflags" == *PK* ]] && _hint="${_hint} PK"
+            [[ "$_cflags" == *NN* && "$_cflags" != *PK* ]] && _hint="${_hint} NN"
+            shellframe_fb_print "$(( _it + _ti ))" "$_type_left" "$_hint" "${_ibg}${_gray}"
+        done
+    fi
 }

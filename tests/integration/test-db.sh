@@ -66,7 +66,7 @@ assert_contains "$_result" "CREATE VIEW"
 
 # ── shql_db_fetch ─────────────────────────────────────────────────────────────
 
-ptyunit_test_begin "db_fetch: first line is tab-separated header"
+ptyunit_test_begin "db_fetch: first line is \x1f-separated header"
 _result=$(shql_db_fetch "$_db" users)
 _header=$(printf '%s\n' "$_result" | head -1)
 assert_contains "$_header" "id"
@@ -77,7 +77,7 @@ _row_count=$(printf '%s\n' "$_result" | tail -n +2 | grep -c '' || true)
 assert_eq 3 "$_row_count"
 
 ptyunit_test_begin "db_fetch: first data cell is '1'"
-_first=$(printf '%s\n' "$_result" | sed -n '2p' | cut -f1)
+_first=$(printf '%s\n' "$_result" | sed -n '2p' | cut -d $'\x1f' -f1)
 assert_eq "1" "$_first"
 
 ptyunit_test_begin "db_fetch: explicit limit restricts rows"
@@ -87,7 +87,7 @@ assert_eq 2 "$_row_count"
 
 ptyunit_test_begin "db_fetch: offset skips rows"
 _result=$(shql_db_fetch "$_db" users 2 1)
-_second_id=$(printf '%s\n' "$_result" | sed -n '2p' | cut -f1)
+_second_id=$(printf '%s\n' "$_result" | sed -n '2p' | cut -d $'\x1f' -f1)
 assert_eq "2" "$_second_id"
 
 ptyunit_test_begin "db_fetch: emits warning to stderr when config limit hit"

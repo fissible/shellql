@@ -39,7 +39,7 @@ SHQL_THEME_QUERY_PANEL_COLOR=$'\033[36m'              # cyan — panel borders/f
 SHQL_THEME_EDITOR_FOCUSED_BG=$'\033[48;5;234m'        # 234 — darker than content for editor
 
 # ── Tab bar ───────────────────────────────────────────────────────────────────
-SHQL_THEME_TAB_ACTIVE=""                              # inherits CONTENT_BG
+SHQL_THEME_TAB_ACTIVE_COLOR=$'\033[97m\033[1m'        # bright white + bold
 SHQL_THEME_TAB_INACTIVE_BG=$'\033[100m\033[37m'       # dark gray bg + light gray text
 
 # ── Footer / status bar ──────────────────────────────────────────────────────

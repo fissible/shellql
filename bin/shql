@@ -58,6 +58,8 @@ fi
 source "$_SHQL_ROOT/src/theme.sh"
 shql_theme_load "${SHQL_THEME:-basic}"
 
+source "$_SHQL_ROOT/src/autocomplete.sh"
+
 # screens (util.sh first — shared helpers; header.sh before welcome/table)
 source "$_SHQL_ROOT/src/screens/util.sh"
 source "$_SHQL_ROOT/src/screens/header.sh"
@@ -66,10 +68,18 @@ source "$_SHQL_ROOT/src/screens/table.sh"
 source "$_SHQL_ROOT/src/screens/query.sh"
 source "$_SHQL_ROOT/src/screens/inspector.sh"
 source "$_SHQL_ROOT/src/screens/dml.sh"
+source "$_SHQL_ROOT/src/screens/where.sh"
+source "$_SHQL_ROOT/src/screens/sort.sh"
+source "$_SHQL_ROOT/src/screens/export.sh"
 
 # ── Argument parsing ──────────────────────────────────────────────────────────
 
 shql_cli_parse "$@" || exit $?
+
+if [[ "$_SHQL_CLI_MODE" == "help" ]]; then
+    shql_cli_help
+    exit 0
+fi
 
 # ── Name resolution ───────────────────────────────────────────────────────────
 # If _SHQL_CLI_DB is set but is not an existing path, attempt to resolve it as

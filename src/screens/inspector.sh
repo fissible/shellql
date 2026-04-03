@@ -22,6 +22,7 @@ _SHQL_INSPECTOR_ACTIVE=0
 _SHQL_INSPECTOR_PAIRS=()
 _SHQL_INSPECTOR_CTX="inspector_scroll"
 _SHQL_INSPECTOR_ROW_IDX=0       # which data-grid row is being inspected
+_SHQL_INSPECTOR_COL_DEFS=()     # "name\ttype\tflags" from shql_db_columns
 
 # ── _shql_inspector_open ──────────────────────────────────────────────────────
 
@@ -43,6 +44,16 @@ _shql_inspector_open() {
         [[ -z "$_val" ]] && _val="(null)"
         _SHQL_INSPECTOR_PAIRS+=("${_key}"$'\t'"${_val}")
     done
+
+    # Load column definitions for type hints (data tabs only)
+    _SHQL_INSPECTOR_COL_DEFS=()
+    local _table="${_SHQL_TABS_TABLE[$_SHQL_TAB_ACTIVE]:-}"
+    if [[ -n "$_table" ]]; then
+        local _cline
+        while IFS= read -r _cline; do
+            [[ -n "$_cline" ]] && _SHQL_INSPECTOR_COL_DEFS+=("$_cline")
+        done < <(shql_db_columns "$SHQL_DB_PATH" "$_table" 2>/dev/null)
+    fi
 
     local _n=${#_SHQL_INSPECTOR_PAIRS[@]}
     shellframe_scroll_init "$_SHQL_INSPECTOR_CTX" "$_n" 1 10 1
@@ -76,7 +87,15 @@ _shql_inspector_on_key() {
     local _k_pgdn="${SHELLFRAME_KEY_PAGE_DOWN:-$'\033[6~'}"
 
     case "$_key" in
-        "$_k_up")   shellframe_scroll_move "$_SHQL_INSPECTOR_CTX" up;        return 0 ;;
+        "$_k_up")
+            local _st=0; shellframe_scroll_top "$_SHQL_INSPECTOR_CTX" _st 2>/dev/null || true
+            if (( _st == 0 )); then
+                _SHQL_INSPECTOR_ACTIVE=0
+                shellframe_shell_mark_dirty
+            else
+                shellframe_scroll_move "$_SHQL_INSPECTOR_CTX" up
+            fi
+            return 0 ;;
         "$_k_down") shellframe_scroll_move "$_SHQL_INSPECTOR_CTX" down;      return 0 ;;
         "$_k_pgup") shellframe_scroll_move "$_SHQL_INSPECTOR_CTX" page_up;   return 0 ;;
         "$_k_pgdn") shellframe_scroll_move "$_SHQL_INSPECTOR_CTX" page_down; return 0 ;;
@@ -103,7 +122,7 @@ _shql_inspector_render() {
     SHELLFRAME_PANEL_CELL_ATTRS="${_cbg}${_focus_color}"
     SHELLFRAME_PANEL_STYLE="${SHQL_THEME_PANEL_STYLE_FOCUSED:-double}"
     local _table_name="${_SHQL_TABS_TABLE[$_SHQL_TAB_ACTIVE]:-}"
-    SHELLFRAME_PANEL_TITLE="Record — ${_table_name}"
+    SHELLFRAME_PANEL_TITLE="View Row — ${_table_name}"
     SHELLFRAME_PANEL_TITLE_ALIGN="left"
     SHELLFRAME_PANEL_FOCUSED=1
     shellframe_panel_render "$_top" "$_left" "$_width" "$_height"
@@ -131,11 +150,32 @@ _shql_inspector_render() {
     (( _kv_h < 1 )) && _kv_h=1
 
     local _kw; _shql_inspector_key_width _kw
-    local _val_avail=$(( _pw - _kw - 2 ))
+
+    # Compute type hint column width from column definitions
+    local _type_col_w=0 _ti
+    local _n_cdefs=${#_SHQL_INSPECTOR_COL_DEFS[@]}
+    for (( _ti=0; _ti<_n_cdefs; _ti++ )); do
+        local _cdef="${_SHQL_INSPECTOR_COL_DEFS[$_ti]}"
+        local _ctype="${_cdef#*$'\t'}"
+        _ctype="${_ctype%%$'\t'*}"
+        local _cflags="${_cdef##*$'\t'}"
+        local _hint="$_ctype"
+        [[ "$_cflags" == *PK* ]] && _hint="${_hint} PK"
+        [[ "$_cflags" == *NN* && "$_cflags" != *PK* ]] && _hint="${_hint} NN"
+        (( ${#_hint} > _type_col_w )) && _type_col_w=${#_hint}
+    done
+    local _type_reserve=0
+    if (( _type_col_w > 0 && _pw > 30 )); then
+        _type_reserve=$(( _type_col_w + 2 ))
+    fi
+
+    local _val_avail=$(( _pw - _kw - 2 - _type_reserve ))
     (( _val_avail < 1 )) && _val_avail=1
     local _val_left=$(( _pl + _kw + 2 ))
 
     local _kc="${SHQL_THEME_KEY_COLOR:-}"
+    local _vc="${SHQL_THEME_VALUE_COLOR:-}"
+    local _null_style="${SHELLFRAME_GRAY:-}"
     local _n_pairs=${#_SHQL_INSPECTOR_PAIRS[@]}
 
     # Build display-row map: word-wrap values; each wrapped line = one display row.
@@ -174,8 +214,27 @@ _shql_inspector_render() {
         else
             printf -v _key_padded '%-*s' "$_kw" ""
         fi
+        local _vstyle
+        if [[ "$_val_chunk" == "(null)" ]]; then
+            _vstyle="${_ibg}${_null_style}"
+        else
+            _vstyle="${_ibg}${_vc}"
+        fi
         shellframe_fb_print "$_row" "$_pl"       "$_key_padded" "${_ibg}${_kc}"
         shellframe_fb_fill  "$_row" "$(( _pl + _kw ))" 2 " " "$_ibg"
-        shellframe_fb_print "$_row" "$_val_left" "$_val_chunk" "$_ibg"
+        shellframe_fb_print "$_row" "$_val_left" "$_val_chunk" "$_vstyle"
+
+        # Render type hint on the first line of each pair
+        if (( _type_reserve > 0 && _ldr == 0 && _pi < _n_cdefs )); then
+            local _cdef="${_SHQL_INSPECTOR_COL_DEFS[$_pi]}"
+            local _ctype="${_cdef#*$'\t'}"
+            _ctype="${_ctype%%$'\t'*}"
+            local _cflags="${_cdef##*$'\t'}"
+            local _thint="$_ctype"
+            [[ "$_cflags" == *PK* ]] && _thint="${_thint} PK"
+            [[ "$_cflags" == *NN* && "$_cflags" != *PK* ]] && _thint="${_thint} NN"
+            local _type_left=$(( _pl + _pw - _type_reserve + 1 ))
+            shellframe_fb_print "$_row" "$_type_left" "$_thint" "${_ibg}${_gray}"
+        fi
     done
 }

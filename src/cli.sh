@@ -16,6 +16,57 @@ _SHQL_CLI_TABLE=""
 _SHQL_CLI_SQL=""
 _SHQL_CLI_PORCELAIN=0
 
+# ── shql_cli_help ─────────────────────────────────────────────────────────────
+#
+# Print usage information to stdout.
+
+shql_cli_help() {
+    cat <<'HELP'
+shql — a terminal database workbench for SQLite
+
+Usage:
+  shql [options] [database] [table]
+  shql database -q "SQL"
+  command | shql database
+
+Modes:
+  shql                        Open the welcome screen (recent files)
+  shql <database>             Open a database in the browser
+  shql <database> <table>     Open directly to a table's data tab
+  shql <database> --query     Open with a blank SQL query tab
+  shql <database> -q "SQL"    Run a query, print results, and exit
+  cat q.sql | shql <database> Pipe SQL from stdin, print results, and exit
+  shql databases              List known/recent databases
+
+Options:
+  -h, --help        Show this help and exit
+  -q <sql>          Run SQL and print the result as a table
+  --query           Open the TUI in query mode
+  --porcelain       Machine-readable output (TSV, no box drawing)
+
+Environment:
+  SHQL_THEME        Colour scheme: basic (default), cascade, uranium
+  SHQL_MOCK         Set to 1 for mock adapter (no sqlite3 required)
+  SHQL_MAX_COL_WIDTH  Maximum column width in data grids (default: 30)
+  SHQL_DEBUG        Set to 1 for crash diagnostics (use with 2>/tmp/shql.log)
+  SHELLFRAME_DIR    Path to shellframe checkout (default: ../shellframe)
+
+Keyboard (TUI):
+  Tab / Shift-Tab   Switch focus between sidebar, tabs, and content
+  Enter             Open table / run query / inspect row
+  Ctrl-D            Run query (works in edit and focus mode)
+  r                 Refresh data tab / re-run query (from results)
+  Esc               Back / close overlay / return to tab bar
+  i / e / d         Insert / edit / delete row (data tab)
+  T                 Truncate table
+  f                 Add WHERE filter
+  x                 Export (CSV / SQL dump)
+  q                 Close tab / quit
+
+https://github.com/fissible/shellql
+HELP
+}
+
 # ── shql_cli_parse ────────────────────────────────────────────────────────────
 #
 # Parse $@ and set _SHQL_CLI_* globals. All globals are reset at the top of
@@ -49,6 +100,9 @@ shql_cli_parse() {
     # Single-pass argument scan: collect flags and positionals
     while (( $# > 0 )); do
         case "$1" in
+            -h|--help)
+                _SHQL_CLI_MODE="help"
+                return 0 ;;
             --porcelain)
                 _SHQL_CLI_PORCELAIN=1
                 shift ;;

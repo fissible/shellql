@@ -2,3 +2,9 @@
 .superpowers/
 .dual-graph/
 coverage/
+.tome.db
+.tome.db-shm
+.tome.db-wal
+__pycache__/
+*.pyc
+*.pyo

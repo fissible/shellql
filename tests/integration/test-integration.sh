@@ -123,6 +123,8 @@ source "$SHQL_ROOT/src/db_mock.sh"
 shellframe_list_init() { true; }
 source "$SHQL_ROOT/src/screens/schema.sh"
 source "$SHQL_ROOT/src/screens/header.sh"
+source "$SHQL_ROOT/src/screens/where.sh"
+source "$SHQL_ROOT/src/screens/sort.sh"
 source "$SHQL_ROOT/src/screens/table.sh"
 source "$SHQL_ROOT/src/screens/inspector.sh"
 source "$SHQL_ROOT/src/screens/query.sh"

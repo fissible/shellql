@@ -15,9 +15,9 @@ SHQL_THEME_PANEL_STYLE="rounded"
 SHQL_THEME_PANEL_STYLE_FOCUSED="double"
 
 # ── Text colors ───────────────────────────────────────────────────────────────
-SHQL_THEME_KEY_COLOR=$'\033[32m'                   # green
-SHQL_THEME_VALUE_COLOR=$'\033[96m'                 # bright cyan
-SHQL_THEME_VALUE_ACCENT_COLOR=$'\033[93m'          # amber/gold
+SHQL_THEME_KEY_COLOR=$'\033[38;2;80;186;42m\033[1m'  # uranium green + bold
+SHQL_THEME_VALUE_COLOR=$'\033[97m'                   # bright white
+SHQL_THEME_VALUE_ACCENT_COLOR=$'\033[93m'            # amber/gold
 SHQL_THEME_RESET=$'\033[0m'
 
 # ── Header bar: muted green background, bright white text ────────────────────
@@ -50,7 +50,7 @@ SHQL_THEME_GRID_HEADER_BG=$'\033[48;5;237m'           # 237 — shade lighter th
 SHQL_THEME_GRID_HEADER_BORDER=1
 
 # ── Tab bar ──────────────────────────────────────────────────────────────────
-SHQL_THEME_TAB_ACTIVE=""                              # uses CONTENT_BG
+SHQL_THEME_TAB_ACTIVE_COLOR=$'\033[97m\033[1m'        # bright white + bold
 SHQL_THEME_TAB_INACTIVE_BG=$'\033[48;5;238m\033[37m'  # medium gray bg + light gray text
 
 # ── Footer / status bar ─────────────────────────────────────────────────────

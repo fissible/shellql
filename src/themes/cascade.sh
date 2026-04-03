@@ -15,9 +15,9 @@ SHQL_THEME_PANEL_STYLE="single"
 SHQL_THEME_PANEL_STYLE_FOCUSED="double"
 
 # ── Text colors ───────────────────────────────────────────────────────────────
-SHQL_THEME_KEY_COLOR="${SHELLFRAME_BOLD:-}"
-SHQL_THEME_VALUE_COLOR="${SHELLFRAME_RESET:-}"
-SHQL_THEME_VALUE_ACCENT_COLOR="${SHELLFRAME_BOLD:-}"
+SHQL_THEME_KEY_COLOR=$'\033[38;5;140m\033[1m'   # muted purple (grid header color) + bold
+SHQL_THEME_VALUE_COLOR=$'\033[97m'              # bright white
+SHQL_THEME_VALUE_ACCENT_COLOR=$'\033[38;5;135m\033[1m'  # bright purple + bold
 SHQL_THEME_RESET=$'\033[0m'
 
 # ── Header bar: dark purple background, white text ────────────────────────────
@@ -50,7 +50,7 @@ SHQL_THEME_GRID_HEADER_BG=$'\033[48;5;237m'       # 237 (#3a3a3a) — shade ligh
 SHQL_THEME_GRID_HEADER_BORDER=1                   # draw ─ border above header row
 
 # ── Tab bar ───────────────────────────────────────────────────────────────────
-SHQL_THEME_TAB_ACTIVE=""                          # uses CONTENT_BG (set at render time)
+SHQL_THEME_TAB_ACTIVE_COLOR=$'\033[97m\033[1m'    # bright white + bold
 SHQL_THEME_TAB_INACTIVE_BG=$'\033[48;5;238m\033[37m'  # medium gray bg + light gray text
 
 # ── Footer / status bar ───────────────────────────────────────────────────

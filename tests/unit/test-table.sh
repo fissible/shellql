@@ -62,6 +62,36 @@ source "$SHQL_ROOT/src/db_mock.sh"
 shellframe_list_init() { true; }
 source "$SHQL_ROOT/src/screens/schema.sh"
 
+# Stubs for sort.sh functions called by table.sh (avoids sourcing full module)
+_SHQL_SORT_RESULT_COUNT=0
+_SHQL_SORT_RESULT_COL=""
+_SHQL_SORT_RESULT_DIR=""
+_SHQL_SORT_RESULT_IDX=-1
+_SHQL_SORT_RESULT_CLAUSE=""
+_SHQL_SORT_VISIBLE_END_COL=-1
+_shql_sort_build_clause()    { _SHQL_SORT_RESULT_CLAUSE=""; }
+_shql_sort_overlay_headers() { true; }
+_shql_sort_col_at_x()        { _SHQL_SORT_RESULT_IDX=-1; }
+_shql_sort_toggle()          { true; }
+_shql_sort_count()           { _SHQL_SORT_RESULT_COUNT=0; }
+_shql_sort_find()            { _SHQL_SORT_RESULT_DIR=""; }
+
+# Stubs for where.sh functions called by table.sh (avoids sourcing full module)
+_SHQL_WHERE_RESULT_COUNT=0
+_SHQL_WHERE_RESULT_COL=""
+_SHQL_WHERE_RESULT_OP=""
+_SHQL_WHERE_RESULT_VAL=""
+_SHQL_PILL_LAYOUT_N=0
+_SHQL_PILL_LAYOUT_TOTAL=0
+_SHQL_PILL_LAYOUT_HAS_PREV=0
+_SHQL_PILL_LAYOUT_PREV_COL=-1
+_SHQL_PILL_LAYOUT_HAS_NEXT=0
+_SHQL_PILL_LAYOUT_NEXT_COL=-1
+_shql_where_filter_count() { _SHQL_WHERE_RESULT_COUNT=0; }
+_shql_where_filter_get()   { _SHQL_WHERE_RESULT_COL=""; _SHQL_WHERE_RESULT_OP=""; _SHQL_WHERE_RESULT_VAL=""; return 1; }
+_shql_where_pills_layout() { _SHQL_PILL_LAYOUT_N=0; _SHQL_PILL_LAYOUT_TOTAL=0; _SHQL_PILL_LAYOUT_HAS_PREV=0; _SHQL_PILL_LAYOUT_PREV_COL=-1; _SHQL_PILL_LAYOUT_HAS_NEXT=0; _SHQL_PILL_LAYOUT_NEXT_COL=-1; }
+_shql_where_pills_render() { true; }
+
 # Source table module
 source "$SHQL_ROOT/src/screens/table.sh"
 source "$SHQL_ROOT/src/screens/query.sh"
@@ -172,7 +202,7 @@ assert_eq -1 "$_result"
 ptyunit_test_begin "tab_find: returns -1 for wrong type"
 _SHQL_TABS_TYPE=("data")
 _SHQL_TABS_TABLE=("users")
-_SHQL_TABS_LABEL=("users·Data")
+_SHQL_TABS_LABEL=("users")
 _SHQL_TABS_CTX=("t0")
 _shql_tab_find "users" "schema" _result
 assert_eq -1 "$_result"
@@ -180,7 +210,7 @@ assert_eq -1 "$_result"
 ptyunit_test_begin "tab_find: finds correct index"
 _SHQL_TABS_TYPE=("data" "schema")
 _SHQL_TABS_TABLE=("users" "users")
-_SHQL_TABS_LABEL=("users·Data" "users·Schema")
+_SHQL_TABS_LABEL=("users" "users·Schema")
 _SHQL_TABS_CTX=("t0" "t1")
 _shql_tab_find "users" "schema" _result
 assert_eq 1 "$_result"
@@ -191,7 +221,7 @@ _shql_tab_open "users" "data"
 assert_eq 1 "${#_SHQL_TABS_TYPE[@]}"
 assert_eq "data" "${_SHQL_TABS_TYPE[0]}"
 assert_eq "users" "${_SHQL_TABS_TABLE[0]}"
-assert_eq "users·Data" "${_SHQL_TABS_LABEL[0]}"
+assert_eq "users" "${_SHQL_TABS_LABEL[0]}"
 assert_eq 0 "$_SHQL_TAB_ACTIVE"
 
 ptyunit_test_begin "tab_open: deduplicates — switches to existing tab"
@@ -229,7 +259,7 @@ assert_eq -1 "$_SHQL_TAB_ACTIVE"
 
 ptyunit_test_begin "tab_capacity: fits within available width"
 shql_table_init_browser
-_shql_tab_open "users" "data"     # label "users·Data" = 10 chars + 2 padding = 12
+_shql_tab_open "users" "data"     # label "users" = 10 chars + 2 padding = 12
 _shql_tab_open "orders" "schema"  # label "orders·Schema" = 13 + 2 = 15
 # +SQL = 5; separators = 2
 # total used: 12+1+15+1+5 = 34 → fits in width 80
@@ -292,7 +322,7 @@ _shql_tab_open "users" "data"
 _shql_tab_open "orders" "schema"
 _SHQL_TAB_ACTIVE=0
 _shql_tabbar_build_line 80 _line
-assert_contains "$_line" "users·Data"
+assert_contains "$_line" "users"
 assert_contains "$_line" "orders·Schema"
 
 ptyunit_test_begin "content_dispatch: empty state hint shown when ACTIVE=-1"
@@ -325,16 +355,16 @@ _shql_tab_open "users" "schema"
 _SHQL_BROWSER_CONTENT_FOCUS="schema_cols"
 assert_eq "schema_cols" "$_SHQL_BROWSER_CONTENT_FOCUS"
 
-ptyunit_test_begin "content_on_key: up at row 0 in data tab moves focus to tabbar"
+ptyunit_test_begin "content_on_key: up at row 0 in data tab enters header focus mode"
 shql_table_init_browser
 _shql_tab_open "users" "data"
 _SHQL_BROWSER_CONTENT_FOCUSED=1
+_SHQL_HEADER_FOCUSED=0
 shellframe_sel_cursor() { printf -v "$2" '%d' 0; }   # simulate row 0
-_saved_focus=""
-shellframe_shell_focus_set() { _saved_focus="$1"; }
+shellframe_scroll_left() { printf -v "$2" '%d' 0; }
+SHELLFRAME_GRID_COLS=3
 _shql_TABLE_content_on_key $'\033[A'   # up
-assert_eq "tabbar" "$_saved_focus"
-shellframe_shell_focus_set() { true; }
+assert_eq "1" "$_SHQL_HEADER_FOCUSED"
 
 ptyunit_test_begin "content_on_key: ] switches to next tab"
 shql_table_init_browser
@@ -354,7 +384,7 @@ _SHQL_BROWSER_CONTENT_FOCUSED=0
 _SHQL_INSPECTOR_ACTIVE=0
 _shql_browser_footer_hint _hint
 assert_contains "$_hint" "Enter"
-assert_contains "$_hint" "s=Schema"
+assert_contains "$_hint" "[s] Schema"
 
 ptyunit_test_begin "footer_hint: empty state shows select hint"
 _SHQL_BROWSER_SIDEBAR_FOCUSED=0
@@ -415,10 +445,13 @@ assert_eq "sidebar" "$_SHQL_CMENU_SOURCE"
 ptyunit_test_begin "cmenu: sidebar right-click sets menu items"
 shql_browser_init
 _shql_TABLE_sidebar_on_mouse 2 "press" 4 5 2 1 20 22
-assert_eq "3" "${#SHELLFRAME_CMENU_ITEMS[@]}"
-assert_eq "Open Data" "${SHELLFRAME_CMENU_ITEMS[0]}"
-assert_eq "Open Schema" "${SHELLFRAME_CMENU_ITEMS[1]}"
-assert_eq "New Query" "${SHELLFRAME_CMENU_ITEMS[2]}"
+assert_eq "7" "${#SHELLFRAME_CMENU_ITEMS[@]}"
+assert_contains "${SHELLFRAME_CMENU_ITEMS[0]}" "Open Data"
+assert_contains "${SHELLFRAME_CMENU_ITEMS[1]}" "Open Schema"
+assert_contains "${SHELLFRAME_CMENU_ITEMS[2]}" "New Query"
+assert_contains "${SHELLFRAME_CMENU_ITEMS[4]}" "New Table"
+assert_contains "${SHELLFRAME_CMENU_ITEMS[5]}" "Truncate Table"
+assert_contains "${SHELLFRAME_CMENU_ITEMS[6]}" "Drop Table"
 
 ptyunit_test_begin "cmenu: sidebar left-click does not open context menu"
 shql_browser_init
@@ -466,8 +499,14 @@ ptyunit_test_begin "cmenu: data content right-click menu items"
 shql_browser_init
 _shql_tab_open "users" "data"
 _shql_TABLE_content_on_mouse 2 "press" 6 30 4 21 59 20
-assert_eq "1" "${#SHELLFRAME_CMENU_ITEMS[@]}"
-assert_eq "Inspect Row" "${SHELLFRAME_CMENU_ITEMS[0]}"
+assert_eq "8" "${#SHELLFRAME_CMENU_ITEMS[@]}"
+assert_contains "${SHELLFRAME_CMENU_ITEMS[0]}" "Inspect Row"
+assert_contains "${SHELLFRAME_CMENU_ITEMS[1]}" "Edit Row"
+assert_contains "${SHELLFRAME_CMENU_ITEMS[2]}" "Delete Row"
+assert_contains "${SHELLFRAME_CMENU_ITEMS[4]}" "Insert Row"
+assert_contains "${SHELLFRAME_CMENU_ITEMS[5]}" "Refresh"
+assert_contains "${SHELLFRAME_CMENU_ITEMS[6]}" "Filter"
+assert_contains "${SHELLFRAME_CMENU_ITEMS[7]}" "Export"
 
 # ── Context menu: dismiss restores state ─────────────────────────────────────
 
@@ -549,5 +588,280 @@ _shql_TABLE_render
 # (we can't easily inspect the array since stubs don't populate it,
 #  but the function runs without error)
 assert_eq "1" "$_SHQL_CMENU_ACTIVE"
+
+ptyunit_test_begin "tabs_close_by_table: closes all matching tabs"
+shql_table_init_browser
+_shql_tab_open "users" "data"
+_shql_tab_open "users" "schema"
+_shql_tab_open "orders" "data"
+assert_eq 3 "${#_SHQL_TABS_TYPE[@]}"
+_shql_tabs_close_by_table "users"
+assert_eq 1 "${#_SHQL_TABS_TYPE[@]}"
+assert_eq "orders" "${_SHQL_TABS_TABLE[0]}"
+
+ptyunit_test_begin "tabs_close_by_table: no-op when table not open"
+shql_table_init_browser
+_shql_tab_open "orders" "data"
+_shql_tabs_close_by_table "users"
+assert_eq 1 "${#_SHQL_TABS_TYPE[@]}"
+
+ptyunit_test_begin "drop_confirm: sets active flag and table/type"
+_SHQL_DROP_CONFIRM_ACTIVE=0
+_shql_drop_confirm "orders" "table"
+assert_eq "1" "$_SHQL_DROP_CONFIRM_ACTIVE"
+assert_eq "orders" "$_SHQL_DROP_CONFIRM_TABLE"
+assert_eq "table" "$_SHQL_DROP_CONFIRM_TYPE"
+
+ptyunit_test_begin "drop_confirm: works for views"
+_SHQL_DROP_CONFIRM_ACTIVE=0
+_shql_drop_confirm "v_active" "view"
+assert_eq "1" "$_SHQL_DROP_CONFIRM_ACTIVE"
+assert_eq "view" "$_SHQL_DROP_CONFIRM_TYPE"
+
+ptyunit_test_begin "sidebar_action_create_table: opens tab with 'New Table' label"
+shql_table_init_browser
+_shql_TABLE_sidebar_action_create_table
+assert_eq "New Table" "${_SHQL_TABS_LABEL[$_SHQL_TAB_ACTIVE]}" "create_table: tab label is 'New Table'"
+
+ptyunit_test_begin "sidebar_action_create_table: stores CREATE TABLE prefill for lazy init"
+_ct_ctx="${_SHQL_TABS_CTX[$_SHQL_TAB_ACTIVE]}"
+_ct_pf_var="_SHQL_QUERY_CTX_PREFILL_${_ct_ctx}"
+assert_contains "${!_ct_pf_var}" "CREATE TABLE" "create_table: prefill contains CREATE TABLE"
+assert_contains "${!_ct_pf_var}" "PRIMARY KEY" "create_table: prefill contains PRIMARY KEY"
+
+# ── Sort: tab_activate clears header focus ────────────────────────────────────
+
+ptyunit_test_begin "sort: tab_activate clears _SHQL_HEADER_FOCUSED"
+shql_table_init_browser
+_shql_tab_open "users" "data"
+_SHQL_HEADER_FOCUSED=1
+_SHQL_HEADER_FOCUSED_COL=3
+_shql_tab_activate 0
+assert_eq "0" "$_SHQL_HEADER_FOCUSED"
+
+ptyunit_test_begin "sort: tab_activate preserves tab index"
+shql_table_init_browser
+_shql_tab_open "users" "data"
+_shql_tab_open "orders" "data"
+_SHQL_HEADER_FOCUSED=1
+_shql_tab_activate 1
+assert_eq "1" "$_SHQL_TAB_ACTIVE"
+assert_eq "0" "$_SHQL_HEADER_FOCUSED"
+
+# ── Sort: content_data_ensure passes ORDER BY ────────────────────────────────
+# Override _shql_sort_build_clause to simulate an active sort
+
+ptyunit_test_begin "sort: content_data_ensure calls sort_build_clause"
+_sort_build_called=0
+_shql_sort_build_clause() { _sort_build_called=1; _SHQL_SORT_RESULT_CLAUSE=""; }
+shql_browser_init
+_shql_tab_open "users" "data"
+_SHQL_BROWSER_GRID_OWNER_CTX=""
+_shql_content_data_ensure
+assert_eq "1" "$_sort_build_called"
+_shql_sort_build_clause() { _SHQL_SORT_RESULT_CLAUSE=""; }  # restore stub
+
+ptyunit_test_begin "sort: content_data_ensure widens sorted column by 2"
+# Simulate col 0 ("id") sorted ASC; unsorted cols should be unchanged
+_shql_sort_count() { _SHQL_SORT_RESULT_COUNT=1; }
+_shql_sort_find()  {
+    if [[ "${2:-}" == "id" ]]; then _SHQL_SORT_RESULT_DIR="ASC"
+    else _SHQL_SORT_RESULT_DIR=""; fi
+}
+shql_browser_init
+_shql_tab_open "users" "data"
+_SHQL_BROWSER_GRID_OWNER_CTX=""
+_shql_content_data_ensure
+_w0_sorted="${SHELLFRAME_GRID_COL_WIDTHS[0]}"
+# Now reload without sort to get base width
+_shql_sort_count() { _SHQL_SORT_RESULT_COUNT=0; }
+_shql_sort_find()  { _SHQL_SORT_RESULT_DIR=""; }
+_SHQL_BROWSER_GRID_OWNER_CTX=""
+_shql_content_data_ensure
+_w0_base="${SHELLFRAME_GRID_COL_WIDTHS[0]}"
+assert_eq "$(( _w0_base + 2 ))" "$_w0_sorted"
+# restore stubs
+_shql_sort_count() { _SHQL_SORT_RESULT_COUNT=0; }
+_shql_sort_find()  { _SHQL_SORT_RESULT_DIR=""; }
+
+# ── Sort: header focus mode enters on ↑ at row 0 ─────────────────────────────
+
+ptyunit_test_begin "sort: key ↑ at row 0 enters header focus mode"
+shql_browser_init
+_shql_tab_open "users" "data"
+_SHQL_HEADER_FOCUSED=0
+SHELLFRAME_GRID_HEADERS=(id name email)
+SHELLFRAME_GRID_COLS=3
+# sel_cursor returns 0 (row 0 is focused)
+shellframe_sel_cursor() { printf -v "$2" '%d' 0; }
+shellframe_scroll_left() { printf -v "$2" '%d' 0; }
+_shql_TABLE_content_on_key $'\033[A'
+assert_eq "1" "$_SHQL_HEADER_FOCUSED"
+assert_eq "0" "$_SHQL_HEADER_FOCUSED_COL"
+
+ptyunit_test_begin "sort: key ↑ at row > 0 does not enter header focus"
+shql_browser_init
+_shql_tab_open "users" "data"
+_SHQL_HEADER_FOCUSED=0
+# sel_cursor returns 5 (cursor not at row 0)
+shellframe_sel_cursor() { printf -v "$2" '%d' 5; }
+_shql_TABLE_content_on_key $'\033[A'
+assert_eq "0" "$_SHQL_HEADER_FOCUSED"
+# restore default stub
+shellframe_sel_cursor() { printf -v "$2" '%d' 0; }
+
+# ── Sort: header focus mode key navigation ────────────────────────────────────
+
+ptyunit_test_begin "sort: header ↑ exits focus and moves to tabbar"
+shql_browser_init
+_shql_tab_open "users" "data"
+_SHQL_HEADER_FOCUSED=1
+_SHQL_HEADER_FOCUSED_COL=1
+SHELLFRAME_GRID_COLS=3
+_last_focus_set=""
+shellframe_shell_focus_set() { _last_focus_set="$1"; }
+_shql_TABLE_content_on_key $'\033[A'
+assert_eq "0" "$_SHQL_HEADER_FOCUSED"
+assert_eq "tabbar" "$_last_focus_set"
+shellframe_shell_focus_set() { true; }
+
+ptyunit_test_begin "sort: header ↓ exits focus without changing focus target"
+shql_browser_init
+_shql_tab_open "users" "data"
+_SHQL_HEADER_FOCUSED=1
+_SHQL_HEADER_FOCUSED_COL=1
+_shql_TABLE_content_on_key $'\033[B'
+assert_eq "0" "$_SHQL_HEADER_FOCUSED"
+
+ptyunit_test_begin "sort: header ← decrements focused col"
+shql_browser_init
+_shql_tab_open "users" "data"
+_SHQL_HEADER_FOCUSED=1
+_SHQL_HEADER_FOCUSED_COL=2
+SHELLFRAME_GRID_COLS=5
+shellframe_scroll_left() { printf -v "$2" '%d' 0; }
+_shql_TABLE_content_on_key $'\033[D'
+assert_eq "1" "$_SHQL_HEADER_FOCUSED"
+assert_eq "1" "$_SHQL_HEADER_FOCUSED_COL"
+
+ptyunit_test_begin "sort: header ← does not go below 0"
+shql_browser_init
+_shql_tab_open "users" "data"
+_SHQL_HEADER_FOCUSED=1
+_SHQL_HEADER_FOCUSED_COL=0
+SHELLFRAME_GRID_COLS=5
+_shql_TABLE_content_on_key $'\033[D'
+assert_eq "0" "$_SHQL_HEADER_FOCUSED_COL"
+
+ptyunit_test_begin "sort: header → increments focused col"
+shql_browser_init
+_shql_tab_open "users" "data"
+_SHQL_HEADER_FOCUSED=1
+_SHQL_HEADER_FOCUSED_COL=1
+SHELLFRAME_GRID_COLS=5
+_SHQL_SORT_VISIBLE_END_COL=3
+_shql_TABLE_content_on_key $'\033[C'
+assert_eq "1" "$_SHQL_HEADER_FOCUSED"
+assert_eq "2" "$_SHQL_HEADER_FOCUSED_COL"
+
+ptyunit_test_begin "sort: header → does not exceed ncols-1"
+shql_browser_init
+_shql_tab_open "users" "data"
+_SHQL_HEADER_FOCUSED=1
+_SHQL_HEADER_FOCUSED_COL=4
+SHELLFRAME_GRID_COLS=5
+_SHQL_SORT_VISIBLE_END_COL=4
+_shql_TABLE_content_on_key $'\033[C'
+assert_eq "4" "$_SHQL_HEADER_FOCUSED_COL"
+
+ptyunit_test_begin "sort: header Enter (\\r) triggers sort_toggle with focused col name"
+_toggle_called_col=""
+_shql_sort_toggle() { _toggle_called_col="$2"; }
+shql_browser_init
+_shql_tab_open "users" "data"
+_SHQL_HEADER_FOCUSED=1
+_SHQL_HEADER_FOCUSED_COL=1
+SHELLFRAME_GRID_HEADERS=(id name email)
+_shql_TABLE_content_on_key $'\r'
+assert_eq "name" "$_toggle_called_col"
+_shql_sort_toggle() { true; }
+
+ptyunit_test_begin "sort: header Enter (\\n) triggers sort_toggle — not inspector"
+_toggle_called_col=""
+_shql_sort_toggle() { _toggle_called_col="$2"; }
+shql_browser_init
+_shql_tab_open "users" "data"
+_SHQL_HEADER_FOCUSED=1
+_SHQL_HEADER_FOCUSED_COL=2
+SHELLFRAME_GRID_HEADERS=(id name email)
+_shql_TABLE_content_on_key $'\n'
+assert_eq "email" "$_toggle_called_col"
+assert_eq "1" "$_SHQL_HEADER_FOCUSED"   # header focus stays active
+_shql_sort_toggle() { true; }
+
+ptyunit_test_begin "sort: header click sets focused col and calls toggle"
+_toggle_called_col=""
+_shql_sort_toggle() { _toggle_called_col="$2"; }
+_shql_sort_col_at_x() { _SHQL_SORT_RESULT_IDX=2; }  # simulate click on col 2
+shql_browser_init
+_shql_tab_open "users" "data"
+_SHQL_HEADER_FOCUSED=0
+SHELLFRAME_GRID_HEADERS=(id name email phone)
+_shql_TABLE_content_on_mouse 0 "press" 4 30 4 21 59 20
+assert_eq "1" "$_SHQL_HEADER_FOCUSED"
+assert_eq "2" "$_SHQL_HEADER_FOCUSED_COL"
+assert_eq "email" "$_toggle_called_col"
+_shql_sort_toggle()   { true; }
+_shql_sort_col_at_x() { _SHQL_SORT_RESULT_IDX=-1; }
+
+ptyunit_test_begin "sort: non-header click clears header focus"
+shql_browser_init
+_shql_tab_open "users" "data"
+_SHQL_HEADER_FOCUSED=1
+_SHQL_HEADER_FOCUSED_COL=2
+# Click on row 6 (data row, not header row at _rtop=4)
+_shql_TABLE_content_on_mouse 0 "press" 6 30 4 21 59 20
+assert_eq "0" "$_SHQL_HEADER_FOCUSED"
+
+# ── content_on_focus: syncs _SHQL_TABLE_BODY_FOCUSED ─────────────────────────
+
+ptyunit_test_begin "content_on_focus: gaining focus sets BODY_FOCUSED and GRID_FOCUSED"
+_SHQL_BROWSER_CONTENT_FOCUSED=0
+_SHQL_TABLE_BODY_FOCUSED=0
+SHELLFRAME_GRID_FOCUSED=0
+_shql_TABLE_content_on_focus 1
+assert_eq "1" "$_SHQL_BROWSER_CONTENT_FOCUSED"
+assert_eq "1" "$_SHQL_TABLE_BODY_FOCUSED"
+assert_eq "1" "$SHELLFRAME_GRID_FOCUSED"
+
+ptyunit_test_begin "content_on_focus: losing focus clears BODY_FOCUSED and GRID_FOCUSED"
+_SHQL_BROWSER_CONTENT_FOCUSED=1
+_SHQL_TABLE_BODY_FOCUSED=1
+SHELLFRAME_GRID_FOCUSED=1
+_shql_TABLE_content_on_focus 0
+assert_eq "0" "$_SHQL_BROWSER_CONTENT_FOCUSED"
+assert_eq "0" "$_SHQL_TABLE_BODY_FOCUSED"
+assert_eq "0" "$SHELLFRAME_GRID_FOCUSED"
+
+# ── Header focus: SHELLFRAME_GRID_FOCUSED suppressed while in header mode ─────
+
+ptyunit_test_begin "header_focus: grid render suppresses row highlight when header focused"
+shql_browser_init
+_shql_tab_open "users" "data"
+_SHQL_BROWSER_CONTENT_FOCUSED=1
+_SHQL_HEADER_FOCUSED=1
+_shql_content_data_ensure
+# Render — SHELLFRAME_GRID_FOCUSED should be 0 while header is focused
+_shql_TABLE_content_render 1 1 60 20
+assert_eq "0" "$SHELLFRAME_GRID_FOCUSED"
+
+ptyunit_test_begin "header_focus: grid render shows row highlight when not in header mode"
+shql_browser_init
+_shql_tab_open "users" "data"
+_SHQL_BROWSER_CONTENT_FOCUSED=1
+_SHQL_HEADER_FOCUSED=0
+_shql_content_data_ensure
+_shql_TABLE_content_render 1 1 60 20
+assert_eq "1" "$SHELLFRAME_GRID_FOCUSED"
 
 ptyunit_test_summary

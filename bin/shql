@@ -21,6 +21,11 @@ case "${1:-}" in
                     "${TERM:-unset}" >&2
                 ;;
         esac
+        _shql_cols=$(tput cols 2>/dev/null || printf '0')
+        if (( _shql_cols > 0 && _shql_cols < 120 )); then
+            printf 'warning: terminal is %d columns wide — ShellQL recommends at least 120 columns.\n' \
+                "$_shql_cols" >&2
+        fi
         ;;
 esac
 

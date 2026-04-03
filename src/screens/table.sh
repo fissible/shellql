@@ -2483,7 +2483,10 @@ _shql_TABLE_footer_render() {
     local _hint; _shql_browser_footer_hint _hint
     shellframe_fb_print "$_hints_row" "$_left" "$_hint" "${_fbg}${_gray}"
     local _ver="v${SHQL_VERSION:-dev}"
-    shellframe_fb_print "$_hints_row" $(( _left + _width - ${#_ver} )) "$_ver" "${_fbg}${_gray}"
+    local _ver_col=$(( _left + _width - ${#_ver} ))
+    local _hint_end=$(( _left + ${#_hint} + 2 ))
+    (( _ver_col > _hint_end )) && \
+        shellframe_fb_print "$_hints_row" "$_ver_col" "$_ver" "${_fbg}${_gray}"
 }
 
 # ── _shql_TABLE_quit ──────────────────────────────────────────────────────────

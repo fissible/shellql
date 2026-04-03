@@ -62,8 +62,7 @@ _SHQL_BROWSER_QUERY_STATUS=""       # "Query returned N rows in Xms" (set by _sh
 
 # ── Quit-confirm overlay state ───────────────────────────────────────────────
 
-_SHQL_QUIT_CONFIRM_ACTIVE=0    # 1 when "close file?" overlay is showing
-_SHQL_QUIT_TARGET="WELCOME"   # destination after confirm: "WELCOME" or "__QUIT__"
+_SHQL_QUIT_CONFIRM_ACTIVE=0    # 1 when "close database?" overlay is showing
 _SHQL_DROP_CONFIRM_ACTIVE=0    # 1 when "drop table?" overlay is showing
 _SHQL_DROP_CONFIRM_TABLE=""    # table/view name to drop
 _SHQL_DROP_CONFIRM_TYPE="table" # "table" or "view"
@@ -506,7 +505,6 @@ _shql_TABLE_sidebar_on_key() {
     case "$_key" in
         "$_k_right") shellframe_shell_focus_set "tabbar"; shellframe_shell_mark_dirty; return 0 ;;
         $'\033'|q) _shql_quit_confirm "WELCOME"; return 0 ;;
-        $'\x11')   _SHELLFRAME_SHELL_NEXT="__QUIT__"; return 0 ;;
         $'\r'|$'\n') _shql_TABLE_sidebar_action; shellframe_shell_mark_dirty; return 0 ;;
         s)           _shql_TABLE_sidebar_action_schema; shellframe_shell_mark_dirty; return 0 ;;
         c)           _shql_TABLE_sidebar_action_create_table; shellframe_shell_mark_dirty; return 0 ;;
@@ -902,7 +900,6 @@ _shql_TABLE_tabbar_on_key() {
             shellframe_shell_focus_set "sidebar"
             shellframe_shell_mark_dirty
             return 0 ;;
-        $'\x11') _shql_quit_confirm "__QUIT__"; return 0 ;;
     esac
     return 1
 }
@@ -1661,11 +1658,6 @@ _shql_TABLE_content_on_key() {
     local _k_enter="${SHELLFRAME_KEY_ENTER:-$'\n'}"
     local _k_tab=$'\t'
 
-    # Ctrl-q: global quit from any content state — exit immediately, no confirm
-    if [[ "$_key" == $'\x11' ]]; then
-        _SHELLFRAME_SHELL_NEXT="__QUIT__"
-        return 0
-    fi
 
     # Route to export overlay when active
     if (( ${_SHQL_EXPORT_ACTIVE:-0} )); then
@@ -2507,8 +2499,6 @@ _shql_TABLE_quit() {
 # is incompatible with the shellframe event loop — it rewires fd 3).
 
 _shql_quit_confirm() {
-    local _target="${1:-WELCOME}"
-    _SHQL_QUIT_TARGET="$_target"
     _SHQL_QUIT_CONFIRM_ACTIVE=1
     shellframe_shell_focus_set "quitconfirm"
     shellframe_shell_mark_dirty
@@ -2572,7 +2562,7 @@ _shql_TABLE_quitconfirm_on_key() {
 }
 
 _shql_TABLE_quitconfirm_action() {
-    _SHELLFRAME_SHELL_NEXT="${_SHQL_QUIT_TARGET:-WELCOME}"
+    _SHELLFRAME_SHELL_NEXT="WELCOME"
 }
 
 # ── _shql_drop_confirm ────────────────────────────────────────────────────────

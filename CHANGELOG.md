@@ -6,6 +6,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/).
+## [1.1.0] - 2026-04-03
+
+### Added
+- Restore cursor after DML save; Ctrl+Q quits process
+- Combine query stats and time into single footer token
+- Warn on dumb/missing TERM before launching TUI
+- Display version in bottom-right corner of footer
+
+### Fixed
+- Suppress version label when it would collide with hints text; add min-width warning
+- Use \$COLUMNS instead of tput cols for width check; fix connection tiles test
+- [q] returns to welcome screen; Ctrl+Q quits process
+- [q] confirms close-to-welcome; Ctrl+Q quits immediately
+- Simplify quit flow — Ctrl+Q handled by shellframe globally
+- Re-open inspector with fresh data after DML save
+
+### Ci
+- Install pytest before running tests
+- Add --break-system-packages for pip install on PEP 668 environments
+- Add pyte to pip install (required by PTY smoke tests)
+- Pin actions/checkout to v4.2.2 (Node.js 24 compatible)
+- Opt into Node.js 24 for GitHub Actions (FORCE_JAVASCRIPT_ACTIONS_TO_NODE24)
+- Add bash compatibility matrix via Docker (4.4, 5.0, 5.2)
 ## [1.0.0] - 2026-04-03
 
 ### Added

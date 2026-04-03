@@ -8,13 +8,18 @@ Browse schemas, query data, insert/edit/delete rows, sort, filter, and export
 ## Installation
 
 ```bash
+# Homebrew (recommended)
+brew tap fissible/tap
+brew install shellql
+```
+
+```bash
 # From source
 git clone https://github.com/fissible/shellql
+git clone https://github.com/fissible/shellframe  # sibling directory
 cd shellql
 bash bootstrap.sh   # installs ptyunit (test runner) via Homebrew
 ```
-
-The `shql` binary is also distributed via [fissible/macbin](https://github.com/fissible/macbin).
 
 ### Requirements
 

@@ -55,6 +55,7 @@ SHQL_THEME_TAB_INACTIVE_BG=$'\033[48;5;238m\033[37m'  # medium gray bg + light g
 
 # ── Footer / status bar ───────────────────────────────────────────────────
 SHQL_THEME_FOOTER_BG=$'\033[48;5;234m'            # 234 — matches sidebar, frames the content
+SHQL_THEME_FOOTER_HINT_COLOR=$'\033[38;5;183m'    # 183 (#d7afff) — pale purple, readable on dark-gray footer
 
 # ── Toast notifications ───────────────────────────────────────────────────────
 SHELLFRAME_TOAST_SUCCESS_COLOR=$'\033[48;5;22m\033[97m'   # dark green bg + bright white text

@@ -62,7 +62,8 @@ _SHQL_BROWSER_QUERY_STATUS=""       # "Query returned N rows in Xms" (set by _sh
 
 # ── Quit-confirm overlay state ───────────────────────────────────────────────
 
-_SHQL_QUIT_CONFIRM_ACTIVE=0    # 1 when "close database?" overlay is showing
+_SHQL_QUIT_CONFIRM_ACTIVE=0      # 1 when "close database?" overlay is showing
+_SHQL_QUIT_CONFIRM_PREV_FOCUS="" # focus owner before overlay opened (restored on cancel)
 _SHQL_DROP_CONFIRM_ACTIVE=0    # 1 when "drop table?" overlay is showing
 _SHQL_DROP_CONFIRM_TABLE=""    # table/view name to drop
 _SHQL_DROP_CONFIRM_TYPE="table" # "table" or "view"
@@ -2516,6 +2517,7 @@ _shql_TABLE_quit() {
 # is incompatible with the shellframe event loop — it rewires fd 3).
 
 _shql_quit_confirm() {
+    _shellframe_shell_focus_owner _SHQL_QUIT_CONFIRM_PREV_FOCUS
     _SHQL_QUIT_CONFIRM_ACTIVE=1
     shellframe_shell_focus_set "quitconfirm"
     shellframe_shell_mark_dirty
@@ -2572,6 +2574,7 @@ _shql_TABLE_quitconfirm_on_key() {
             ;;
         *)
             _SHQL_QUIT_CONFIRM_ACTIVE=0
+            shellframe_shell_focus_set "${_SHQL_QUIT_CONFIRM_PREV_FOCUS:-sidebar}"
             shellframe_shell_mark_dirty
             return 0
             ;;

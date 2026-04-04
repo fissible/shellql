@@ -55,6 +55,27 @@ if [[ ! -f "$_SHELLFRAME_ENTRY" ]]; then
     exit 1
 fi
 
+# Verify shellframe meets the minimum required version before sourcing.
+_SHQL_SHELLFRAME_MIN="0.5.1"
+_SHQL_SHELLFRAME_VERSION="$(cat "$(dirname "$_SHELLFRAME_ENTRY")/VERSION" 2>/dev/null || printf '0.0.0')"
+_shql_version_gte() {
+    # Returns 0 if got ($2) >= required ($1), semver major.minor.patch
+    local _r1 _r2 _r3 _g1 _g2 _g3
+    IFS='.' read -r _r1 _r2 _r3 <<< "$1"
+    IFS='.' read -r _g1 _g2 _g3 <<< "$2"
+    (( _g1 > _r1 )) && return 0
+    (( _g1 == _r1 && _g2 > _r2 )) && return 0
+    (( _g1 == _r1 && _g2 == _r2 && _g3 >= _r3 )) && return 0
+    return 1
+}
+if ! _shql_version_gte "$_SHQL_SHELLFRAME_MIN" "$_SHQL_SHELLFRAME_VERSION"; then
+    printf 'error: shellframe %s found, but %s+ is required\n' \
+        "$_SHQL_SHELLFRAME_VERSION" "$_SHQL_SHELLFRAME_MIN" >&2
+    printf 'Update your shellframe checkout: cd %s && git pull\n' \
+        "$(dirname "$_SHELLFRAME_ENTRY")" >&2
+    exit 1
+fi
+
 source "$_SHELLFRAME_ENTRY"
 
 # ── Load ShellQL modules ──────────────────────────────────────────────────────

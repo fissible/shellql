@@ -181,7 +181,10 @@ case "$_SHQL_CLI_MODE" in
         # tty, data to stdout). Fall back to stderr (not /dev/null as TUI modes do) so
         # errors remain visible in CI and scripted contexts.
         SHQL_DB_PATH="$_SHQL_CLI_DB"
-        _err_tty=/dev/stderr; ( exec 9>/dev/tty ) 2>/dev/null && _err_tty=/dev/tty
+        _err_tty=/dev/stderr
+        # Route sqlite3 errors to /dev/tty only when stderr is a real terminal
+        # (i.e. not redirected by a test or pipeline capture).
+        [[ -t 2 ]] && ( exec 9>/dev/tty ) 2>/dev/null && _err_tty=/dev/tty
         _tsv=$(shql_db_query "$SHQL_DB_PATH" "$_SHQL_CLI_SQL" 2>"$_err_tty")
         _rc=$?
         if [ "$_rc" -ne 0 ]; then

@@ -103,6 +103,7 @@ shellframe_scroll_move() { true; }
 shellframe_editor_init()  { true; }
 shellframe_grid_on_key()  { return 1; }
 shellframe_shell_focus_set() { true; }
+shellframe_shell_mark_dirty() { true; }
 shellframe_editor_get_text() { printf -v "$2" '%s' "SELECT 1"; }
 shellframe_editor_on_key()   { return 1; }
 shellframe_sel_move()        { true; }

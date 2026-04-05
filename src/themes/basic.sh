@@ -44,6 +44,7 @@ SHQL_THEME_TAB_INACTIVE_BG=$'\033[100m\033[37m'       # dark gray bg + light gra
 
 # ── Footer / status bar ──────────────────────────────────────────────────────
 SHQL_THEME_FOOTER_BG=$'\033[44m\033[97m'              # match header — blue bg + bright white
+SHQL_THEME_FOOTER_HINT_COLOR=$'\033[97m'              # bright white — readable on blue bg
 
 # ── Tiles (welcome screen) ───────────────────────────────────────────────
 SHQL_THEME_TILE_BG=$'\033[48;5;236m'                  # neutral dark gray

@@ -1013,8 +1013,8 @@ _shql_TABLE_tabbar_on_mouse() {
         if (( _mcol >= _col && _mcol < _col + _lw )); then
             _hit_tab="$_i"
             break
-        elif (( _mcol == _close_x )); then
-            # Click on the "x" close button
+        elif (( _mcol >= _close_x && _mcol < _close_x + 2 )); then
+            # Click on the "x " close button (2-char target: "x" and trailing space)
             _hit_tab="$_i"
             _hit_close=1
             break

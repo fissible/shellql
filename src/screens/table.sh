@@ -2531,8 +2531,8 @@ _shql_TABLE_quitconfirm_render() {
     local _cbg="${SHQL_THEME_CONTENT_BG:-}"
     local _focus_color="${SHQL_THEME_QUERY_PANEL_COLOR:-}"
 
-    # Small centered dialog: 5 rows × 38 cols
-    local _dw=38 _dh=5
+    # Small centered dialog: 5 rows × 42 cols
+    local _dw=42 _dh=5
     (( _dw > _width  )) && _dw=$_width
     (( _dh > _height )) && _dh=$_height
     local _dt=$(( _top  + (_height - _dh) / 2 ))

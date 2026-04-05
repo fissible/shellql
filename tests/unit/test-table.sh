@@ -864,4 +864,43 @@ _shql_content_data_ensure
 _shql_TABLE_content_render 1 1 60 20
 assert_eq "1" "$SHELLFRAME_GRID_FOCUSED"
 
+# ── Tabbar mouse: close button hit detection ──────────────────────────────────
+#
+# Layout at 80 cols: sidebar_w=20, tabbar rleft=21
+# Tab "users": _label=" users " = 7 chars → 'x' at col 21+7=28, space at 29
+# Tab "categories": _label=" categories " = 12 chars → 'x' at col 21+12=33
+
+ptyunit_test_begin "tabbar_mouse: click at 'x' column (28) closes tab"
+shql_table_init_browser
+_shql_tab_open "users" "data"
+_shql_TABLE_tabbar_on_mouse 0 "press" 2 28 2 21 60 2
+assert_eq 0 "${#_SHQL_TABS_TYPE[@]}"
+
+ptyunit_test_begin "tabbar_mouse: click at space after 'x' (29) also closes tab"
+shql_table_init_browser
+_shql_tab_open "users" "data"
+_shql_TABLE_tabbar_on_mouse 0 "press" 2 29 2 21 60 2
+assert_eq 0 "${#_SHQL_TABS_TYPE[@]}"
+
+ptyunit_test_begin "tabbar_mouse: click at label body (col 25) activates but does not close"
+shql_table_init_browser
+_shql_tab_open "users" "data"
+_shql_TABLE_tabbar_on_mouse 0 "press" 2 25 2 21 60 2
+assert_eq 1 "${#_SHQL_TABS_TYPE[@]}"
+
+ptyunit_test_begin "tabbar_mouse: click on gap row (mrow=rtop+1) does not close tab"
+shql_table_init_browser
+_shql_tab_open "users" "data"
+_shql_TABLE_tabbar_on_mouse 0 "press" 3 28 2 21 60 2
+assert_eq 1 "${#_SHQL_TABS_TYPE[@]}"
+
+ptyunit_test_begin "tabbar_mouse: 'x' column for second tab (after separator) closes correct tab"
+shql_table_init_browser
+_shql_tab_open "users" "data"      # tab 0: label " users "  (7) → x at 21+7=28
+_shql_tab_open "orders" "data"     # tab 1: separator(1) + label " orders " (8) → x at 21+7+2+1+8=39
+# After open, tab 1 is active. Click 'x' of tab 1 (col 39)
+_shql_TABLE_tabbar_on_mouse 0 "press" 2 39 2 21 60 2
+assert_eq 1 "${#_SHQL_TABS_TYPE[@]}"
+assert_eq "users" "${_SHQL_TABS_TABLE[0]}"
+
 ptyunit_test_summary

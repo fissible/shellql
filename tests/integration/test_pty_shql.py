@@ -157,3 +157,65 @@ def test_query_flag_launches_query_tui():
             assert found, "Expected query TUI editor panel after --query flag"
     finally:
         os.unlink(script)
+
+
+def test_tab_close_button_click():
+    """Clicking the 'x' close button on a tab closes that tab.
+
+    This test is the definitive regression guard for the tab close button hit
+    detection.  It:
+      1. Opens the browser in mock mode (120×30 terminal).
+      2. Presses Enter to open the first table as a data tab.
+      3. Finds the actual rendered column of the 'x' button by scanning the
+         pyte screen — this is ground truth for where the button is drawn.
+      4. Sends an SGR mouse-press event at that exact column.
+      5. Asserts that the tab is gone (the label is no longer on the tabbar row).
+
+    If the test fails at step 4 it means the rendered 'x' position and the
+    hit-detection position diverge — a pure off-by-one in the source.
+    """
+    COLS = 120
+    ROWS = 30
+    # sidebar_w = min(30, max(15, COLS // 4)) = 30  →  tabbar starts at col 31 (1-based)
+    SIDEBAR_W = min(30, max(15, COLS // 4))
+
+    script = _make_launch_script(
+        extra_args='"/mock/test.db"',
+        env_overrides={"SHQL_MOCK": "1"},
+    )
+    try:
+        with PTYSession(script, cols=COLS, rows=ROWS, timeout=10.0, stable_window=0.5) as session:
+            # Open the first table by pressing Enter on the sidebar
+            session.send("ENTER")
+
+            # Tabbar is on pyte row 1 (0-indexed) = terminal row 2 (1-based)
+            TABBAR_PYTE_ROW = 1
+            tabbar_text = session.screen.row(TABBAR_PYTE_ROW)
+
+            # Sanity: a tab should be open — 'x' close button must be visible
+            tabbar_area = tabbar_text[SIDEBAR_W:]  # slice past the sidebar
+            assert "x" in tabbar_area, (
+                f"No 'x' close button found in tabbar row after opening tab.\n"
+                f"Tabbar row: {repr(tabbar_text)}"
+            )
+
+            # Find the pyte column (0-indexed) of the first 'x' in the tabbar area.
+            # pyte column → terminal column: add 1 (pyte is 0-indexed, terminal is 1-based)
+            x_pyte_col = SIDEBAR_W + tabbar_area.index("x")
+            x_term_col = x_pyte_col + 1
+            tabbar_term_row = TABBAR_PYTE_ROW + 1
+
+            # Send SGR mouse press: ESC [ < 0 ; col ; row M
+            session.send(f"\x1b[<0;{x_term_col};{tabbar_term_row}M")
+
+            # After the close the tabbar row should no longer show the tab label.
+            # The first mock table opened by Enter is "categories" (alphabetically first).
+            tabbar_after = session.screen.row(TABBAR_PYTE_ROW)
+            assert "categories" not in tabbar_after[SIDEBAR_W:], (
+                f"Tab label still present after clicking 'x' at terminal col {x_term_col}.\n"
+                f"Tabbar before: {repr(tabbar_text)}\n"
+                f"Tabbar after:  {repr(tabbar_after)}\n"
+                f"(x was at pyte col {x_pyte_col}, term col {x_term_col})"
+            )
+    finally:
+        os.unlink(script)

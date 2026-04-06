@@ -7,25 +7,26 @@ Browse schemas, query data, insert/edit/delete rows, sort, filter, and export
 
 ## Installation
 
+### Homebrew (recommended)
+
 ```bash
-# Homebrew (recommended)
 brew tap fissible/tap
 brew install shellql
 ```
 
+No additional setup needed — bash, shellframe, and all dependencies are bundled.
+
+### From source
+
+Requirements: bash 3.2+, sqlite3, and [shellframe](https://github.com/fissible/shellframe).
+
 ```bash
-# From source
 git clone https://github.com/fissible/shellql
 git clone https://github.com/fissible/shellframe  # sibling directory
 cd shellql
 bash bootstrap.sh   # installs ptyunit (test runner) via Homebrew
+SHELLFRAME_DIR=../shellframe bash bin/shql my.db
 ```
-
-### Requirements
-
-- bash 3.2+ (macOS compatible)
-- sqlite3
-- [shellframe](https://github.com/fissible/shellframe) (sibling checkout or `SHELLFRAME_DIR`)
 
 ## Usage
 

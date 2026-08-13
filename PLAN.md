@@ -440,4 +440,15 @@ All tests pass: 765/765 (703 unit + 62 integration/python).
 
 Git commit: `d7314d2` `fix(cli): align non-TUI formatter and porcelain output with x1f db separator`
 
-**Next:** Continue visual review on default Terminal; candidates include 80-column responsive layout and context-menu wiring (shellql#31).
+Found and fixed a TUI tab-bar regression on the same review:
+
+- `src/screens/table.sh` — eliminated the 1-row overlap between `tabbar` and `content` regions. The tabbar is now 1 row; content starts immediately below it; the gap row with "New Row" / "+ Filter" is the first content row. Grid rendering and overlays (WHERE, DML, inspector) shifted down by 1 row; scrollbar/dark-surface accounting updated accordingly.
+- `src/screens/table.sh` — moved gap-row mouse handling (New Row / + Filter / filter pills) from `tabbar_on_mouse` to `content_on_mouse` because the gap row now belongs to the content region.
+- `tests/unit/test-table.sh` — updated unit-test layout coordinates and added stubs for framebuffer helpers and `_shql_inspector_open` / DML open helpers to remove stderr noise.
+- `tests/integration/test_pty_shql.py` — added `test_multiple_data_tabs_render` PTY regression test verifying that opening multiple data tabs keeps both labels visible in the tabbar.
+
+All tests pass: 766/766 (704 unit + 62 integration/python).
+
+Git commits: `d7314d2` (formatter fix), TUI layout fix pending.
+
+**Next:** If visual review is clean, cut v1.2.4 patch release.

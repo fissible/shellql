@@ -219,3 +219,34 @@ def test_tab_close_button_click():
             )
     finally:
         os.unlink(script)
+
+
+def test_multiple_data_tabs_render():
+    """Opening multiple tables from the sidebar keeps all tab labels visible.
+
+    Regression test for the bug where the tabbar region overlapped the content
+    region, causing new tabs to appear hidden or occluded by the gap row.
+    """
+    COLS = 120
+    ROWS = 30
+    SIDEBAR_W = min(30, max(15, COLS // 4))
+
+    script = _make_launch_script(
+        extra_args='"/mock/test.db"',
+        env_overrides={"SHQL_MOCK": "1"},
+    )
+    try:
+        with PTYSession(script, cols=COLS, rows=ROWS, timeout=10.0, stable_window=0.5) as session:
+            # Open first table (categories), then switch to sidebar, open second (orders).
+            session.send("ENTER")
+            session.send("TAB")    # content → sidebar
+            session.send("DOWN")   # move to next table
+            session.send("ENTER")  # open second data tab
+
+            tabbar_text = session.screen.row(1)[SIDEBAR_W:]
+            assert "categories" in tabbar_text and "orders" in tabbar_text, (
+                f"Expected both 'categories' and 'orders' tabs in tabbar row.\n"
+                f"Tabbar row: {repr(tabbar_text)}"
+            )
+    finally:
+        os.unlink(script)

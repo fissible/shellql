@@ -426,6 +426,18 @@ Completed this session:
 
 **shellframe** bumped to v0.5.0 (stripe bleed fix, `-ixon` raw mode, global Ctrl+Q).
 
-**Next:** No open v1.x issues tracked. Candidates for v1.2:
-- 80-column responsive layout (noted as v1.1 candidate but not implemented — only a warning was added)
-- shellql#31 (enrich context menus) — all DML/DDL actions now exist, menus not yet wired
+---
+
+**Session handoff — 2026-08-13**
+
+Reviewed ShellQL on default macOS Terminal; found and fixed a non-TUI output bug:
+
+- `src/cli.sh` — `shql_cli_format_table` now splits on `` (ASCII Unit Separator), matching `shql_db_query` / `shql_db_fetch` output. Previously it split on tabs, so box-table output rendered raw `^_` characters and mis-sized columns on any terminal.
+- `bin/shql` — porcelain (`--porcelain`) output now converts `` to true tab characters so it is valid TSV as documented.
+- `tests/unit/test-cli.sh` — formatter unit tests updated to use `` separators.
+
+All tests pass: 765/765 (703 unit + 62 integration/python).
+
+Git commit: `d7314d2` `fix(cli): align non-TUI formatter and porcelain output with x1f db separator`
+
+**Next:** Continue visual review on default Terminal; candidates include 80-column responsive layout and context-menu wiring (shellql#31).

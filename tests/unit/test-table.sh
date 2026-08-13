@@ -40,11 +40,15 @@ shellframe_fb_put()      { true; }
 shellframe_fb_print()    { true; }
 shellframe_toast_render() { true; }
 shellframe_scrollbar_render() { return 1; }
+shellframe_grid_render() { true; }
 # Screen helpers that may be reached by direct handler calls in tests
 _shql_inspector_open()   { true; }
 _shql_dml_insert_open()  { true; }
 _shql_dml_update_open()  { true; }
 _shql_dml_delete_open()  { true; }
+_shql_where_render()     { true; }
+_shql_dml_render()       { true; }
+_shql_inspector_render() { true; }
 SHELLFRAME_CMENU_ITEMS=()
 SHELLFRAME_CMENU_ANCHOR_ROW=1
 SHELLFRAME_CMENU_ANCHOR_COL=1
@@ -818,8 +822,8 @@ shql_browser_init
 _shql_tab_open "users" "data"
 _SHQL_HEADER_FOCUSED=0
 SHELLFRAME_GRID_HEADERS=(id name email phone)
-# Layout: _rtop=4 is the gap row; grid header is at _rtop+1=5.
-_shql_TABLE_content_on_mouse 0 "press" 5 30 4 21 59 20
+# Layout: _rtop=4 is the grid header row.
+_shql_TABLE_content_on_mouse 0 "press" 4 30 4 21 59 20
 assert_eq "1" "$_SHQL_HEADER_FOCUSED"
 assert_eq "2" "$_SHQL_HEADER_FOCUSED_COL"
 assert_eq "email" "$_toggle_called_col"
@@ -831,8 +835,8 @@ shql_browser_init
 _shql_tab_open "users" "data"
 _SHQL_HEADER_FOCUSED=1
 _SHQL_HEADER_FOCUSED_COL=2
-# Layout: _rtop=4 gap; header=5; separator=6; first data row=7.
-_shql_TABLE_content_on_mouse 0 "press" 7 30 4 21 59 20
+# Layout: _rtop=4 header; separator=5; first data row=6.
+_shql_TABLE_content_on_mouse 0 "press" 6 30 4 21 59 20
 assert_eq "0" "$_SHQL_HEADER_FOCUSED"
 
 # ── content_on_focus: syncs _SHQL_TABLE_BODY_FOCUSED ─────────────────────────
@@ -898,14 +902,6 @@ ptyunit_test_begin "tabbar_mouse: click at label body (col 25) activates but doe
 shql_table_init_browser
 _shql_tab_open "users" "data"
 _shql_TABLE_tabbar_on_mouse 0 "press" 2 25 2 21 60 2
-assert_eq 1 "${#_SHQL_TABS_TYPE[@]}"
-
-ptyunit_test_begin "tabbar_mouse: click on gap row (mrow=rtop+1) does not close tab"
-shql_table_init_browser
-_shql_tab_open "users" "data"
-# With the new single-row tabbar, the gap row is no longer inside the tabbar region.
-# Clicking the gap row should be handled by content_on_mouse, not tabbar_on_mouse.
-_shql_TABLE_content_on_mouse 0 "press" 3 28 2 21 60 2
 assert_eq 1 "${#_SHQL_TABS_TYPE[@]}"
 
 ptyunit_test_begin "tabbar_mouse: 'x' column for second tab (after separator) closes correct tab"

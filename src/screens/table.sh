@@ -1415,22 +1415,7 @@ _shql_TABLE_content_render() {
         data)
             # Load data for this tab's table if not already loaded
             _shql_content_data_ensure
-            # Gap row: "New Row" (left) | active-filter pill (centre) | "+ Filter" (right)
-            local _inv="${SHELLFRAME_REVERSE:-}"
-            local _itab_style="${SHQL_THEME_TAB_INACTIVE_BG:-${SHQL_THEME_TABBAR_BG:-$_inv}}"
             local _ctx_active="${_SHQL_TABS_CTX[$_SHQL_TAB_ACTIVE]:-}"
-            local _nr_label=" New Row "
-            shellframe_fb_print "$_top" "$_left" "$_nr_label" "$_itab_style"
-            local _filter_label=" + Filter "
-            shellframe_fb_print "$_top" \
-                "$(( _left + _width - ${#_filter_label} ))" \
-                "$_filter_label" "$_itab_style"
-            # Filter pills between the two buttons
-            local _pill_focus="${SHQL_THEME_QUERY_PANEL_COLOR:-}"
-            local _pills_left=$(( _left + ${#_nr_label} ))
-            local _pills_right=$(( _left + _width - ${#_filter_label} ))
-            _shql_where_pills_render "$_ctx_active" "$_top" \
-                "$_pills_left" "$_pills_right" "$_itab_style" "$_pill_focus"
             if (( ${_SHQL_WHERE_ACTIVE:-0} )); then
                 # Render full grid (unfocused) so the table is visible behind the overlay
                 SHELLFRAME_GRID_CTX="${_SHQL_TABS_CTX[$_SHQL_TAB_ACTIVE]}_grid"
@@ -1445,7 +1430,7 @@ _shql_TABLE_content_render() {
                     _wgrid_w=$(( _width - 1 ))
                 fi
                 _shql_grid_fill_width "$_wgrid_w"
-                shellframe_grid_render "$(( _top + 1 ))" "$_left" "$_wgrid_w" "$_height"
+                shellframe_grid_render "$_top" "$_left" "$_wgrid_w" "$_height"
                 _shql_grid_restore_last
                 # Overlay the WHERE panel on top of the grid
                 _shql_where_render "$_top" "$_left" "$_width" "$_height"
@@ -1459,10 +1444,10 @@ _shql_TABLE_content_render() {
                 SHELLFRAME_GRID_HEADER_BG="${SHQL_THEME_GRID_HEADER_BG:-}"
                 SHELLFRAME_GRID_CURSOR_STYLE=""
                 _shql_grid_fill_width "$_width"
-                shellframe_grid_render "$(( _top + 1 ))" "$_left" "$_width" 3
+                shellframe_grid_render "$_top" "$_left" "$_width" 3
                 _shql_grid_restore_last
-                local _dml_top=$(( _top + 4 ))
-                local _dml_h=$(( _height - 4 ))
+                local _dml_top=$(( _top + 3 ))
+                local _dml_h=$(( _height - 3 ))
                 (( _dml_h < 3 )) && _dml_h=3
                 _shql_dml_render "$_dml_top" "$_left" "$_width" "$_dml_h"
             elif (( _SHQL_INSPECTOR_ACTIVE )); then
@@ -1476,11 +1461,11 @@ _shql_TABLE_content_render() {
                 SHELLFRAME_GRID_CURSOR_STYLE=""
                 _shql_grid_fill_width "$_width"
                 # Render 3 rows: header label + separator + 1 data row
-                shellframe_grid_render "$(( _top + 1 ))" "$_left" "$_width" 3
+                shellframe_grid_render "$_top" "$_left" "$_width" 3
                 _shql_grid_restore_last
                 # Inspector starts below the header
-                local _insp_top=$(( _top + 4 ))
-                local _insp_h=$(( _height - 4 ))
+                local _insp_top=$(( _top + 3 ))
+                local _insp_h=$(( _height - 3 ))
                 (( _insp_h < 3 )) && _insp_h=3
                 _shql_inspector_render "$_insp_top" "$_left" "$_width" "$_insp_h"
             else
@@ -1505,14 +1490,14 @@ _shql_TABLE_content_render() {
                 fi
 
                 _shql_grid_fill_width "$_grid_w"
-                shellframe_grid_render "$(( _top + 1 ))" "$_left" "$_grid_w" "$_height"
+                shellframe_grid_render "$_top" "$_left" "$_grid_w" "$_height"
                 _shql_grid_restore_last
                 # Sort indicators + header focus highlight (overlaid on header row)
-                _shql_sort_overlay_headers "$(( _top + 1 ))" "$_left" "$_grid_w" "$_ctx_active"
-                # Scrollbar in rightmost column (data rows start 3 below _top: gap + headers + hint)
+                _shql_sort_overlay_headers "$_top" "$_left" "$_grid_w" "$_ctx_active"
+                # Scrollbar in rightmost column (data rows start 2 below _top: headers + hint)
                 if (( _sb_col > 0 )); then
-                    local _sb_top=$(( _top + 3 ))
-                    local _sb_h=$(( _height - 3 ))
+                    local _sb_top=$(( _top + 2 ))
+                    local _sb_h=$(( _height - 2 ))
                     SHELLFRAME_SCROLLBAR_STYLE="${SHQL_THEME_CONTENT_BG:-}${SHELLFRAME_GRAY:-$'\033[2m'}"
                     SHELLFRAME_SCROLLBAR_THUMB_STYLE="${SHQL_THEME_CONTENT_BG:-}"
                     if ! shellframe_scrollbar_render "${SHELLFRAME_GRID_CTX:-grid}" \
@@ -1523,11 +1508,11 @@ _shql_TABLE_content_render() {
                         done
                     fi
                     # Header rows in scrollbar column
-                    shellframe_fb_put "$(( _top + 1 ))" "$_sb_col" "${SHQL_THEME_GRID_HEADER_BG:-} "
-                    shellframe_fb_put "$(( _top + 2 ))" "$_sb_col" "${SHQL_THEME_CONTENT_BG:-} "
+                    shellframe_fb_put "$_top"           "$_sb_col" "${SHQL_THEME_GRID_HEADER_BG:-} "
+                    shellframe_fb_put "$(( _top + 1 ))" "$_sb_col" "${SHQL_THEME_CONTENT_BG:-} "
                 fi
                 # Dark surface below last data row
-                local _data_end=$(( _top + 3 + SHELLFRAME_GRID_ROWS ))
+                local _data_end=$(( _top + 2 + SHELLFRAME_GRID_ROWS ))
                 local _surface_bg="${SHQL_THEME_EDITOR_FOCUSED_BG:-${SHQL_THEME_CONTENT_BG:-}}"
                 if [[ -n "$_surface_bg" ]] && (( _data_end < _top + _height )); then
                     local _gray="${SHELLFRAME_GRAY:-}"
@@ -1869,7 +1854,7 @@ _shql_TABLE_content_on_mouse() {
             fi
 
             # Click on header row → toggle sort for that column + enter header focus
-            if (( _mrow == _rtop + 1 && _button == 0 )) && [[ "$_action" == "press" ]]; then
+            if (( _mrow == _rtop && _button == 0 )) && [[ "$_action" == "press" ]]; then
                 _shql_sort_col_at_x "$_ctx" "$_mcol" "$_rleft" "$_rwidth"
                 local _hit_col="$_SHQL_SORT_RESULT_IDX"
                 if (( _hit_col >= 0 )); then
@@ -1885,84 +1870,7 @@ _shql_TABLE_content_on_mouse() {
                 return 0
             fi
             # Swallow release on header row (paired with the press above)
-            if (( _mrow == _rtop + 1 )); then
-                return 0
-            fi
-
-            # Gap row (row _rtop) — "New Row" / "+ Filter" / filter-pill clicks
             if (( _mrow == _rtop )); then
-                local _gap_type="${_SHQL_TABS_TYPE[$_SHQL_TAB_ACTIVE]:-}"
-                local _gap_table="${_SHQL_TABS_TABLE[$_SHQL_TAB_ACTIVE]:-}"
-                local _gap_ctx="${_SHQL_TABS_CTX[$_SHQL_TAB_ACTIVE]:-}"
-                if [[ "$_gap_type" == "data" && -n "$_gap_table" ]]; then
-                    # "New Row" button (left-aligned)
-                    local _nr_label=" New Row "
-                    if (( _mcol >= _rleft && _mcol < _rleft + ${#_nr_label} )); then
-                        _shql_dml_insert_open "$_gap_table"
-                        shellframe_shell_focus_set "content"
-                        shellframe_shell_mark_dirty
-                        return 0
-                    fi
-                    # "+ Filter" button (right-aligned) → always opens a new filter form
-                    local _filter_label=" + Filter "
-                    local _filter_right=$(( _rleft + _rwidth ))
-                    local _filter_left=$(( _filter_right - ${#_filter_label} ))
-                    if (( _mcol >= _filter_left && _mcol < _filter_right )); then
-                        if (( ! ${_SHQL_WHERE_ACTIVE:-0} )); then
-                            _shql_where_open "$_gap_table" "$_gap_ctx" -1
-                        fi
-                        shellframe_shell_focus_set "content"
-                        shellframe_shell_mark_dirty
-                        return 0
-                    fi
-                    # Filter pills area (between New Row and + Filter)
-                    local _pills_area_left=$(( _rleft + ${#_nr_label} ))
-                    local _pills_area_right=$(( _filter_left ))
-                    if (( _mcol >= _pills_area_left && _mcol < _pills_area_right )); then
-                        _shql_where_pills_layout "$_gap_ctx" "$_pills_area_left" "$_pills_area_right"
-                        # [<] scroll-left — reveal older pills (increment scroll)
-                        if (( _SHQL_PILL_LAYOUT_HAS_PREV && \
-                              _mcol >= _SHQL_PILL_LAYOUT_PREV_COL && \
-                              _mcol < _SHQL_PILL_LAYOUT_PREV_COL + 3 )); then
-                            local _sv="_SHQL_WHERE_PILL_SCROLL_${_gap_ctx}"
-                            local _sv_val=$(( ${!_sv:-0} + 1 ))
-                            printf -v "$_sv" '%d' "$_sv_val"
-                            shellframe_shell_mark_dirty
-                            return 0
-                        fi
-                        # [>] scroll-right — reveal newer pills (decrement scroll)
-                        if (( _SHQL_PILL_LAYOUT_HAS_NEXT && \
-                              _mcol >= _SHQL_PILL_LAYOUT_NEXT_COL && \
-                              _mcol < _SHQL_PILL_LAYOUT_NEXT_COL + 3 )); then
-                            local _sv="_SHQL_WHERE_PILL_SCROLL_${_gap_ctx}"
-                            local _sv_val=$(( ${!_sv:-0} - 1 ))
-                            (( _sv_val < 0 )) && _sv_val=0
-                            printf -v "$_sv" '%d' "$_sv_val"
-                            shellframe_shell_mark_dirty
-                            return 0
-                        fi
-                        # Pill body / close clicks
-                        local _pj
-                        for (( _pj=0; _pj<_SHQL_PILL_LAYOUT_N; _pj++ )); do
-                            local _pjidx_v="_SHQL_PILL_LAYOUT_IDX_${_pj}"
-                            local _pjcol_v="_SHQL_PILL_LAYOUT_COL_${_pj}"
-                            local _pjw_v="_SHQL_PILL_LAYOUT_W_${_pj}"
-                            local _pjidx="${!_pjidx_v}" _pjcol="${!_pjcol_v}" _pjw="${!_pjw_v}"
-                            if (( _mcol >= _pjcol && _mcol < _pjcol + _pjw )); then
-                                if (( _mcol >= _pjcol + _pjw - 3 )); then
-                                    # Click on " x)" → remove this filter
-                                    _shql_where_clear_one "$_gap_ctx" "$_pjidx"
-                                else
-                                    # Click on body → edit this filter
-                                    _shql_where_open "$_gap_table" "$_gap_ctx" "$_pjidx"
-                                    shellframe_shell_focus_set "content"
-                                fi
-                                shellframe_shell_mark_dirty
-                                return 0
-                            fi
-                        done
-                    fi
-                fi
                 return 0
             fi
 
@@ -1976,7 +1884,7 @@ _shql_TABLE_content_on_mouse() {
             shellframe_sel_cursor "${_ctx}_grid" _prev_cursor 2>/dev/null || true
 
             shellframe_grid_on_mouse "$_button" "$_action" "$_mrow" "$_mcol" \
-                "$(( _rtop + 1 ))" "$_rleft" "$_rwidth" "$_rheight"
+                "$_rtop" "$_rleft" "$_rwidth" "$_rheight"
             local _rc=$?
 
             # Click on already-selected data row → open inspector
@@ -2482,6 +2390,20 @@ _shql_TABLE_footer_render() {
                 (( _last > _nrows )) && _last=$_nrows
                 local _row_info
                 printf -v _row_info 'Rows %d–%d of %d' "$_first" "$_last" "$_nrows"
+                # Append active filter count when filters are applied to this tab
+                if (( _SHQL_TAB_ACTIVE >= 0 )); then
+                    local _fc_ctx="${_SHQL_TABS_CTX[$_SHQL_TAB_ACTIVE]:-}"
+                    local _fc=0
+                    if [[ -n "$_fc_ctx" ]]; then
+                        _shql_where_filter_count "$_fc_ctx"
+                        _fc="$_SHQL_WHERE_RESULT_COUNT"
+                    fi
+                    if (( _fc > 0 )); then
+                        local _fc_label
+                        (( _fc == 1 )) && _fc_label="1 filter" || _fc_label="$_fc filters"
+                        _row_info="${_row_info} · ${_fc_label}"
+                    fi
+                fi
                 local _ri_len=${#_row_info}
                 local _ri_col=$(( _content_left + (_content_w - _ri_len) / 2 ))
                 (( _ri_col < _content_left )) && _ri_col=$_content_left

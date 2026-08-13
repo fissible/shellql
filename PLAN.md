@@ -442,13 +442,14 @@ Git commit: `d7314d2` `fix(cli): align non-TUI formatter and porcelain output wi
 
 Found and fixed a TUI tab-bar regression on the same review:
 
-- `src/screens/table.sh` — eliminated the 1-row overlap between `tabbar` and `content` regions. The tabbar is now 1 row; content starts immediately below it; the gap row with "New Row" / "+ Filter" is the first content row. Grid rendering and overlays (WHERE, DML, inspector) shifted down by 1 row; scrollbar/dark-surface accounting updated accordingly.
-- `src/screens/table.sh` — moved gap-row mouse handling (New Row / + Filter / filter pills) from `tabbar_on_mouse` to `content_on_mouse` because the gap row now belongs to the content region.
-- `tests/unit/test-table.sh` — updated unit-test layout coordinates and added stubs for framebuffer helpers and `_shql_inspector_open` / DML open helpers to remove stderr noise.
-- `tests/integration/test_pty_shql.py` — added `test_multiple_data_tabs_render` PTY regression test verifying that opening multiple data tabs keeps both labels visible in the tabbar.
+- `src/screens/table.sh` — eliminated the 1-row overlap between `tabbar` and `content` regions. The tabbar is now 1 row; content starts immediately below it.
+- Removed the gap row entirely so the data grid now renders directly under the tab bar (tabbed-folder look). The "New Row" and "+ Filter" buttons were redundant — the same actions are available via `[i] Insert` / `[f] Filter` footer keys and the right-click context menu.
+- Shifted grid rendering and overlays (WHERE, DML, inspector) back up by 1 row; reverted scrollbar/dark-surface accounting.
+- Added an active-filter count indicator to the centered footer status row (`Rows X–Y of Z · N filters`) to replace the lost filter pills.
+- Updated unit-test layout coordinates and stubs; removed the obsolete gap-row tabbar test.
 
-All tests pass: 766/766 (704 unit + 62 integration/python).
+All tests pass: 765/765 (703 unit + 62 integration/python).
 
-Git commits: `d7314d2` (formatter fix), TUI layout fix pending.
+Git commits: `d7314d2` (formatter fix), TUI layout fixes pending.
 
-**Next:** If visual review is clean, cut v1.2.4 patch release.
+**Next:** If visual review is clean, cut v1.2.5 patch release.

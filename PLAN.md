@@ -450,6 +450,8 @@ Found and fixed a TUI tab-bar regression on the same review:
 
 All tests pass: 765/765 (703 unit + 62 integration/python).
 
-Git commits: `d7314d2` (formatter fix), TUI layout fixes pending.
+Git commits: `d7314d2` (formatter fix), `66aca64` (region overlap), `9517ca1` (gap-row removal), `0d76d85` (release v1.2.5).
 
-**Next:** If visual review is clean, cut v1.2.5 patch release.
+**v1.2.5 released** — pushed to origin; tag `v1.2.5` created; GitHub Release will be created by CI.
+
+**Next:** Verify CI builds the Homebrew bottle and updates `homebrew-tap/Formula/shellql.rb`; if not, that tap update is manual per fissible/.github README.

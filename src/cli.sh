@@ -236,9 +236,9 @@ shql_cli_format_table() {
         fi
     done <<< "$_tsv"
 
-    # Parse header into column array (tab-delimited)
+    # Parse header into column array (db.sh uses ASCII Unit Separator \x1f)
     local _headers=() _IFS_SAVE="$IFS"
-    IFS=$'\t' read -ra _headers <<< "$_header"
+    IFS=$'\x1f' read -ra _headers <<< "$_header"
     IFS="$_IFS_SAVE"
     local _ncols=${#_headers[@]}
 
@@ -252,7 +252,7 @@ shql_cli_format_table() {
     local _row _cells=() _cell _clen
     for _row in "${_rows[@]+"${_rows[@]}"}"; do
         _cells=()
-        IFS=$'\t' read -ra _cells <<< "$_row"
+        IFS=$'\x1f' read -ra _cells <<< "$_row"
         IFS="$_IFS_SAVE"
         for (( _i = 0; _i < _ncols; _i++ )); do
             _cell="${_cells[$_i]:-}"
@@ -290,7 +290,7 @@ shql_cli_format_table() {
     # Print data rows
     for _row in "${_rows[@]+"${_rows[@]}"}"; do
         _cells=()
-        IFS=$'\t' read -ra _cells <<< "$_row"
+        IFS=$'\x1f' read -ra _cells <<< "$_row"
         IFS="$_IFS_SAVE"
         _row_str="|"
         for (( _i = 0; _i < _ncols; _i++ )); do

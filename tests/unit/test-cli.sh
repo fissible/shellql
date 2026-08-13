@@ -175,20 +175,20 @@ end_describe  # cli parse
 
 describe "cli format"
 
-test_that "basic box: 2 columns, 2 rows"
-_tsv="$(printf 'id\tname\n1\tAlice\n2\tBob')"
+test_that "basic box: 2 columns, 2 rows (unit separator)"
+_tsv="$(printf 'id\x1fname\n1\x1fAlice\n2\x1fBob')"
 _expected="$(printf '+----+-------+\n| id | name  |\n+----+-------+\n| 1  | Alice |\n| 2  | Bob   |\n+----+-------+')"
 _actual="$(shql_cli_format_table "$_tsv")"
 assert_eq "$_expected" "$_actual"
 
 test_that "column width driven by data wider than header"
-_tsv="$(printf 'id\n1000000')"
-_expected="$(printf '+---------+\n| id      |\n+---------+\n| 1000000 |\n+---------+')"
+_tsv="$(printf 'id\x1fX\n1000000\x1fX')"
+_expected="$(printf '+---------+---+\n| id      | X |\n+---------+---+\n| 1000000 | X |\n+---------+---+')"
 _actual="$(shql_cli_format_table "$_tsv")"
 assert_eq "$_expected" "$_actual"
 
 test_that "header-only input produces double separator"
-_tsv="$(printf 'id\tname\temail')"
+_tsv="$(printf 'id\x1fname\x1femail')"
 _expected="$(printf '+----+------+-------+\n| id | name | email |\n+----+------+-------+\n+----+------+-------+')"
 _actual="$(shql_cli_format_table "$_tsv")"
 assert_eq "$_expected" "$_actual"
@@ -200,8 +200,8 @@ _actual="$(shql_cli_format_table "$_tsv")"
 assert_eq "$_expected" "$_actual"
 
 test_that "empty cell renders as spaces filling column width"
-_tsv=$'name\n'
-_expected="$(printf '+------+\n| name |\n+------+\n|      |\n+------+')"
+_tsv=$'name\x1fplaceholder\n'
+_expected="$(printf '+------+-------------+\n| name | placeholder |\n+------+-------------+\n|      |             |\n+------+-------------+')"
 _actual="$(shql_cli_format_table "$_tsv")"
 assert_eq "$_expected" "$_actual"
 

@@ -192,7 +192,8 @@ case "$_SHQL_CLI_MODE" in
         fi
         shql_conn_push "sqlite" "$SHQL_DB_PATH"
         if (( ${_SHQL_CLI_PORCELAIN:-0} )); then
-            printf '%s\n' "$_tsv"
+            # db.sh emits ASCII Unit Separator (\x1f); porcelain contract is TSV
+            printf '%s\n' "$_tsv" | tr $'\x1f' $'\t'
         else
             shql_cli_format_table "$_tsv"
         fi
